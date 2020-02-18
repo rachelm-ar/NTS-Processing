@@ -409,14 +409,46 @@ audit_area_type <- nts_df %>%
   group_by(HHoldAreaType1_B01ID) %>%
   count()
 
+# Convert SOC Types
+nts_df <- nts_df %>%
+  mutate(XSOC2000_B02ID = case_when(
+    XSOC2000_B02ID == 1 ~ '1', # 1	Managers and senior officials
+    XSOC2000_B02ID == 2 ~ '1', # 2	Professional occupations
+    XSOC2000_B02ID == 3 ~ '2', # 3	Associate professional and technical occupations
+    XSOC2000_B02ID == 4 ~ '2', # 4	Administrative and secretarial occupations
+    XSOC2000_B02ID == 5 ~ '2', # 5	Skilled trades occupations
+    XSOC2000_B02ID == 6 ~ '3', # 6	Personal service occupations
+    XSOC2000_B02ID == 7 ~ '3', # 7	Sales and customer service occupations
+    XSOC2000_B02ID == 8 ~ '3', # 8	Process, plant and machine operatives
+    XSOC2000_B02ID == 9 ~ '3', # 9	Elementary occupations
+    TRUE ~ as.character(XSOC2000_B02ID)
+  ))
+
+
+# Also mit
+# -8	10	2	NA
+# -9	11	2	DNA
+
+# NS-Sec is already in the right categories
+# Proof that there's only 1 NS-Sec in a given household
+ns_sec_is_household <- nts_df %>%
+  select(HouseholdID, NSSec_B03ID) %>%
+  distinct() %>%
+  group_by(HouseholdID, NSSec_B03ID) %>%
+  count() %>%
+  filter(n == max(n))
+
 # Clean up to NTEM style variable names
-nts_ntem_df <- nts_df %>%
+
+nts_df <- nts_df %>%
   rename(age = Age_B01ID,
          gender = Sex_B01ID,
          household = HHoldNumAdults,
          cars = NumCarVan_B02ID,
          employment = EcoStat_B01ID,
-         area_type = HHoldAreaType1_B01ID)
+         area_type = HHoldAreaType1_B01ID,
+         soc_cat = XSOC2000_B02ID,
+         ns_sec = NSSec_B03ID)
 
 # Build NTEM dataframe
 traveller_type <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
@@ -470,7 +502,7 @@ employment <- c('non_wa','non_wa','non_wa','non_wa','non_wa','non_wa','non_wa','
 ntem_tt <- tibble(traveller_type, age, gender, household, cars, household_composition, employment)
 
 # Join NTEM segments - 
-nts_ntem_df <- nts_ntem_df %>%
+nts_ntem_df <- nts_df %>%
   left_join(ntem_tt)
 
 # Export processed data for analysis
