@@ -108,8 +108,11 @@ ntem_trip_cols = c('PSUID',
                    'IndividualID',
                    'TripID',
                    'TravDay',
+                   'MainMode_B04ID',
                    'TripPurpFrom_B01ID',
                    'TripPurpTo_B01ID',
+                   'TripStart_B01ID', # 51 bands of trip start time
+                   'TripEnd_B01ID',
                    'TripDisIncSW',
                    'TripTravTime',
                    'W5',
@@ -151,7 +154,7 @@ trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 4000000) %>%
 
 nts_df <- psu_df %>%
   left_join(household_df, by = 'PSUID') %>%
-  filter(!is.na(HouseholdID)) # Lots of NULL due to the household competitiveness - REMOVE THEM!
+  filter(!is.na(HouseholdID)) # Lots of NULL due to the household competitiveness - remove.
 
 nts_df <- nts_df %>%
   left_join(individual_df, by = c('PSUID', 'HouseholdID'))
@@ -165,7 +168,7 @@ nts_df <- nts_df %>%
 
 # Traveller Types
 
-# First, we convert Age_B01ID using the following dictionary
+# Convert Age_B01ID to NTEM types
 
 nts_df <- nts_df %>%
   mutate(Age_B01ID = case_when(
@@ -197,7 +200,7 @@ audit_age <- nts_df %>%
   group_by(Age_B01ID) %>%
   count()
 
-# We now convert 'Sex_B01ID' using the following dictionary:
+# We now Convert 'Sex_B01ID' to gender types
 nts_df <- nts_df %>%
   mutate(Sex_B01ID = case_when(
     Sex_B01ID == 1 ~ 'Male',
@@ -209,7 +212,7 @@ audit_sex <- nts_df %>%
   group_by(Sex_B01ID) %>%
   count()
 
-# Children are genderless in NTEM
+# NB children are genderless in NTEM
 nts_df <- nts_df %>%
   mutate(Sex_B01ID = case_when(
     Age_B01ID == 'under 16' ~ 'Children',
@@ -220,7 +223,7 @@ audit_sex <- nts_df %>%
   group_by(Sex_B01ID) %>%
   count()
 
-# We convert ''HHoldNumAdults' using the following dictionary:
+# We convert ''HHoldNumAdults' to NTEM household occupancy
 nts_df <- nts_df %>%
   mutate(HHoldNumAdults = case_when(
     HHoldNumAdults == 1 ~ '1 Adult',
@@ -233,7 +236,7 @@ audit_adults <- nts_df %>%
   group_by(HHoldNumAdults) %>%
   count()
 
-# We convert employment types using the following dictionary
+# We convert EcoStat_B01ID to NTEM employment types
 nts_df <- nts_df %>%
   mutate(EcoStat_B01ID = case_when(
     EcoStat_B01ID == 1 ~ 'fte',
@@ -383,7 +386,56 @@ audit_purpose <- nts_df %>%
   group_by(trip_purpose) %>%
   count()
 
-# Convert Area Types
+# Set time period params
+am_peak <- c(8,9,10)
+inter_peak <- c(11,12,13,14,15,16)
+pm_peak <- c(17,18,19)
+off_peak <- c(1,2,3,4,5,6,7,20,21,22,23,24)
+
+# Convert start time TripStart_B01ID to NTEM time period
+nts_df <- nts_df %>%
+  mutate(TripStart_B01ID = case_when(
+    TravDay == 6 ~ '5',
+    TravDay == 7 ~ '6',
+    TripStart_B01ID %in% am_peak ~ '1',
+    TripStart_B01ID %in% inter_peak ~ '2',
+    TripStart_B01ID %in% pm_peak ~ '3',
+    TripStart_B01ID %in% off_peak ~ '4',
+    TRUE ~ as.character(TripStart_B01ID)
+  ))
+
+# Convert end time TripEnd_B01ID to NTEM time period
+nts_df <- nts_df %>%
+  mutate(TripEnd_B01ID = case_when(
+    TravDay == 6 ~ '5',
+    TravDay == 7 ~ '6',
+    TripEnd_B01ID %in% am_peak ~ '1',
+    TripEnd_B01ID %in% inter_peak ~ '2',
+    TripEnd_B01ID %in% pm_peak ~ '3',
+    TripEnd_B01ID %in% off_peak ~ '4',
+    TRUE ~ as.character(TripEnd_B01ID)
+  ))
+
+# Classify MainMode_B04ID into NTEM modes w/ Car aggregation
+nts_df <- nts_df %>%
+  mutate(MainMode_B04ID = case_when(
+    MainMode_B04ID == 1 ~ '1', # Walk
+    MainMode_B04ID == 2 ~ '2', # Bicycle
+    MainMode_B04ID == 3 ~ '3', # Car/van driver
+    MainMode_B04ID == 4 ~ '3', # Car/van passenger
+    MainMode_B04ID == 5 ~ '3', # Motorcycle
+    MainMode_B04ID == 6 ~ '3', # Other private transport
+    MainMode_B04ID == 7 ~ '5', # Bus in London
+    MainMode_B04ID == 8 ~ '5', # Other local bus
+    MainMode_B04ID == 9 ~ '5', # Non-local bus
+    MainMode_B04ID == 10 ~ '99', # London Underground - leave for now
+    MainMode_B04ID == 11 ~ '6', # Surface rail
+    MainMode_B04ID == 12 ~ '3', # Taxi/minicab ie. a car
+    MainMode_B04ID == 13 ~ '5', # Other public transport ie. small bus or light rail.
+    TRUE ~ as.character(MainMode_B04ID)
+  ))
+
+# Convert HHoldAreaType1_B01ID to Area Types
 nts_df <- nts_df %>%
   mutate(HHoldAreaType1_B01ID = case_when(
     HHoldAreaType1_B01ID == 1 ~ '1',
@@ -448,7 +500,8 @@ nts_df <- nts_df %>%
          employment = EcoStat_B01ID,
          area_type = HHoldAreaType1_B01ID,
          soc_cat = XSOC2000_B02ID,
-         ns_sec = NSSec_B03ID)
+         ns_sec = NSSec_B03ID,
+         main_mode = MainMode_B04ID)
 
 # Build NTEM dataframe
 traveller_type <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
