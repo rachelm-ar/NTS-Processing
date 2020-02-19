@@ -1,3 +1,4 @@
+require(tidyverse)
 
 # Code purpose: Build robust NTEM segmented trip rates from NTS extract
 
