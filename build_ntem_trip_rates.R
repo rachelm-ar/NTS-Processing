@@ -2,6 +2,8 @@ require(tidyverse)
 
 # Code purpose: Build robust NTEM segmented trip rates from NTS extract
 
+# TODO: Chris to reduce chars to factors before export
+
 # Import ntem_build - NTEM segmented dataset 
 nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
 
@@ -262,3 +264,9 @@ wd_weighted_trips <- wd_total_trips %>%
   left_join(wd_total_individuals,
             by = c('traveller_type', 'area_type')) %>%
   mutate(trip_rate = daily_trips/person_weight)
+
+# TODO: Build new segmentations
+# TODO: apply linear/log models
+
+# TODO: Get get p-values out
+# TODO: Build mode time splits (# segment at later stage - main mode weight and split)

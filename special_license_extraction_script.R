@@ -21,7 +21,7 @@ column_method <- 'ntem'
 
 # Col definitions ####
 
-psu_cols <- c('PSUID')
+psu_cols <- c('PSUID', 'PSUPopDensity')
 
 # For the purposes of NTEM replication, we only need the following:
 full_household_cols = c('HouseholdID', # Unique Household Identifier - Second Heirarchical Variable
@@ -46,6 +46,8 @@ full_household_cols = c('HouseholdID', # Unique Household Identifier - Second He
 ntem_household_cols <- c('PSUID',
                          'SurveyYear',
                          'HouseholdID',
+                         'HHoldOSWard_B01ID',
+                         'HHoldOSLAUA_B01ID',
                          'OutCom_B02ID',
                          'HHoldAreaType1_B01ID',
                          'HHoldNumAdults',
