@@ -1,8 +1,9 @@
+require(tidyverse)
 
 # Code purpose: Build robust NTEM segmented trip rates from NTS extract
 
 # Import ntem_build - NTEM segmented dataset 
-nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^10)
+nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
 
 # Analysis to remove incomplete surveys for prior years.
 
