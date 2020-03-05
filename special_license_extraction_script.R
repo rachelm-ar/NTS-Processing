@@ -16,6 +16,7 @@ individual_file_path <- paste0(file, '/individualspecial2017_protect.tab')
 psu_id_file_path <- paste0(file, '/psuspecial2017_protect.tab')
 household_file_path <- paste0(file, '/householdspecial2017_protect.tab')
 trip_file_path <- paste0(file, '/tripspecial2017_protect.tab')
+stage_file_path <- paste0(file, '/stagesecure2017_protect.tab')
 
 column_method <- 'ntem'
 
@@ -111,6 +112,7 @@ ntem_trip_cols = c('PSUID',
                    'TripID',
                    'TravDay',
                    'MainMode_B04ID',
+                   'NumParty_B01ID',
                    'TripPurpFrom_B01ID',
                    'TripPurpTo_B01ID',
                    'TripStart_B01ID', # 51 bands of trip start time
