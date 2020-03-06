@@ -12,7 +12,6 @@ nts_ntem_df <- nts_ntem_df %>%
   mutate(weighted_trip = W1 * W5xHh * W2)
 
 # TODO: Going to need SOC & NS-SEC too
-# TODO: Filter down to North??
 
 # Subset down
 trip_length_subset <- nts_ntem_df %>%
@@ -39,7 +38,8 @@ north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', '
 # Weekdays only
 weekdays <- c(1,2,3,4,5)
 # Last 3 years only
-years <- c(2015, 2016, 2017)
+years <- c(2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
+           2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017)
 
 trip_length_subset <- trip_length_subset %>%
   filter(HHoldOSLAUA_B01ID %in% north_la) %>%
@@ -48,74 +48,148 @@ trip_length_subset <- trip_length_subset %>%
 
 ## Working method
 # max north trip based on internal distance measure
-max_north_car_trip <- '350'
+max_north_trip <- '500'
+
+# Build placeholders for join
+tlb_desc <- c('0 to 5', '5 to 10', '10 to 20','20 to 30',
+              '30 to 50','50 to 75', '75 to 150', paste0('150 to ',max_north_trip)) %>%
+  as.tibble() %>%
+  rename(tlb_desc = value) %>%
+  mutate(ph=1)
+
+hb_purpose <- c('1','2','3','4','5','6','7','8') %>%
+  as.tibble() %>%
+  rename(hb_purpose = value) %>%
+  mutate(ph=1)
+  
+nhb_purpose <- c('12','13','14','15','16','18') %>%
+  as.tibble() %>%
+  rename(nhb_purpose = value) %>%
+  mutate(ph=1)
+
+hb_placeholder <- tlb_desc %>%
+  left_join(hb_purpose) %>%
+  select(-ph) %>%
+  distinct() %>%
+  group_by(hb_purpose) %>%
+  mutate(tlb_index = as.character(row_number()),
+         main_mode = 3) %>%
+  ungroup() %>%
+  select(tlb_index, tlb_desc, hb_purpose, main_mode)
+
+nhb_placeholder <- tlb_desc %>%
+  left_join(nhb_purpose) %>%
+  select(-ph) %>%
+  distinct() %>%
+  group_by(nhb_purpose) %>%
+  mutate(tlb_index = as.character(row_number()),
+         main_mode = 3) %>%
+  ungroup %>%
+  select(tlb_index, tlb_desc, nhb_purpose, main_mode)
+
+# Get HB trip lengths
 
 car_hb_trip_lengths <- trip_length_subset %>%
-  filter(trip_origin == 'hb' & main_mode==3 & trip_dist_km <350) %>%
+  filter(trip_origin == 'hb' & main_mode==3 & trip_dist_km < max_north_trip) %>%
   select(-nhb_purpose) %>%
   group_by(main_mode, hb_purpose, trip_dist_km) %>%
   summarise(weighted_trips = sum(weighted_trip,na.rm=TRUE)) %>%
   ungroup() %>%
-  mutate(trip_length_band = case_when(
-    trip_dist_km <= 5 ~ '1: 0-5',
-    trip_dist_km >5 & trip_dist_km <= 10 ~ '2: 5-10',
-    trip_dist_km >10 & trip_dist_km <= 20 ~ '3: 10-20',
-    trip_dist_km >20 & trip_dist_km <= 30 ~ '4: 20-30',
-    trip_dist_km >30 & trip_dist_km <= 50 ~ '5: 30-50',
-    trip_dist_km >50 & trip_dist_km <= 75 ~ '6: 50-75',
-    trip_dist_km >75 & trip_dist_km <= 150 ~ '7: 75-150',
-    trip_dist_km >150 ~ '8: 150-350'
+  mutate(tlb_index = case_when(
+    trip_dist_km <= 5 ~ '1',
+    trip_dist_km >5 & trip_dist_km <= 10 ~ '2',
+    trip_dist_km >10 & trip_dist_km <= 20 ~ '3',
+    trip_dist_km >20 & trip_dist_km <= 30 ~ '4',
+    trip_dist_km >30 & trip_dist_km <= 50 ~ '5',
+    trip_dist_km >50 & trip_dist_km <= 75 ~ '6',
+    trip_dist_km >75 & trip_dist_km <= 150 ~ '7',
+    trip_dist_km >150 ~ '8'
   )) %>%
-  group_by(trip_length_band, main_mode, hb_purpose) %>%
-  summarise(atl = weighted.mean(trip_dist_km, weighted_trips)) %>%
-  ungroup() %>%
+  mutate(tlb_desc = case_when(
+    trip_dist_km <= 5 ~ '0 to 5',
+    trip_dist_km >5 & trip_dist_km <= 10 ~ '5 to 10',
+    trip_dist_km >10 & trip_dist_km <= 20 ~ '10 to 20',
+    trip_dist_km >20 & trip_dist_km <= 30 ~ '20 to 30',
+    trip_dist_km >30 & trip_dist_km <= 50 ~ '30 to 50',
+    trip_dist_km >50 & trip_dist_km <= 75 ~ '50 to 75',
+    trip_dist_km >75 & trip_dist_km <= 150 ~ '75 to 150',
+    trip_dist_km >150 ~ paste0('150 to ',max_north_trip)
+  )) %>%
   filter(hb_purpose != 99) %>%
-  filter(main_mode != 99)
+  filter(main_mode != 99) %>%
+  group_by(tlb_index, tlb_desc, main_mode, hb_purpose) %>%
+  summarise(trips = sum(weighted_trips, na.rm=TRUE),
+            atl = weighted.mean(trip_dist_km, weighted_trips)) %>%
+  ungroup() %>%
+  select(tlb_index,tlb_desc, main_mode, hb_purpose, trips, atl)
+
+car_hb_trip_lengths <- hb_placeholder %>%
+  full_join(car_hb_trip_lengths) %>%
+  mutate(trips = replace_na(trips, 0))
+
+# Get % share for each number of trips
+car_totals <- car_hb_trip_lengths %>%
+  select(tlb_desc, hb_purpose, trips) %>%
+  group_by(hb_purpose) %>%
+  summarise(total_trips = sum(trips,na.rm=TRUE))
+
+# Reattach - derive total
+car_hb_trip_lengths <- car_hb_trip_lengths %>%
+  left_join(car_totals) %>%
+  mutate(band_share = round(trips/total_trips, 3)) %>%
+  select(-total_trips)
 
 car_hb_trip_lengths %>% write_csv(paste0(export, 'hb_mode3_trip_length_bands.csv'))
 
+# Same for NHB
 car_nhb_trip_lengths <- trip_length_subset %>%
-  filter(trip_origin == 'nhb' & main_mode==3 & trip_dist_km <350) %>%
+  filter(trip_origin == 'nhb' & main_mode==3 & trip_dist_km < max_north_trip) %>%
   select(-hb_purpose) %>%
   group_by(main_mode, nhb_purpose, trip_dist_km) %>%
   summarise(weighted_trips = sum(weighted_trip,na.rm=TRUE)) %>%
   ungroup() %>%
-  mutate(trip_length_band = case_when(
-    trip_dist_km <= 5 ~ '1: 0-5',
-    trip_dist_km >5 & trip_dist_km <= 10 ~ '2: 5-10',
-    trip_dist_km >10 & trip_dist_km <= 20 ~ '3: 10-20',
-    trip_dist_km >20 & trip_dist_km <= 30 ~ '4: 20-30',
-    trip_dist_km >30 & trip_dist_km <= 50 ~ '5: 30-50',
-    trip_dist_km >50 & trip_dist_km <= 75 ~ '6: 50-75',
-    trip_dist_km >75 & trip_dist_km <= 150 ~ '7: 75-150',
-    trip_dist_km >150 ~ '8: 150-350'
+  mutate(tlb_index = case_when(
+    trip_dist_km <= 5 ~ '1',
+    trip_dist_km >5 & trip_dist_km <= 10 ~ '2',
+    trip_dist_km >10 & trip_dist_km <= 20 ~ '3',
+    trip_dist_km >20 & trip_dist_km <= 30 ~ '4',
+    trip_dist_km >30 & trip_dist_km <= 50 ~ '5',
+    trip_dist_km >50 & trip_dist_km <= 75 ~ '6',
+    trip_dist_km >75 & trip_dist_km <= 150 ~ '7',
+    trip_dist_km >150 ~ '8'
   )) %>%
-  group_by(trip_length_band, main_mode, nhb_purpose) %>%
-  summarise(atl = weighted.mean(trip_dist_km, weighted_trips)) %>%
-  ungroup() %>%
+  mutate(tlb_desc = case_when(
+    trip_dist_km <= 5 ~ '0 to 5',
+    trip_dist_km >5 & trip_dist_km <= 10 ~ '5 to 10',
+    trip_dist_km >10 & trip_dist_km <= 20 ~ '10 to 20',
+    trip_dist_km >20 & trip_dist_km <= 30 ~ '20 to 30',
+    trip_dist_km >30 & trip_dist_km <= 50 ~ '30 to 50',
+    trip_dist_km >50 & trip_dist_km <= 75 ~ '50 to 75',
+    trip_dist_km >75 & trip_dist_km <= 150 ~ '75 to 150',
+    trip_dist_km >150 ~ paste0('150 to ',max_north_trip)
+  )) %>%
   filter(nhb_purpose != 99) %>%
-  filter(main_mode != 99)
+  filter(main_mode != 99) %>%
+  group_by(tlb_index, tlb_desc, main_mode, nhb_purpose) %>%
+  summarise(trips = sum(weighted_trips, na.rm=TRUE),
+            atl = weighted.mean(trip_dist_km, weighted_trips)) %>%
+  ungroup() %>%
+  select(tlb_index,tlb_desc, main_mode, nhb_purpose, trips, atl)
+
+car_nhb_trip_lengths <- nhb_placeholder %>%
+  full_join(car_nhb_trip_lengths) %>%
+  mutate(trips = replace_na(trips, 0))
+
+# Get % share for each number of trips
+car_totals <- car_nhb_trip_lengths %>%
+  select(tlb_desc, nhb_purpose, trips) %>%
+  group_by(nhb_purpose) %>%
+  summarise(total_trips = sum(trips,na.rm=TRUE))
+
+# Reattach - derive total
+car_nhb_trip_lengths <- car_nhb_trip_lengths %>%
+  left_join(car_totals) %>%
+  mutate(band_share = round(trips/total_trips, 3)) %>%
+  select(-total_trips)
 
 car_nhb_trip_lengths %>% write_csv(paste0(export, 'nhb_mode3_trip_length_bands.csv'))
-
-# TODO: Build trip length bands - should vary by mode
-
-# 0-5, 5-10, 10-20, 20-30, 30-40, 40-50, 50-75, 75-150
-# TODO: Fill in
-
-hist(trip_length_subset$trip_dist_km, breaks=50)
-
-# Trying to be a bit smarter with the bin allocation
-unq_mode <- trip_length_subset %>%
-  select(main_mode) %>%
-  distinct()
-
-car_bands <- trip_length_subset %>%
-  filter(main_mode == 3) %>%
-  select(trip_dist_km)
-hist(car_bands$trip_dist_km, breaks=50)
-
-car_bands <- max(car_bands)^0.5
-
-trip_length_subset
-
