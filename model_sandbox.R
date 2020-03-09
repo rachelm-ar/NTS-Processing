@@ -41,13 +41,7 @@ glm.nb(tfn_trip_rate ~ hb_purpose, data = df1, subset = train_ind) %>% summary()
 svyglm.nb(tfn_trip_rate ~ hb_purpose, design = des)
 
 
-des <- svydesign(
-  id = ~1,
-  strat = NULL,
-  weights = NULL,
-  data = df1,
-  nest = TRUE
-)
+
 
 
 svyglm.nb(tfn_trip_rate ~ household , des) %>% summary()
