@@ -9,6 +9,7 @@ require(tidyverse)
 
 # Path to tab files - should be SPSS equivalent?
 file <- 'D:/UKDA-7553-tab/tab'
+export <- 'Y:/NTS/'
 
 attitudes_file_path = paste0(file, '/attitudesspecial2017_protect.tab')
 days_file_path = paste0('/dayspecial2017_protect.tab')
@@ -16,6 +17,9 @@ individual_file_path <- paste0(file, '/individualspecial2017_protect.tab')
 psu_id_file_path <- paste0(file, '/psuspecial2017_protect.tab')
 household_file_path <- paste0(file, '/householdspecial2017_protect.tab')
 trip_file_path <- paste0(file, '/tripspecial2017_protect.tab')
+stage_file_path <- paste0(file, '/stagesecure2017_protect.tab')
+
+# TODO: Separate join to put trip and stage together for occupancy factors
 
 column_method <- 'ntem'
 
@@ -163,6 +167,8 @@ nts_df <- nts_df %>%
 
 nts_df <- nts_df %>%
   left_join(trip_df, by=c('PSUID', 'HouseholdID', 'IndividualID'))
+
+nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build.csv'))
 
 # Variable classifications ####
 # We now need to process the dataframe so the NTS segmentation matches that of NTEM. 
@@ -562,6 +568,6 @@ nts_ntem_df <- nts_df %>%
 
 # Export processed data for analysis
 nts_ntem_df %>%
-  write_csv('Y:/NTS/tfn_ntem_build.csv')
+  write_csv(export, '/tfn_ntem_build.csv')
 
 # END
