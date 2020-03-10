@@ -11,11 +11,6 @@ library("compare")
 select <- dplyr::select
 
 
-# Import weighted weekly trip rates
-# (!) 518 parsing failures
-week_weighted_trips <- read_csv("Y:/NTS/weekly_trip_rates.csv")
-
-
 # Import unclassified build
 unclassified_build <- read_csv("Y:/NTS/tfn_unclassified_build.csv")
 
@@ -145,11 +140,11 @@ unclassified_build <- unclassified_build %>%
   mutate(soc_cat = case_when(
     XSOC2000_B02ID == 1 ~ '1', # 1	Managers and senior officials
     XSOC2000_B02ID == 2 ~ '1', # 2	Professional occupations
-    XSOC2000_B02ID == 3 ~ '2', # 3	Associate professional and technical occupations
+    XSOC2000_B02ID == 3 ~ '1', # 3	Associate professional and technical occupations
     XSOC2000_B02ID == 4 ~ '2', # 4	Administrative and secretarial occupations
     XSOC2000_B02ID == 5 ~ '2', # 5	Skilled trades occupations
-    XSOC2000_B02ID == 6 ~ '3', # 6	Personal service occupations
-    XSOC2000_B02ID == 7 ~ '3', # 7	Sales and customer service occupations
+    XSOC2000_B02ID == 6 ~ '2', # 6	Personal service occupations
+    XSOC2000_B02ID == 7 ~ '2', # 7	Sales and customer service occupations
     XSOC2000_B02ID == 8 ~ '3', # 8	Process, plant and machine operatives
     XSOC2000_B02ID == 9 ~ '3', # 9	Elementary occupations
     TRUE ~ as.character(XSOC2000_B02ID)
@@ -321,12 +316,12 @@ week_weighted_trips %>% write_csv('weekly_trip_rates.csv')
 ## to do/check:
 
 
-# 1) check if soc classification still correct
-# 2) apply soc classification only apply for trip purposes 1 & 2?
-# 3) missing: job accessibility by rail, job accessibility by highway  - CS to include?
-# 4) not included household_comp as not clear where from, also likely highly correlated with household_adults
-# 5) cars recoding depending on adults in household?
-# 6) need to segment by main_mode and time_period for mode/time regression?
+# 1) soc classifiation based on tfn user segmentation note (sharepoint) soc 1-3 (1), 4-7 (2), 8-9 (3)
+# 2) missing: job accessibility by rail, job accessibility by highway  - CS to include?
+# 3) not included household_comp as not clear where from, also likely highly correlated with household_adults
+# 4) cars recoding depending on adults in household?
+# 5) need to segment by main_mode and time_period for mode/time regression?
+# 6) drop 75+_fte, 75+_pte, 75+_stu?
 
 
 
