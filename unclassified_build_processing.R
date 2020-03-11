@@ -308,9 +308,9 @@ week_weighted_trips <- week_total_trips %>%
             by = c('hb_purpose', 'age_work_status', 'gender', 'hh_adults', 'cars', 'soc_cat', 'ns_sec', 'area_type')) %>%
   mutate(tfn_trip_rate = weekly_trips/person_weight)
 
-week_weighted_trips %>% write_csv('weekly_trip_rates.csv')
+week_weighted_trips %>% write_csv('weekly_trip_rates_new.csv')
 
-
+getwd()
 
 
 ## to do/check:
