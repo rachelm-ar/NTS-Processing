@@ -18,7 +18,22 @@ unclassified_build <- read_csv("Y:/NTS/tfn_unclassified_build.csv")
 ### Prepare dataset #############################################################
 
 
-# Recode trip purposes as NTEM classification hb_purpose
+# Classify trip origin to get HB/NHB splits
+hb <- c(23)
+nhb <- c(1,2,3,4,5,6,7,8,9,
+         10,11,12,13,14,15,
+         16,17,18,19,20,21,22)
+
+
+unclassified_build <- unclassified_build %>%
+  mutate(trip_origin = case_when(
+    TripPurpFrom_B01ID %in% hb ~ 'hb',
+    TripPurpFrom_B01ID %in% nhb ~ 'nhb',
+    TRUE ~ as.character(NA)
+  ))
+
+
+# Recode trip purposes as NTEM classification hb_purpose for HB trips
 unclassified_build <- unclassified_build %>%
   mutate(hb_purpose = case_when(
   TripPurpTo_B01ID == 1 ~ '1', # Work
@@ -48,8 +63,47 @@ unclassified_build <- unclassified_build %>%
 ))
 
 
-# drop 'unclassified' hb_purpose
-unclassified_build <- subset(unclassified_build, hb_purpose != 'unclassified')
+# Recode trip purposes as NTEM classification nhb_purpose for NHB trips
+unclassified_build <- unclassified_build %>%
+  mutate(nhb_purpose = case_when(
+    TripPurpTo_B01ID == 1 ~ '12', # Work
+    TripPurpTo_B01ID == 2 ~ '12', # In course of work
+    TripPurpTo_B01ID == 3 ~ '13', # Education
+    TripPurpTo_B01ID == 4 ~ '14', # Food shopping
+    TripPurpTo_B01ID == 5 ~ '14', # Non food shopping
+    TripPurpTo_B01ID == 6 ~ '15', # Personal business medical
+    TripPurpTo_B01ID == 7 ~ '15', # Personal business eat / drink
+    TripPurpTo_B01ID == 8 ~ '15', # Personal business other
+    TripPurpTo_B01ID == 9 ~ '16', # Eat / drink with friends
+    TripPurpTo_B01ID == 10 ~ '16', # Visit friends
+    TripPurpTo_B01ID == 11 ~ '16', # Other social
+    TripPurpTo_B01ID == 12 ~ '16', # Entertain /  public activity
+    TripPurpTo_B01ID == 13 ~ '16', # Sport: participate
+    TripPurpTo_B01ID == 14 ~ '18', # Holiday: base
+    TripPurpTo_B01ID == 15 ~ '18', # Day trip / just walk
+    TripPurpTo_B01ID == 16 ~ '16', # Other non-escort
+    TripPurpTo_B01ID == 17 ~ '99', # Escort home
+    TripPurpTo_B01ID == 18 ~ '12', # Escort work
+    TripPurpTo_B01ID == 19 ~ '12', # Escort in course of work
+    TripPurpTo_B01ID == 20 ~ '13', # Escort education
+    TripPurpTo_B01ID == 21 ~ '14', # Escort shopping / personal business
+    TripPurpTo_B01ID == 22 ~ '16', # Other escort
+    TripPurpTo_B01ID == 23 ~ '99', # Home
+    TRUE ~ as.character('unclassified')
+  ))
+
+
+# Pick a final purpose depending on purpose from
+unclassified_build <- unclassified_build %>%
+  mutate(trip_purpose = case_when(
+    trip_origin == 'hb' ~ hb_purpose,
+    trip_origin == 'nhb' ~ nhb_purpose,
+    TRUE ~ as.character('unclassified')
+  ))
+
+
+# drop 'unclassified' hb_purpose as cannot be used in regression by trip_purpose
+unclassified_build <- subset(unclassified_build, trip_purpose != 'unclassified')
 
 
 # Recode gender(Sex_B01ID) as gender(Male or Female)
@@ -61,7 +115,7 @@ unclassified_build <- unclassified_build %>%
   ))
 
 
-# Combine Age and work status to age_workstatus
+# Combine Age and work status to age_workstatus (excluding 75+ AND pte/fte/stu as insignificant N (<0.2% combined))
 unclassified_build <- unclassified_build %>%
   mutate(age_work_status = case_when(
     Age_B01ID %in% c(1,2,3,4,5) ~ '0-16_child',
@@ -69,11 +123,10 @@ unclassified_build <- unclassified_build %>%
     Age_B01ID %in% c(6,7,8,9,10,11,12,13,14,15,16,17,18) & EcoStat_B01ID %in% c(3,4) ~ '16-74_pte',
     Age_B01ID %in% c(6,7,8,9,10,11,12,13,14,15,16,17,18) & EcoStat_B01ID == 7 ~ '16-74_stu',
     Age_B01ID %in% c(6,7,8,9,10,11,12,13,14,15,16,17,18) & EcoStat_B01ID %in% c(5,6,8,9,10,11) ~ '16-74_unm',
-    Age_B01ID %in% c(19,20,21) & EcoStat_B01ID %in% c(1,3)  ~ '75+_fte', # (n = 2279)
-    Age_B01ID %in% c(19,20,21) & EcoStat_B01ID %in% c(2,4)  ~ '75+_pte', # (n = 5758)
-    Age_B01ID %in% c(19,20,21) & EcoStat_B01ID %in% c(5,6,8,7,9,10,11) ~ '75+_retired', # This includes students (n=3), drop instead?
-    TRUE ~ as.character(Age_B01ID)
-  ))
+    Age_B01ID %in% c(19,20,21) & EcoStat_B01ID %in% c(5,6,8,9,10,11) ~ '75+_retired',
+    TRUE ~ as.character('unclassified')
+  )) %>% subset(age_work_status != 'unclassified')
+
 
                                                       
 # Recode number of cars(NumCarVan_B02ID) as cars
@@ -85,6 +138,13 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character(NumCarVan_B02ID)
   ))
 
+# Adapt number of cars available to NTEM methodology
+unclassified_build <- unclassified_build %>%
+  mutate(cars = case_when(
+    HHoldNumAdults == '1 Adult' & cars == '1' ~ '1+',
+    HHoldNumAdults == '1 Adult' & cars == '2+' ~ '1+',
+    TRUE ~ as.character(cars)
+  ))
 
 # Drop cars = -8
 unclassified_build <- subset(unclassified_build, cars != -8)
@@ -98,15 +158,6 @@ unclassified_build <- unclassified_build %>%
     HHoldNumAdults >= 3 ~ '3+', # 3+ Adults
     TRUE ~ as.character(HHoldNumAdults)
   ))
-
-
-### From special_license_extraction_script, not sure if correct (correcting number of vehicles for adults in household?)
-#nts_df <- nts_df %>%
-#  mutate(NumCarVan_B02ID = case_when(
-#    HHoldNumAdults == '1 Adult' & NumCarVan_B02ID == '1' ~ '1+',
-#    HHoldNumAdults == '1 Adult' & NumCarVan_B02ID == '2+' ~ '1+',
-#    TRUE ~ as.character(NumCarVan_B02ID)
-#  ))
 
 
 # Recode area type (HHoldAreaType1_B01ID) as NTEM area classification area_type
@@ -176,26 +227,45 @@ unclassified_build <- unclassified_build %>%
   ))
 
 
-# Create time_period from day(TravDay) and hour(TripTravTime)
-# Confirm peak hours
+# Set time period params
+am_peak <- c(8,9,10)
+inter_peak <- c(11,12,13,14,15,16)
+pm_peak <- c(17,18,19)
+off_peak <- c(1,2,3,4,5,6,7,20,21,22,23,24)
+
+
+# Create start time based on day(TravDay) and time period(TripTravTime)
 unclassified_build <- unclassified_build %>%
-  mutate(time_period = case_when(
-    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% c(7,8,9) ~ 'AM', # Weekday AM peak
-    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% c(10,11,12,13,14,15,16) ~ 'IP', # Weekday IP peak
-    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% c(17,18,19) ~ 'PM', # Weekday PM peak
-    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% c(1,2,3,4,5,6,20,21,22,23,24) ~ 'OP', # Offpeak
-    TravDay %in% c(6) ~ 'SAT', # Saturday
-    TravDay %in% c(6) ~ 'SUN', # Sunday
+  mutate(start_time = case_when(
+    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% am_peak ~ '1', # Weekday AM peak
+    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% inter_peak ~ '2', # Weekday IP peak
+    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% pm_peak ~ '3', # Weekday PM peak
+    TravDay %in% c(1,2,3,4,5) & TripStart_B01ID %in% off_peak ~ '4', # Offpeak
+    TravDay %in% c(6) ~ '5', # Saturday
+    TravDay %in% c(7) ~ '6', # Sunday
     TRUE ~ as.character('unclassified')
   ))
 
 
-# Drop unclassified time_period
-unclassified_build <- subset(unclassified_build, time_period != 'unclassified')
+# Create end time based on day(TravDay) and time period(TripTravTime)
+unclassified_build <- unclassified_build %>%
+  mutate(end_time = case_when(
+    TravDay %in% c(1,2,3,4,5) & TripEnd_B01ID %in% am_peak ~ '1', # Weekday AM peak
+    TravDay %in% c(1,2,3,4,5) & TripEnd_B01ID %in% inter_peak ~ '2', # Weekday IP peak
+    TravDay %in% c(1,2,3,4,5) & TripEnd_B01ID %in% pm_peak ~ '3', # Weekday PM peak
+    TravDay %in% c(1,2,3,4,5) & TripEnd_B01ID %in% off_peak ~ '4', # Offpeak
+    TravDay %in% c(6) ~ '5', # Saturday
+    TravDay %in% c(7) ~ '6', # Sunday
+    TRUE ~ as.character('unclassified')
+  ))
+
+
+# Drop unclassified time_period - apply only for time_period regression?
+#unclassified_build <- subset(unclassified_build, start_time != 'unclassified' | end_time != 'unclassified')
 
 
 # Transform catgeorical variables to factors
-facts <- c("hb_purpose", "age_work_status", "gender", "hh_adults", "cars", "area_type", "soc_cat", "ns_sec", "main_mode", "time_period")
+facts <- c("hb_purpose", "age_work_status", "gender", "hh_adults", "cars", "area_type", "soc_cat", "ns_sec", "main_mode", "start_time", "end_time")
 unclassified_build <- unclassified_build %>% mutate_at(facts, funs(factor))
 
 
@@ -297,7 +367,7 @@ week_total_individuals <- unclassified_build %>%
   select(IndividualID, hb_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, W1, W2) %>%
   unique() %>%
   mutate(person_weight = W1 * W2) %>%
-  group_by(hb_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, area_type) %>%
+  group_by(hb_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type) %>%
   summarise(person_sample = n(), person_weight = sum(W2)) %>%
   ungroup()
 
@@ -309,38 +379,4 @@ week_weighted_trips <- week_total_trips %>%
   mutate(tfn_trip_rate = weekly_trips/person_weight)
 
 week_weighted_trips %>% write_csv('weekly_trip_rates.csv')
-
-
-
-
-## to do/check:
-
-
-# 1) soc classifiation based on tfn user segmentation note (sharepoint) soc 1-3 (1), 4-7 (2), 8-9 (3)
-# 2) missing: job accessibility by rail, job accessibility by highway  - CS to include?
-# 3) not included household_comp as not clear where from, also likely highly correlated with household_adults
-# 4) cars recoding depending on adults in household?
-# 5) need to segment by main_mode and time_period for mode/time regression?
-# 6) drop 75+_fte, 75+_pte, 75+_stu?
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                                                      
-
-
-
-
-
-
 
