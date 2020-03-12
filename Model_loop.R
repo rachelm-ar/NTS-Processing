@@ -12,23 +12,47 @@ select <- dplyr::select
 trip_rates_df <- read_csv("Y:/NTS/weekly_trip_rates_HA.csv")
 
 # Transform catgeorical variables to factors
-variables <- c("hb_purpose", "age_work_status", "gender", "hh_adults", "cars", "soc_cat", "ns_sec","area_type")
+variables <- c("hb_purpose", 
+               "age_work_status", 
+               "gender", 
+               "hh_adults", 
+               "cars", 
+               "soc_cat", 
+               "ns_sec",
+               "area_type"
+               )
+
 trip_rates_df <- trip_rates_df %>% mutate_at(variables, funs(factor))
 
 # Independent variables to be included in model -- Testing
-variables <- c("hh_adults", "age_work_status", "cars")
+variables <- c("hh_adults",
+               "age_work_status",
+               "cars"
+               )
 
 # Permutations of variables
 variable_permutations <- variables %>% permn()
 
 # Levels within each independent variable
-variable_levels <- lapply(variables, function(x) trip_rates_df %>% pull(x) %>% levels())
+variable_Levels <- lapply(variables, function(x){
+  
+  trip_rates_df %>%
+    pull(x) %>%
+    levels()
+  
+})
 
-# Combinations for each level to aggregate data with
+# Determine combinations for each variables levels respective to the variable.
+# i.e combinations within variables
 combinations <- lapply(variable_levels, function(var_levels){
   
+  # Find all combinations
   combinations <- do.call(c, lapply(seq_along(var_levels), combn, x = var_levels, simplify = FALSE))
+  
+  # Remove combinations which are not necessary. i.e a variable level by it's own
   combinations <- combinations[(length(var_levels) + 1): (length(combinations)-1)]
+  
+  # Combinations to aggregate have 'join' inbetween them and the first combination is always no aggregations
   combinations <- lapply(combinations, function(x) x %>% str_c(collapse = " Join "))
   combinations <- combinations %>% unlist()
   combinations <- c("", combinations)
@@ -40,34 +64,24 @@ names(combinations) <- variables
 all_combinations <- do.call(crossing, combinations)
 all_combinations <- split(all_combinations, seq(nrow(all_combinations))) %>% unname()
 
-# Formula for Negative binomial regression
+# Formula for Negative binomial regression with all variables
 nbr_formula <- paste("tfn_trip_rate", paste(variables, collapse = " + "), sep = " ~ ")
 
 # Split data by purpose
 purpose_split <- trip_rates_df %>% group_split(hb_purpose)
 
-# Split data into 75% train and 25% test
-# smp_size <- floor(0.75*nrow(purpose_data))
-# 
-# train_ind <- sample(seq_len(nrow(purpose_data)), size = smp_size)
-# train <- purpose_data %>% slice(train_ind)
-# test <- purpose_data %>% slice(-train_ind)
-# 
-# train_ind <- lapply(purpose_split, function(x){
-#   
-#   smp_size <- floor(0.75*nrow(x))
-#   train_ind <- sample(seq_len(nrow(x)), size = smp_size)
-#   
-# })
-
+# This will aggregate data, update dataframes to build model with and build the model
+# The output returns the updated dataframe and selection criteria of model such as number of significant variables
 f1 <- function(all_combinations, variables, updated_df,trip_rates_df){
   
   for(i in 1:length(variables)){
     
+    # Get the current combination
     combs <- all_combinations %>% pull(variables[i]) %>% str_split(pattern = " Join ") %>% unlist()
     
     if(i == 1){
       
+      # Update the dataframe by recoding variable classifications
       updated_df[[i]] <- updated_df[[i]] %>%
         mutate(!!variables[i] := case_when(
           get(variables[i]) %in% combs ~ str_c(combs, collapse = " Join "),
@@ -76,6 +90,7 @@ f1 <- function(all_combinations, variables, updated_df,trip_rates_df){
       
     } else {
       
+      # Keep updating the previous dataframe
       updated_df[[i]] <- updated_df[[i-1]] %>%
         mutate(!!variables[i] := case_when(
           get(variables[i]) %in% combs ~ str_c(combs, collapse = " Join "),
@@ -84,6 +99,7 @@ f1 <- function(all_combinations, variables, updated_df,trip_rates_df){
       
     }
     
+    # For the last iteration, return the dataframe
     if(i == length(variables)){
       
       final_df <- updated_df[[i]]
@@ -97,11 +113,19 @@ f1 <- function(all_combinations, variables, updated_df,trip_rates_df){
   # Build a Negative-bionomial regression model
   nbr_model <- glm.nb(formula = nbr_formula, data = final_df)
   
-  # Extract p-values and obtain number of segments and significant segments and aic
+  # Extract p-values and obtain number of segments, significant segments and aic
   p_values_summary <- nbr_model %>% summary()
-  p_values <- p_values_summary$coefficients %>% as.data.frame() %>% select("Pr(>|z|)")
+  
+  p_values <- p_values_summary$coefficients %>% 
+    as.data.frame() %>% 
+    select("Pr(>|z|)")
+  
   p_values <- tibble::rownames_to_column(p_values, "Variables")
-  p_values_significant <- p_values %>% rename(pvals = "Pr(>|z|)") %>% filter(pvals < 0.05)
+  
+  p_values_significant <- p_values %>% 
+    rename(pvals = "Pr(>|z|)") %>% 
+    filter(pvals < 0.05)
+  
   significant_number <- nrow(p_values_significant) - 1
   number_variables <- nrow(p_values) - 1
   aic <- p_values_summary$aic
@@ -116,14 +140,20 @@ f1 <- function(all_combinations, variables, updated_df,trip_rates_df){
 
 results_final <- lapply(purpose_split, function(purpose_data){
   
+  # In the function, we want our dataframe (which we update) to be a list
   updated_df <- list(purpose_data)
   
+  # Run the function
   results <- lapply(all_combinations[1:5], f1, variables, updated_df, trip_rates_df)
   
+  # Extract dataframes of aggregated segmente
   results_df <- sapply(results, function(x) x[1])
   
+  # Extract our selection criteria results
   results_values <- sapply(results, function(x) x[2])
   
+  # Obtain the top row based on selection criteria which is most significant variables
+  # I'm hoping to improve this somehow!
   model_select <- results_values %>%
     bind_rows %>% 
     mutate(n = seq_along(results)) %>%
@@ -132,6 +162,7 @@ results_final <- lapply(purpose_split, function(purpose_data){
   
   combination_winner <- model_select %>% slice(1) %>% pull(n)
   
+  # Get dataframe of winning combination
   df_winner <- results_df %>% extract2(combination_winner)
   
   # Build winner model
@@ -144,8 +175,23 @@ results_final <- lapply(purpose_split, function(purpose_data){
 #### Essentials
 # 1. Split data into train and test (this resulted in errors so it has been taken out for now).
 #    Good chance the current model is over-fitting 
+
+## Split data into 75% train and 25% test
+# smp_size <- floor(0.75*nrow(purpose_data))
+# 
+# train_ind <- sample(seq_len(nrow(purpose_data)), size = smp_size)
+# train <- purpose_data %>% slice(train_ind)
+# test <- purpose_data %>% slice(-train_ind)
+# 
+# train_ind <- lapply(purpose_split, function(x){
+#   
+#   smp_size <- floor(0.75*nrow(x))
+#   train_ind <- sample(seq_len(nrow(x)), size = smp_size)
+#   
+# })
+
 # 2. Improve model selection method
-# 2. Extract output for all models
+# 3. Extract output for all models
 
 #### Improve Script
 
