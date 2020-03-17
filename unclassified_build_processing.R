@@ -350,6 +350,12 @@ usable_households <- unq_household %>%
 unclassified_build <- usable_households %>% left_join(unclassified_build)
 
 
+## Add weighted trip and person weight
+unclassified_build <- unclassified_build %>%
+	mutate(weighted_trip = W1 * W5xHh * W2,
+	person_weight = W1 * W2)
+
+unclassified_build %>% to_csv('weighted_trips_and_sample_cs.csv')
 
 ### Weekly trip rate calculations (Ian Williams NTS Report Method) #####################
 
@@ -379,4 +385,3 @@ week_weighted_trips <- week_total_trips %>%
   mutate(tfn_trip_rate = weekly_trips/person_weight)
 
 week_weighted_trips %>% write_csv('weekly_trip_rates.csv')
-
