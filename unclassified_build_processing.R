@@ -355,7 +355,7 @@ unclassified_build <- unclassified_build %>%
 	mutate(weighted_trip = W1 * W5xHh * W2,
 	person_weight = W1 * W2)
 
-unclassified_build %>% to_csv('weighted_trips_and_sample_cs.csv')
+unclassified_build %>% write_csv('weighted_trips_and_sample_cs.csv')
 
 ### Weekly trip rate calculations (Ian Williams NTS Report Method) #####################
 
