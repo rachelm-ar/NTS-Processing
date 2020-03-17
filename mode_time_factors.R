@@ -3,12 +3,6 @@
 
 ### Load libraries and import data ##############################################
 library("tidyverse")
-library("survey")
-library("sjstats")
-library("MASS")
-library("compare")
-
-select <- dplyr::select
 
 
 # Import unclassified build
@@ -351,8 +345,8 @@ unclassified_build <- unclassified_build %>% unite("mode_time", 'main_mode', 'st
 mode_time_df_1 <- unclassified_build %>%
   filter(hb_purpose == 1 | hb_purpose == 2) %>%
   mutate(weighted_trip = W1 * W5xHh * W2) %>%
-  select(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, weighted_trip) %>%
-  group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose) %>%
+  select(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, weighted_trip, mode_time) %>%
+  group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, mode_time) %>%
   mutate(trips = sum(weighted_trip, na.rm=TRUE))
 
 mode_time_df_1 <- mode_time_df_1 %>% mutate(mode_time_fc = weighted_trip/sum(weighted_trip))
@@ -362,22 +356,40 @@ mode_time_df_1 <- mode_time_df_1 %>% mutate(mode_time_fc = weighted_trip/sum(wei
 mode_time_df_2 <- unclassified_build %>%
   filter(hb_purpose != 1 & hb_purpose != 2) %>%
   mutate(weighted_trip = W1 * W5xHh * W2) %>%
-  select(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose, weighted_trip) %>%
-  group_by(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose) %>%
+  select(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose, weighted_trip, mode_time) %>%
+  group_by(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose, mode_time) %>%
   mutate(trips = sum(weighted_trip, na.rm=TRUE))
 
 mode_time_df_2 <- mode_time_df_1 %>% mutate(mode_time_fc = weighted_trip/sum(weighted_trip))
 
 
-# Final step: merge two dataframes  
+
+# Final step: merge two dataframes, spread and export
 mode_time_df <- bind_rows(mode_time_df_1, mode_time_df_2)
+
+# The pivoting of the mode_time and mode_time factors isn't working yet
+# tried with dcast, spread, reshape and pivot_wider but i haven't managed to make it work yet
+
+# This didn't work:
+#mode_time_df <- mode_time_df %>% spread(key = mode_time, value = mode_time_fc)
+
+#the below produces a way to big file, no sure if i'm grouping/summarising wrong or if it is just the pivoting that i'm doing wrong.
+mode_time_df <- mode_time_df %>%
+  mutate(rn = row_number()) %>%
+  pivot_wider(names_from = 'mode_time', values_from = c('mode_time_fc'), 
+              names_sep='.')  %>% 
+  select(-rn)
+
+mode_time_df %>% write_csv('mode_time_split.csv')
+
 
 
 
 
 ### To do
 
-# 1) start_time, end_time, both, either?
-# 2) sense check results
-# 3) sample size?
-# 4)  turn into 88 traveller_types?
+# 1) Start_time, end_time, both, either?
+# 2) Sense check results
+# 3) Sample size?
+# 4) Turn into 88 traveller_types?
+# 5) pivot table (turn mode_time into column and fill with mode_time_fc)
