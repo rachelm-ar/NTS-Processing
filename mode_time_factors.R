@@ -87,6 +87,8 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character('unclassified')
   ))
 
+# Drop hb_purpose = 99 - Return leg for hb trips
+unclassified_build <- subset(unclassified_build, hb_purpose != '99')
 
 # Pick a final purpose depending on purpose from
 unclassified_build <- unclassified_build %>%
@@ -145,8 +147,8 @@ unclassified_build <- unclassified_build %>%
 # Adapt number of cars available to NTEM methodology
 unclassified_build <- unclassified_build %>%
   mutate(cars = case_when(
-    hh_adults == '1' & cars == '1' ~ '1+',
-    hh_adults == '1' & cars == '2+' ~ '1+',
+    HHoldNumAdults == 1 & cars == '1' ~ '1+',
+    HHoldNumAdults == 1 & cars == '2+' ~ '1+',
     TRUE ~ as.character(cars)
   ))
 
@@ -219,6 +221,9 @@ unclassified_build <- unclassified_build %>%
     MainMode_B04ID == 13 ~ '5', # Other public transport ie. small bus or light rail.
     TRUE ~ as.character(MainMode_B04ID)
   ))
+
+# Drop main_mode = 99 - London Underground as not modelled
+unclassified_build <- subset(unclassified_build, main_mode != '99')
 
 
 # Set time period params
@@ -333,11 +338,11 @@ nts_completed <- usable_households %>%
   left_join(unclassified_build) %>%
   filter(cars!='-8')
 
-# Calculate total trips
-nts_completed <- nts_completed %>% mutate(weighted_trip = W1 * W5xHh * W2) %>%
-  group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, mode_time) %>%
-  summarise(trip_sample = n(), daily_trips = sum(weighted_trip)/5) %>%
-
+# Calculate weighted trips
+nts_completed <- nts_completed %>%
+  mutate(weighted_trip = W1 * W5xHh * W2)
+  
+  
 #### Segment by traveller type (age_work_status, gender, cars, hh_adults), area_type and hb_purpose ####
 
 
@@ -372,17 +377,50 @@ mode_time_df_2 <- nts_completed %>%
   mutate(total_trips = sum(mode_time_trips, na.rm=TRUE)) %>%
   ungroup()
 
-mode_time_df_1 <- mode_time_df_1 %>% mutate(mode_time_fc = mode_time_trips/total_trips)
+mode_time_df_2 <- mode_time_df_2 %>% mutate(mode_time_fc = mode_time_trips/total_trips)
 
 
 
-# Final step: merge two dataframes, transpose and export
+# Merge two dataframes and create traveller_type
 mode_time_df <- bind_rows(mode_time_df_1, mode_time_df_2)
 
 mode_time_df_simplified <- mode_time_df %>%
   select(age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, hb_purpose, mode_time, mode_time_fc) %>%
   unite("traveller_type", "age_work_status", "gender", "hh_adults", "cars", remove=TRUE, sep="_")
-  
+
+
+# Lookup NTEM traveller type
+
+NTEM_types <- list(c(1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+              25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52,
+              53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80,
+              81, 82, 83, 84, 85, 86, 87, 88))
+
+traveller_type <- list(c("0-16_child_Female_1_0", "0-16_child_Male_1_0", "0-16_child_Female_1_1+", "0-16_child_Male_1_1+", "0-16_child_Female_2_0",
+                     "0-16_child_Male_2_0", "0-16_child_Female_2_1", "0-16_child_Male_2_1", "0-16_child_Female_2_2+", "0-16_child_Male_2_2+",
+                     "0-16_child_Female_3+_0", "0-16_child_Male_3+_0", "0-16_child_Female_3+_1", "0-16_child_Male_3+_1", "0-16_child_Female_3+_2+",
+                     "0-16_child_Male_3+_2+", "16-74_fte_Male_1_0", "16-74_fte_Male_1_1+", "16-74_fte_Male_2_0", "16-74_fte_Male_2_1", "16-74_fte_Male_2_2+",
+                     "16-74_fte_Male_3+_0", "16-74_fte_Male_3+_1", "16-74_fte_Male_3+_2+", "16-74_pte_Male_1_0", "16-74_pte_Male_1_1+", "16-74_pte_Male_2_0",
+                     "16-74_pte_Male_2_1", "16-74_pte_Male_2_2+", "16-74_pte_Male_3+_0", "16-74_pte_Male_3+_1", "16-74_pte_Male_3+_2+", "16-74_stu_Male_1_0",
+                     "16-74_stu_Male_1_1+", "16-74_stu_Male_2_0", "16-74_stu_Male_2_1", "16-74_stu_Male_2_2+", "16-74_stu_Male_3+_0", "16-74_stu_Male_3+_1",
+                     "16-74_stu_Male_3+_2+", "16-74_unm_Male_1_0", "16-74_unm_Male_1_1+", "16-74_unm_Male_2_0", "16-74_unm_Male_2_1", "16-74_unm_Male_2_2+",
+                     "16-74_unm_Male_3+_0", "16-74_unm_Male_3+_1", "16-74_unm_Male_3+_2+", "75+_retired_Male_1_0", "75+_retired_Male_1_1+", "75+_retired_Male_2_0",
+                     "75+_retired_Male_2_1", "75+_retired_Male_2_2+", "75+_retired_Male_3+_0", "75+_retired_Male_3+_1", "75+_retired_Male_3+_2+", "16-74_fte_Female_1_0",
+                     "16-74_fte_Female_1_1+", "16-74_fte_Female_2_0", "16-74_fte_Female_2_1", "16-74_fte_Female_2_2+", "16-74_fte_Female_3+_0", "16-74_fte_Female_3+_1",
+                     "16-74_fte_Female_3+_2+", "16-74_pte_Female_1_0", "16-74_pte_Female_1_1+", "16-74_pte_Female_2_0", "16-74_pte_Female_2_1", "16-74_pte_Female_2_2+",
+                     "16-74_pte_Female_3+_0", "16-74_pte_Female_3+_1", "16-74_pte_Female_3+_2+", "16-74_stu_Female_1_0", "16-74_stu_Female_1_1+", "16-74_stu_Female_2_0",
+                     "16-74_stu_Female_2_1", "16-74_stu_Female_2_2+", "16-74_stu_Female_3+_0", "16-74_stu_Female_3+_1", "16-74_stu_Female_3+_2+", "16-74_unm_Female_1_0",
+                     "16-74_unm_Female_1_1+", "16-74_unm_Female_2_0", "16-74_unm_Female_2_1", "16-74_unm_Female_2_2+", "16-74_unm_Female_3+_0", "16-74_unm_Female_3+_1",
+                     "16-74_unm_Female_3+_2+", "75+_retired_Female_1_0", "75+_retired_Female_1_1+", "75+_retired_Female_2_0", "75+_retired_Female_2_1", "75+_retired_Female_2_2+",
+                     "75+_retired_Female_3+_0", "75+_retired_Female_3+_1", "75+_retired_Female_3+_2+"))
+
+NTEM_lookup_table <- as.data.frame(map2_dfr(traveller_type, NTEM_types, ~ tibble(traveller_type = .x, NTEM_types = .y)))
+
+### add ntem_traveller_type in mode_time_df_simplified
+
+mode_time_df_simplified <- mode_time_df_simplified %>% left_join(NTEM_lookup_table)
+
+# Transpose and export csv  
 mode_time_df_transposed <- mode_time_df_simplified %>% pivot_wider(names_from = mode_time, values_from = mode_time_fc)
 
 mode_time_df_simplified %>% write_csv('Y:/NTS/mode_time_splits/mode_time_split_simplified.csv')
@@ -390,12 +428,9 @@ mode_time_df_transposed %>% write_csv('Y:/NTS/mode_time_splits/mode_time_split_t
 
 
 
-
-
 ### To do
 
-# 1) Too many NAs in mode_time_fc?
-# 2) Start_time, end_time, both, either?
-# 3) Turn into 88 traveller types?
-# 4) Sample size?
-# 5) Add accessibility metrics?
+# 1) sense check results
+# 2) add accessibility metrics
+
+
