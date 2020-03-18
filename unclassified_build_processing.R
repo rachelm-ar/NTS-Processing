@@ -349,39 +349,56 @@ usable_households <- unq_household %>%
 # Join usable households to unclassified_build
 unclassified_build <- usable_households %>% left_join(unclassified_build)
 
-
-## Add weighted trip and person weight
-unclassified_build <- unclassified_build %>%
-	mutate(weighted_trip = W1 * W5xHh * W2,
-	person_weight = W1 * W2)
-
-unclassified_build %>% write_csv('weighted_trips_and_sample_cs.csv')
-
 ### Weekly trip rate calculations (Ian Williams NTS Report Method) #####################
+# Get all purposes - everyone can travel any given way
+all_hb_purpose <- unclassified_build %>%
+  select(hb_purpose) %>%
+  distinct() %>%
+  mutate(ph = 1)
+
+all_individuals <- unclassified_build %>%
+  select(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type) %>%
+  distinct() %>%
+  mutate(ph = 1)
+
+all_individual_purposes <- all_hb_purpose %>%
+  left_join(all_individuals)
 
 # Step 1 - Weighted trips and trip sample by segment
 week_total_trips <- unclassified_build %>%
+  # Append all purposes
+  full_join(all_individual_purposes) %>%
+  select(-ph) %>%
+  mutate(W5xHh = replace_na(W5xHh, 0)) %>%
   mutate(weighted_trip = W1 * W5xHh * W2) %>%
-  group_by(hb_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type) %>%
-  summarise(trip_sample = n(), weekly_trips = sum(weighted_trip, na.rm=TRUE)) %>%
+  group_by(IndividualID, hb_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type) %>%
+  summarise(weekly_trips = sum(weighted_trip, na.rm=TRUE)) %>%
   ungroup()
 
+# Everyone should have a trip rate for every purpose now
+person_purpose_count <- week_total_trips %>%
+  select(IndividualID, hb_purpose) %>%
+  group_by(IndividualID) %>%
+  count()
 
 # Step 2 - Get sum of weighted individuals
-### Necessary to include hb_purpose? ###???### Yes because person_sample calculation?
 week_total_individuals <- unclassified_build %>%
-  select(IndividualID, hb_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, W1, W2) %>%
+  select(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, W1, W2) %>%
   unique() %>%
   mutate(person_weight = W1 * W2) %>%
-  group_by(hb_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type) %>%
-  summarise(person_sample = n(), person_weight = sum(W2)) %>%
+  group_by(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type) %>%
+  summarise(person_weight = sum(W2)) %>%
   ungroup()
 
-
 # Step 3 - Divide total trips by weighted sum of individuals
-week_weighted_trips <- week_total_trips %>%
-  left_join(week_total_individuals,
-            by = c('hb_purpose', 'age_work_status', 'gender', 'hh_adults', 'cars', 'soc_cat', 'ns_sec', 'area_type')) %>%
+trip_and_people_weights <- week_total_trips %>%
+  full_join(week_total_individuals,
+            by = c('IndividualID', 'age_work_status', 'gender', 'hh_adults', 'cars', 'soc_cat', 'ns_sec', 'area_type')) %>%
   mutate(tfn_trip_rate = weekly_trips/person_weight)
 
-week_weighted_trips %>% write_csv('weekly_trip_rates.csv')
+person_purpose_count_ptr <- week_total_trips %>%
+  select(IndividualID, hb_purpose) %>%
+  group_by(IndividualID) %>%
+  count()
+
+trip_and_people_weights %>% write_csv('weekly_trip_rates.csv')
