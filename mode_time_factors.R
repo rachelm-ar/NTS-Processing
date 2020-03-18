@@ -97,7 +97,6 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character('unclassified')
   ))
 
-
 # drop 'unclassified' hb_purpose as cannot be used in regression by trip_purpose
 unclassified_build <- subset(unclassified_build, trip_purpose != 'unclassified')
 
