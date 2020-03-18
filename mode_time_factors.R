@@ -133,18 +133,6 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character(NumCarVan_B02ID)
   ))
 
-# Adapt number of cars available to NTEM methodology
-unclassified_build <- unclassified_build %>%
-  mutate(cars = case_when(
-    HHoldNumAdults == '1 Adult' & cars == '1' ~ '1+',
-    HHoldNumAdults == '1 Adult' & cars == '2+' ~ '1+',
-    TRUE ~ as.character(cars)
-  ))
-
-# Drop cars = -8
-unclassified_build <- subset(unclassified_build, cars != -8)
-
-
 # Recode number of adults in household(HHoldNumAdults) as hh_adults
 unclassified_build <- unclassified_build %>%
   mutate(hh_adults = case_when(
@@ -153,6 +141,18 @@ unclassified_build <- unclassified_build %>%
     HHoldNumAdults >= 3 ~ '3+', # 3+ Adults
     TRUE ~ as.character(HHoldNumAdults)
   ))
+
+
+# Adapt number of cars available to NTEM methodology
+unclassified_build <- unclassified_build %>%
+  mutate(cars = case_when(
+    HHoldNumAdults == '1' & cars == '1' ~ '1+',
+    HHoldNumAdults == '1' & cars == '2+' ~ '1+',
+    TRUE ~ as.character(cars)
+  ))
+
+# Drop cars = -8
+unclassified_build <- subset(unclassified_build, cars != -8)
 
 
 # Recode area type (HHoldAreaType1_B01ID) as NTEM area classification area_type
