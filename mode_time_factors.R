@@ -2,7 +2,8 @@
 
 
 ### Load libraries and import data ##############################################
-library("tidyverse")
+require("tidyverse")
+require("naniar")
 
 
 # Import unclassified build
@@ -334,53 +335,60 @@ nts_completed <- usable_households %>%
   left_join(unclassified_build) %>%
   filter(cars!='-8')
 
+# Calculate total trips
+nts_completed <- nts_completed %>% mutate(weighted_trip = W1 * W5xHh * W2) %>%
+  group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, mode_time) %>%
+  summarise(trip_sample = n(), daily_trips = sum(weighted_trip)/5) %>%
+
 #### Segment by traveller type (age_work_status, gender, cars, hh_adults), area_type and hb_purpose ####
 
 
 # Unite main_mode and start_time into mode_time (main_mode & "_" & start_time) 
-unclassified_build <- unclassified_build %>% unite("mode_time", 'main_mode', 'start_time', remove=FALSE, sep="_") %>% mutate(mode_time = factor(mode_time))
+nts_completed <- nts_completed %>% unite("mode_time", 'main_mode', 'start_time', remove=FALSE, sep="_") %>% mutate(mode_time = factor(mode_time))
 
 
 # Commuter and business trips only (trip_purpose == 1 | 2)
-mode_time_df_1 <- unclassified_build %>%
+mode_time_df_1 <- nts_completed %>%
   filter(hb_purpose == 1 | hb_purpose == 2) %>%
+  replace_with_na(list(soc_cat = c(-8, -9))) %>%
   mutate(weighted_trip = W1 * W5xHh * W2) %>%
   select(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, weighted_trip, mode_time) %>%
   group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, mode_time) %>%
-  mutate(trips = sum(weighted_trip, na.rm=TRUE))
+  summarise(mode_time_trips = sum(weighted_trip)) %>%
+  group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose) %>%
+  mutate(total_trips = sum(mode_time_trips, na.rm=TRUE)) %>%
+  ungroup()
 
-mode_time_df_1 <- mode_time_df_1 %>% mutate(mode_time_fc = weighted_trip/sum(weighted_trip))
+mode_time_df_1 <- mode_time_df_1 %>% mutate(mode_time_fc = mode_time_trips/total_trips)
 
 
 # Commuter and business trips only (trip_purpose != 1 & 2)
-mode_time_df_2 <- unclassified_build %>%
+mode_time_df_2 <- nts_completed %>%
   filter(hb_purpose != 1 & hb_purpose != 2) %>%
+  replace_with_na(list(ns_sec = -9)) %>%
   mutate(weighted_trip = W1 * W5xHh * W2) %>%
   select(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose, weighted_trip, mode_time) %>%
   group_by(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose, mode_time) %>%
-  mutate(trips = sum(weighted_trip, na.rm=TRUE))
+  summarise(mode_time_trips = sum(weighted_trip)) %>%
+  group_by(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose) %>%
+  mutate(total_trips = sum(mode_time_trips, na.rm=TRUE)) %>%
+  ungroup()
 
-mode_time_df_2 <- mode_time_df_1 %>% mutate(mode_time_fc = weighted_trip/sum(weighted_trip))
+mode_time_df_1 <- mode_time_df_1 %>% mutate(mode_time_fc = mode_time_trips/total_trips)
 
 
 
-# Final step: merge two dataframes, spread and export
+# Final step: merge two dataframes, transpose and export
 mode_time_df <- bind_rows(mode_time_df_1, mode_time_df_2)
 
-# The pivoting of the mode_time and mode_time factors isn't working yet
-# tried with dcast, spread, reshape and pivot_wider but i haven't managed to make it work yet
+mode_time_df_simplified <- mode_time_df %>%
+  select(age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, hb_purpose, mode_time, mode_time_fc) %>%
+  unite("traveller_type", "age_work_status", "gender", "hh_adults", "cars", remove=TRUE, sep="_")
+  
+mode_time_df_transposed <- mode_time_df_simplified %>% pivot_wider(names_from = mode_time, values_from = mode_time_fc)
 
-# This didn't work:
-#mode_time_df <- mode_time_df %>% spread(key = mode_time, value = mode_time_fc)
-
-#the below produces a way to big file, no sure if i'm grouping/summarising wrong or if it is just the pivoting that i'm doing wrong.
-mode_time_df <- mode_time_df %>%
-  mutate(rn = row_number()) %>%
-  pivot_wider(names_from = 'mode_time', values_from = c('mode_time_fc'), 
-              names_sep='.')  %>% 
-  select(-rn)
-
-mode_time_df %>% write_csv('mode_time_split.csv')
+mode_time_df_simplified %>% write_csv('mode_time_split_simplified.csv')
+mode_time_df_transposed %>% write_csv('mode_time_split_transposed.csv')
 
 
 
@@ -388,8 +396,8 @@ mode_time_df %>% write_csv('mode_time_split.csv')
 
 ### To do
 
-# 1) Start_time, end_time, both, either?
-# 2) Sense check results
-# 3) Sample size?
-# 4) Turn into 88 traveller_types?
-# 5) pivot table (turn mode_time into column and fill with mode_time_fc)
+# 1) Too many NAs in mode_time_fc?
+# 2) Start_time, end_time, both, either?
+# 3) Turn into 88 traveller types?
+# 4) Sample size?
+# 5) Add accessibility metrics?
