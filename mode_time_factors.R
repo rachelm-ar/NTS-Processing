@@ -10,7 +10,6 @@ require("naniar")
 unclassified_build <- read_csv("Y:/NTS/tfn_unclassified_build.csv")
 
 
-
 ### Prepare dataset #############################################################
 
 
@@ -146,8 +145,8 @@ unclassified_build <- unclassified_build %>%
 # Adapt number of cars available to NTEM methodology
 unclassified_build <- unclassified_build %>%
   mutate(cars = case_when(
-    HHoldNumAdults == '1' & cars == '1' ~ '1+',
-    HHoldNumAdults == '1' & cars == '2+' ~ '1+',
+    hh_adults == '1' & cars == '1' ~ '1+',
+    hh_adults == '1' & cars == '2+' ~ '1+',
     TRUE ~ as.character(cars)
   ))
 
@@ -386,8 +385,8 @@ mode_time_df_simplified <- mode_time_df %>%
   
 mode_time_df_transposed <- mode_time_df_simplified %>% pivot_wider(names_from = mode_time, values_from = mode_time_fc)
 
-mode_time_df_simplified %>% write_csv('mode_time_split_simplified.csv')
-mode_time_df_transposed %>% write_csv('mode_time_split_transposed.csv')
+mode_time_df_simplified %>% write_csv('Y:/NTS/mode_time_splits/mode_time_split_simplified.csv')
+mode_time_df_transposed %>% write_csv('Y:/NTS/mode_time_splits/mode_time_split_transposed.csv')
 
 
 
