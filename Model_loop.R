@@ -21,18 +21,20 @@ variables <- c("age_work_status",
                "soc_cat", 
                "ns_sec",
                "area_type"
-)
+               )
 
 trip_rates_df <- trip_rates_df %>% mutate_at(variables, funs(factor))
 
-# Levels within each independent variable
-variable_levels <- lapply(variables, function(x){
+Extract_levels <- function(variable_name,df){
   
-  trip_rates_df %>%
-    pull(x) %>%
+  df %>%
+    pull(variable_name) %>%
+    as.factor() %>%
     levels()
   
-})
+}
+
+variable_levels <- lapply(variables, Extract_levels, trip_rates_df)
 
 # Formula for Negative binomial regression with all variables
 nbr_formula <- paste("tfn_trip_rate", paste(variables, collapse = " + "), sep = " ~ ")
@@ -98,16 +100,20 @@ for(j in 1:length(purpose_split)){
       
       p_values <- tibble::rownames_to_column(p_values, "Variables")
       
+      p_values <- p_values %>% filter(str_detect(Variables, variables[i]))
+      
       p_values_significant <- p_values %>% 
         rename(pvals = "Pr(>|z|)") %>% 
         filter(pvals < 0.05)
       
-      significant_number <- nrow(p_values_significant) - 1
-      number_variables <- nrow(p_values) - 1
+      significant_number <- nrow(p_values_significant)
+      number_variables <- nrow(p_values)
+      proportion_significant <- significant_number/number_variables
       aic <- p_values_summary$aic
       
       results <- data.frame(number_segments = number_variables,
                             significant_variables = significant_number,
+                            proportion_significant,
                             aic)
       
       list(updated_df, results)
@@ -123,10 +129,10 @@ for(j in 1:length(purpose_split)){
     # Obtain the top row based on selection criteria which is most significant variables
     # I'm hoping to improve this somehow!
     model_select <- results_values %>%
-      bind_rows %>% 
+      bind_rows() %>% 
       mutate(n = seq_along(results)) %>%
       select(n,everything()) %>%
-      arrange(desc(significant_variables), desc(number_segments), aic)
+      arrange(desc(proportion_significant),desc(significant_variables), desc(number_segments), aic)
     
     # Obtain winning combination
     combination_winner <- model_select %>% 
@@ -179,3 +185,8 @@ new_data <- data.frame(age_work_status = "0-16_child",
                        area_type = "1")
 
 final_df[[1]] %>% filter(age_work_status == "0-16_child") %>% select(cars) %>% distinct()
+
+lapply(variables, Extract_levels, final_df[[1]])
+
+
+
