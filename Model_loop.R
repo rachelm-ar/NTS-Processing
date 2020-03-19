@@ -44,6 +44,7 @@ purpose_split <- trip_rates_df %>% group_split(hb_purpose)
 
 final_df <- list()
 final_model <- list()
+output <- list()
 
 for(j in 1:length(purpose_split)){
   
@@ -72,7 +73,6 @@ for(j in 1:length(purpose_split)){
     
     # Find all combinations of classifications
     Testing <- do.call(c, lapply(seq_along(variable_levels[[i]]), combn, x = variable_levels[[i]], simplify = FALSE))
-    
     # Remove combinations which are not necessary. i.e a variable level by it's own
     Testing <- Testing[(length(variable_levels[[i]]) + 1): (length(Testing)-1)]
     
@@ -153,40 +153,30 @@ for(j in 1:length(purpose_split)){
   # Build final model
   final_model[[j]] <- glm.nb(formula = nbr_formula, data = final_df[[j]], subset = train_ind)
   
+  # Extract new variable levels
+  new_levels <- lapply(variables, Extract_levels, final_df[[j]])
+  names(new_levels) <- variables
+  
+  # Calculate combinations of all variables
+  new_data <- do.call("crossing",new_levels)
+  
+  # Predict new trip rates
+  tfn_predictions <- predict(final_model[[j]], newdata = new_data, type = "response") %>% as.vector()
+  
+  output[[j]] <- new_data %>% mutate(tfn_predictions = tfn_predictions)
+  
+  
 }
 
-new_data <- data.frame(age_work_status = "16-74_fte",
-                       gender = "Male",
-                       hh_adults = "1",
-                       cars = "0",
-                       soc_cat = "2",
-                       ns_sec = "2",
-                       area_type = "1 Join 2")
 
-predict(final_model[[1]],
-        newdata = new_data,
-        type = "response")
+t1 <- lapply(variables, Extract_levels, final_df[[1]])
 
-final_df[[1]] %>% group_by(age_work_status) %>% count()
-final_df[[1]] %>% group_by(hh_adults) %>% count()
-final_df[[1]] %>% group_by(cars) %>% count()
-final_df[[1]] %>% group_by(soc_cat) %>% count()
-final_df[[1]] %>% group_by(ns_sec) %>% count()
-final_df[[1]] %>% group_by(area_type) %>% count()
-final_df[[1]] %>% group_by() %>% count()
+names(t1) <- variables
+t2 <- do.call("crossing",t1)
 
-# Traveller type 1
-new_data <- data.frame(age_work_status = "0-16_child",
-                       gender = "Male",
-                       hh_adults = "1",
-                       cars = "0",
-                       soc_cat = "-9",
-                       ns_sec = "-9 Join 4",
-                       area_type = "1")
+predictions <- predict(final_model[[1]], newdata = t2, type = "response") %>% as.vector()
 
-final_df[[1]] %>% filter(age_work_status == "0-16_child") %>% select(cars) %>% distinct()
-
-lapply(variables, Extract_levels, final_df[[1]])
+t3 <- t2 %>% mutate(predicted_rates = predictions)
 
 
 
