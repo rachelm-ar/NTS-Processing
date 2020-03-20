@@ -9,6 +9,8 @@ require("naniar")
 # Import unclassified build
 unclassified_build <- read_csv("Y:/NTS/tfn_unclassified_build.csv")
 
+# Import new area_type classification of wards
+new_area_types <- read_csv("Y:/NTS/new area type lookup/new_area_type.csv")
 
 ### Prepare dataset #############################################################
 
@@ -263,8 +265,12 @@ unclassified_build <- unclassified_build %>%
 unclassified_build <- subset(unclassified_build, start_time != 'unclassified' & end_time != 'unclassified')
 
 
+# Add new area_type
+unclassified_build <- unclassified_build %>% left_join(new_area_types, by = c("HHoldOSWard_B01ID" = "uk_ward_zones"))
+
+
 # Transform catgeorical variables to factors
-facts <- c("hb_purpose", "age_work_status", "gender", "hh_adults", "cars", "area_type", "soc_cat", "ns_sec", "main_mode", "start_time", "end_time")
+facts <- c("hb_purpose", "age_work_status", "gender", "hh_adults", "cars", "area_type", "new_area_type", "soc_cat", "ns_sec", "main_mode", "start_time", "end_time")
 unclassified_build <- unclassified_build %>% mutate_at(facts, funs(factor))
 
 
@@ -359,7 +365,9 @@ mode_time_df_1 <- nts_completed %>%
   group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose, mode_time) %>%
   summarise(mode_time_trips = sum(weighted_trip)) %>%
   group_by(age_work_status, gender, hh_adults, cars, soc_cat, area_type, hb_purpose) %>%
-  mutate(total_trips = sum(mode_time_trips, na.rm=TRUE)) %>%
+  # both versions of mutate to sum total trips have same result? correct method?
+  #mutate(total_trips = sum(mode_time_trips, na.rm=TRUE)) %>%
+  mutate(total_Trips = sum(weighted_trip, na.rm=TRUE))
   ungroup()
 
 mode_time_df_1 <- mode_time_df_1 %>% mutate(mode_time_fc = mode_time_trips/total_trips)
@@ -374,7 +382,9 @@ mode_time_df_2 <- nts_completed %>%
   group_by(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose, mode_time) %>%
   summarise(mode_time_trips = sum(weighted_trip)) %>%
   group_by(age_work_status, gender, hh_adults, cars, ns_sec, area_type, hb_purpose) %>%
-  mutate(total_trips = sum(mode_time_trips, na.rm=TRUE)) %>%
+  # both versions of mutate to sum total trips have same result? correct method?
+  #mutate(total_trips = sum(mode_time_trips, na.rm=TRUE)) %>%
+  mutate(total_Trips = sum(weighted_trip, na.rm=TRUE))
   ungroup()
 
 mode_time_df_2 <- mode_time_df_2 %>% mutate(mode_time_fc = mode_time_trips/total_trips)
@@ -430,7 +440,7 @@ mode_time_df_transposed %>% write_csv('Y:/NTS/mode_time_splits/mode_time_split_t
 
 ### To do
 
-# 1) sense check results
+# 1) sense check results - some are fairly far off from NTEM split - sample size or code issue?
 # 2) add accessibility metrics
 
 
