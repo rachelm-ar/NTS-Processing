@@ -14,6 +14,8 @@ select <- dplyr::select
 # Import unclassified build
 unclassified_build <- read_csv("Y:/NTS/tfn_unclassified_build.csv")
 
+# Import new area_type classification of wards
+new_area_types <- read_csv("Y:/NTS/new area type lookup/new_area_type.csv")
 
 ### Prepare dataset #############################################################
 
@@ -138,11 +140,12 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character(NumCarVan_B02ID)
   ))
 
+
 # Adapt number of cars available to NTEM methodology
 unclassified_build <- unclassified_build %>%
   mutate(cars = case_when(
-    HHoldNumAdults == '1 Adult' & cars == '1' ~ '1+',
-    HHoldNumAdults == '1 Adult' & cars == '2+' ~ '1+',
+    HHoldNumAdults == 1 & cars == '1' ~ '1+',
+    HHoldNumAdults == 1 & cars == '2+' ~ '1+',
     TRUE ~ as.character(cars)
   ))
 
