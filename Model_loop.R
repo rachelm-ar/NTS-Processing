@@ -4,14 +4,15 @@ library("MASS")
 library("survey")
 library("combinat")
 library("magrittr")
+library("rlang")
 
 # Redefine select if masked by MASS
 select <- dplyr::select
 
 # Read in Weekly trip rates
-trip_rates_df <- read_csv("Y:/NTS/weekly_trip_rates_HA.csv")
+#trip_rates_df <- read_csv("Y:/NTS/weekly_trip_rates_HA.csv")
 
-trip_rates_cs <- read_csv("Y:/NTS/weekly_trip_rates.csv")
+trip_rates_df <- read_csv("Y:/NTS/weekly_trip_rates.csv")
 
 # Transform catgeorical variables to factors
 variables <- c("age_work_status", 
@@ -44,7 +45,7 @@ purpose_split <- trip_rates_df %>% group_split(hb_purpose)
 
 final_df <- list()
 final_model <- list()
-output <- list()
+TfN_trip_rates <- list()
 
 for(j in 1:length(purpose_split)){
   
@@ -163,20 +164,121 @@ for(j in 1:length(purpose_split)){
   # Predict new trip rates
   tfn_predictions <- predict(final_model[[j]], newdata = new_data, type = "response") %>% as.vector()
   
-  output[[j]] <- new_data %>% mutate(tfn_predictions = tfn_predictions)
+  new_data <- new_data %>% mutate(tfn_predictions = tfn_predictions)
   
+  new_data <- new_data %>%
+    separate_rows(hh_adults, sep = " Join ") %>%
+    separate_rows(gender, sep = " Join ") %>%
+    separate_rows(age_work_status, sep = " Join ") %>% 
+    separate_rows(cars, sep = " Join ") %>%
+    separate_rows(soc_cat, sep = " Join ") %>%
+    separate_rows(ns_sec, sep = " Join ") %>%
+    separate_rows(area_type, sep = " Join ")
+  
+  # Build traveller type list:
+  aws <- c(rep("0-16_child"                  , 8),
+           rep("16-74_fte"                   , 8),
+           rep("16-74_pte"                   , 8),
+           rep("16-74_stu"                   , 8),
+           rep("16-74_unm"                   , 8),
+           rep("75\\+_retired|75\\+_pte|75\\+_fte" , 8),
+           rep("16-74_fte"                   , 8),
+           rep("16-74_pte"                   , 8),
+           rep("16-74_stu"                   , 8),
+           rep("16-74_unm"                   , 8),
+           rep("75\\+_retired|75\\+_pte|75\\+_fte" , 8)
+  )
+  
+  gndr <- c(rep("Male|Female"                , 8),
+            rep("Male"                       , 40),
+            rep("Female"                     , 40))
+  
+  crs <- rep(c("0", "1+", "0", "1", "2+", "0", "1", "2+"), 11)
+  
+  hha <- rep(c("1","1","2","2","2","3+","3+","3+"), 11)
+  
+  traveller_type_list <- list(age_work_status = aws,
+                              hh_adults = hha,
+                              cars = crs,
+                              gender = gndr)
+  
+  traveller_types_unlist <- traveller_type_list %>%
+    transpose() %>%
+    map(flatten_chr) %>%
+    lapply(as.list)
+  
+  # Extracts weights to apply to 75+ to replicate NTEM classifications
+  weights75plus <- trip_rates_df %>% 
+    filter(str_detect(age_work_status, "75\\+_retired|75\\+_fte|75\\+_pte")) %>%
+    group_by(age_work_status) %>% 
+    count()
+  
+  total75 <- weights75plus %>% pull(n) %>% sum()
+  fte75 <- weights75plus %>% filter(age_work_status == "75+_fte") %>% pull(n)
+  fte75 <- fte75/total75
+  pte75 <- weights75plus %>% filter(age_work_status == "75+_pte") %>% pull(n)
+  pte75 <- pte75/total75
+  rte75 <- weights75plus %>% filter(age_work_status == "75+_retired") %>% pull(n)
+  rte75 <- rte75/total75
+  
+  TT_df <- list()
+  
+  for (k in 1:length(traveller_types_unlist)){
+    
+    x <- traveller_types_unlist[[k]]
+    
+    if(x$age_work_status == "0-16_child"){
+      
+      # TT 1 to 8
+      TT_df[[k]] <- Tester %>%
+        filter(str_detect(hh_adults, x$hh_adults),
+               str_detect(age_work_status, x$age_work_status),
+               str_detect(gender, x$gender),
+               str_detect(cars, x$cars),
+               str_detect(soc_cat, "-9"),
+               str_detect(ns_sec, "-9")) %>%
+        mutate(traveller_type = k) %>%
+        group_by(hh_adults, age_work_status, cars, soc_cat, ns_sec, area_type, traveller_type) %>%
+        summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE)) %>%
+        ungroup() %>%
+        select(traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+      
+    } else if (x$age_work_status == "75\\+_retired|75\\+_pte|75\\+_fte"){
+      
+      TT_df[[k]] <- Tester %>%
+        filter(str_detect(hh_adults, x$hh_adults),
+               str_detect(age_work_status, x$age_work_status),
+               str_detect(gender, x$gender),
+               str_detect(cars, x$cars)) %>%
+        mutate(traveller_type = k,
+               weights75 = ifelse(age_work_status == "75+_fte", fte75,
+                                  ifelse(age_work_status == "75+_pte", pte75, rte75))) %>%
+        group_by(traveller_type, hh_adults, gender, cars, soc_cat, ns_sec, area_type) %>%
+        summarise(tfn_predictions = weighted.mean(tfn_predictions, w = weights75, na.rm = TRUE)) %>%
+        ungroup() %>%
+        select(traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+      
+    } else {
+      
+      # TT not child or 75+
+      TT_df[[k]] <- Tester %>%
+        filter(str_detect(hh_adults, x$hh_adults),
+               str_detect(age_work_status, x$age_work_status),
+               str_detect(gender, x$gender),
+               str_detect(cars, x$cars)) %>%
+        mutate(traveller_type = k) %>%
+        select(traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+      
+    }
+    
+  }
+  
+  TfN_trip_rates[[j]] <- TT_df %>%
+    bind_rows() %>%
+    select(traveller_type, soc_cat, ns_sec, area_type, tfn_predictions) %>%
+    arrange(traveller_type, soc_cat, ns_sec, area_type, tfn_predictions)
   
 }
-
-
-t1 <- lapply(variables, Extract_levels, final_df[[1]])
-
-names(t1) <- variables
-t2 <- do.call("crossing",t1)
-
-predictions <- predict(final_model[[1]], newdata = t2, type = "response") %>% as.vector()
-
-t3 <- t2 %>% mutate(predicted_rates = predictions)
 
 
 
