@@ -10,8 +10,6 @@ library("rlang")
 select <- dplyr::select
 
 # Read in Weekly trip rates
-#trip_rates_df <- read_csv("Y:/NTS/weekly_trip_rates_HA.csv")
-
 trip_rates_df <- read_csv("Y:/NTS/weekly_trip_rates.csv")
 
 # Transform catgeorical variables to factors
@@ -43,8 +41,6 @@ nbr_formula <- paste("tfn_trip_rate", paste(variables, collapse = " + "), sep = 
 # Split data by purpose
 purpose_split <- trip_rates_df %>% group_split(hb_purpose)
 
-final_df <- list()
-final_model <- list()
 TfN_trip_rates <- list()
 
 for(j in 1:length(purpose_split)){
@@ -52,7 +48,6 @@ for(j in 1:length(purpose_split)){
   # Split data into 75% train and 25% test
   smp_size <- floor(0.75*nrow(purpose_split[[j]]))
   train_ind <- sample(seq_len(nrow(purpose_split[[j]])), size = smp_size)
-  
   
   for (i in 1:length(variables)){
     
@@ -145,24 +140,24 @@ for(j in 1:length(purpose_split)){
     
     if (i == length(variables)){
       
-      final_df[[j]] <- new_df
+      final_df <- new_df
       
     }
     
   }
   
   # Build final model
-  final_model[[j]] <- glm.nb(formula = nbr_formula, data = final_df[[j]], subset = train_ind)
+  final_model <- glm.nb(formula = nbr_formula, data = final_df, subset = train_ind)
   
   # Extract new variable levels
-  new_levels <- lapply(variables, Extract_levels, final_df[[j]])
+  new_levels <- lapply(variables, Extract_levels, final_df)
   names(new_levels) <- variables
   
   # Calculate combinations of all variables
   new_data <- do.call("crossing",new_levels)
   
   # Predict new trip rates
-  tfn_predictions <- predict(final_model[[j]], newdata = new_data, type = "response") %>% as.vector()
+  tfn_predictions <- predict(final_model, newdata = new_data, type = "response") %>% as.vector()
   
   new_data <- new_data %>% mutate(tfn_predictions = tfn_predictions)
   
@@ -230,55 +225,62 @@ for(j in 1:length(purpose_split)){
     if(x$age_work_status == "0-16_child"){
       
       # TT 1 to 8
-      TT_df[[k]] <- Tester %>%
+      TT_df[[k]] <- new_data %>%
         filter(str_detect(hh_adults, x$hh_adults),
                str_detect(age_work_status, x$age_work_status),
                str_detect(gender, x$gender),
                str_detect(cars, x$cars),
                str_detect(soc_cat, "-9"),
                str_detect(ns_sec, "-9")) %>%
-        mutate(traveller_type = k) %>%
-        group_by(hh_adults, age_work_status, cars, soc_cat, ns_sec, area_type, traveller_type) %>%
+        mutate(traveller_type = k,
+               purpose = j) %>%
+        group_by(purpose, hh_adults, age_work_status, cars, soc_cat, ns_sec, area_type, traveller_type) %>%
         summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE)) %>%
         ungroup() %>%
-        select(traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+        select(purpose, traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
       
     } else if (x$age_work_status == "75\\+_retired|75\\+_pte|75\\+_fte"){
       
-      TT_df[[k]] <- Tester %>%
+      #TT 41-48 and 81-88
+      TT_df[[k]] <- new_data %>%
         filter(str_detect(hh_adults, x$hh_adults),
                str_detect(age_work_status, x$age_work_status),
                str_detect(gender, x$gender),
                str_detect(cars, x$cars)) %>%
         mutate(traveller_type = k,
+               purpose = j,
                weights75 = ifelse(age_work_status == "75+_fte", fte75,
                                   ifelse(age_work_status == "75+_pte", pte75, rte75))) %>%
-        group_by(traveller_type, hh_adults, gender, cars, soc_cat, ns_sec, area_type) %>%
+        group_by(purpose,traveller_type, hh_adults, gender, cars, soc_cat, ns_sec, area_type) %>%
         summarise(tfn_predictions = weighted.mean(tfn_predictions, w = weights75, na.rm = TRUE)) %>%
         ungroup() %>%
-        select(traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+        select(purpose, traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
       
     } else {
       
       # TT not child or 75+
-      TT_df[[k]] <- Tester %>%
+      TT_df[[k]] <- new_data %>%
         filter(str_detect(hh_adults, x$hh_adults),
                str_detect(age_work_status, x$age_work_status),
                str_detect(gender, x$gender),
                str_detect(cars, x$cars)) %>%
-        mutate(traveller_type = k) %>%
-        select(traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
-      
+        mutate(traveller_type = k,
+               purpose = j) %>%
+        select(purpose, traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
     }
-    
   }
   
-  TfN_trip_rates[[j]] <- TT_df %>%
-    bind_rows() %>%
-    select(traveller_type, soc_cat, ns_sec, area_type, tfn_predictions) %>%
-    arrange(traveller_type, soc_cat, ns_sec, area_type, tfn_predictions)
+  TfN_trip_rates[[j]] <- TT_df %>% bind_rows()
   
 }
 
+TfN_trip_rates_result <- TfN_trip_rates %>%
+  bind_rows() %>%
+  group_by(purpose, traveller_type, soc_cat, ns_sec, area_type) %>%
+  summarise(tfn_predictions = mean(tfn_predictions))
 
+
+
+
+TfN_trip_rates_result %>% write_csv("Y:/NTS/TfN_trip_rates.csv")
 
