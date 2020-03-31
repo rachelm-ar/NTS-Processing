@@ -60,6 +60,220 @@ trip_length_subset <- nts_ntem_df %>%
   filter(!is.na(weighted_trip)) %>%
   mutate(trip_dist_km = TripDisIncSW_spread*1.60934)
 
+# Build all car and rail splits for external model
+# Placeholders first
+# Define breaks
+breaks <- c(0,20,30,50,75,150,500,1000)
+# Name breaks
+tags <- c("(0-20]", "(20-30]", "(30-50]", "(50-75]","(75-150]", "(150-500]", "(500-1000]")
+
+# Build placeholders for join
+tlb_desc <- tags %>%
+  as_tibble() %>%
+  rename(tlb_desc = value) %>%
+  mutate(ph=1)
+
+hb_purpose <- c('1','2','3','4','5','6','7','8') %>%
+  as_tibble() %>%
+  rename(hb_purpose = value) %>%
+  mutate(ph=1)
+
+nhb_purpose <- c('12','13','14','15','16','18') %>%
+  as.tibble() %>%
+  rename(nhb_purpose = value) %>%
+  mutate(ph=1)
+
+hb_placeholder <- tlb_desc %>%
+  left_join(hb_purpose) %>%
+  select(-ph) %>%
+  distinct() %>%
+  group_by(hb_purpose) %>%
+  mutate(tlb_index = row_number(),
+         main_mode = 3) %>%
+  ungroup() %>%
+  select(tlb_index, tlb_desc, hb_purpose, main_mode)
+
+nhb_placeholder <- tlb_desc %>%
+  left_join(nhb_purpose) %>%
+  select(-ph) %>%
+  distinct() %>%
+  group_by(nhb_purpose) %>%
+  mutate(tlb_index = row_number(),
+         main_mode = 3) %>%
+  ungroup %>%
+  select(tlb_index, tlb_desc, nhb_purpose, main_mode)
+
+gb_car_hb_trip_lengths <- trip_length_subset %>%
+  filter(trip_origin == 'hb' & main_mode==3) %>%
+  mutate(tlb_index = cut(trip_dist_km, 
+                         breaks=breaks, 
+                         include.lowest=TRUE, 
+                         right=TRUE, 
+                         labels=FALSE)) %>%
+  filter(hb_purpose != 99 & !is.na(tlb_index)) %>%
+  group_by(tlb_index, main_mode, hb_purpose) %>%
+  summarise(trips = sum(weighted_trip, na.rm=TRUE),
+            atl = weighted.mean(trip_dist_km, weighted_trip, na.rm=TRUE)) %>%
+  ungroup() %>%
+  select(tlb_index, main_mode, hb_purpose, trips, atl)
+
+gb_car_hb_trip_lengths <- hb_placeholder %>%
+  full_join(gb_car_hb_trip_lengths) %>%
+  mutate(trips = replace_na(trips, 0))
+
+# Get % share for each number of trips
+gb_car_totals <- gb_car_hb_trip_lengths %>%
+  select(tlb_desc, hb_purpose, trips) %>%
+  group_by(hb_purpose) %>%
+  summarise(total_trips = sum(trips,na.rm=TRUE))
+
+# Reattach - derive total
+gb_car_hb_trip_lengths <- gb_car_hb_trip_lengths %>%
+  left_join(gb_car_totals) %>%
+  mutate(band_share = round(trips/total_trips, 3)) %>%
+  select(-total_trips)
+
+gb_car_hb_trip_lengths %>% write_csv(paste0(export, 'hb_mode3_gb_trip_length_bands.csv'))
+
+# Same for NHB
+gb_car_nhb_trip_lengths <- trip_length_subset %>%
+  filter(trip_origin == 'nhb' & main_mode==3) %>%
+  select(-hb_purpose) %>%
+  mutate(tlb_index = cut(trip_dist_km, 
+                         breaks=breaks, 
+                         include.lowest=TRUE, 
+                         right=TRUE, 
+                         labels=FALSE)) %>%
+  filter(nhb_purpose != 99 & !is.na(tlb_index)) %>%
+  group_by(tlb_index, main_mode, nhb_purpose) %>%
+  summarise(trips = sum(weighted_trip, na.rm=TRUE),
+            atl = weighted.mean(trip_dist_km, weighted_trip, na.rm=TRUE)) %>%
+  ungroup() %>%
+  select(tlb_index, main_mode, nhb_purpose, trips, atl)
+
+gb_car_nhb_trip_lengths <- nhb_placeholder %>%
+  full_join(gb_car_nhb_trip_lengths) %>%
+  mutate(trips = replace_na(trips, 0))
+
+# Get % share for each number of trips
+gb_car_totals <- gb_car_nhb_trip_lengths %>%
+  select(tlb_desc, nhb_purpose, trips) %>%
+  group_by(nhb_purpose) %>%
+  summarise(total_trips = sum(trips,na.rm=TRUE))
+
+# Reattach - derive total
+gb_car_nhb_trip_lengths <- gb_car_nhb_trip_lengths %>%
+  left_join(gb_car_totals) %>%
+  mutate(band_share = round(trips/total_trips, 3)) %>%
+  select(-total_trips)
+
+gb_car_nhb_trip_lengths %>% write_csv(paste0(export, 'nhb_mode3_gb_trip_length_bands.csv'))
+
+# Redo placeholders for rail
+# Build placeholders for join
+tlb_desc <- tags %>%
+  as_tibble() %>%
+  rename(tlb_desc = value) %>%
+  mutate(ph=1)
+
+hb_purpose <- c('1','2','3','4','5','6','7','8') %>%
+  as_tibble() %>%
+  rename(hb_purpose = value) %>%
+  mutate(ph=1)
+
+nhb_purpose <- c('12','13','14','15','16','18') %>%
+  as.tibble() %>%
+  rename(nhb_purpose = value) %>%
+  mutate(ph=1)
+
+hb_placeholder <- tlb_desc %>%
+  left_join(hb_purpose) %>%
+  select(-ph) %>%
+  distinct() %>%
+  group_by(hb_purpose) %>%
+  mutate(tlb_index = row_number(),
+         main_mode = 6) %>%
+  ungroup() %>%
+  select(tlb_index, tlb_desc, hb_purpose, main_mode)
+
+nhb_placeholder <- tlb_desc %>%
+  left_join(nhb_purpose) %>%
+  select(-ph) %>%
+  distinct() %>%
+  group_by(nhb_purpose) %>%
+  mutate(tlb_index = row_number(),
+         main_mode = 6) %>%
+  ungroup %>%
+  select(tlb_index, tlb_desc, nhb_purpose, main_mode)
+
+# Same with rail - no new weights
+
+gb_rail_hb_trip_lengths <- trip_length_subset %>%
+  filter(trip_origin == 'hb' & main_mode==6) %>%
+  mutate(tlb_index = cut(trip_dist_km, 
+                         breaks=breaks, 
+                         include.lowest=TRUE, 
+                         right=TRUE, 
+                         labels=FALSE)) %>%
+  filter(hb_purpose != 99 & !is.na(tlb_index)) %>%
+  group_by(tlb_index, main_mode, hb_purpose) %>%
+  summarise(trips = sum(weighted_trip, na.rm=TRUE),
+            atl = weighted.mean(trip_dist_km, weighted_trip, na.rm=TRUE)) %>%
+  ungroup() %>%
+  select(tlb_index, main_mode, hb_purpose, trips, atl)
+
+gb_rail_hb_trip_lengths <- hb_placeholder %>%
+  full_join(gb_rail_hb_trip_lengths) %>%
+  mutate(trips = replace_na(trips, 0))
+
+# Get % share for each number of trips
+gb_rail_totals <- gb_rail_hb_trip_lengths %>%
+  select(tlb_desc, hb_purpose, trips) %>%
+  group_by(hb_purpose) %>%
+  summarise(total_trips = sum(trips,na.rm=TRUE))
+
+# Reattach - derive total
+gb_rail_hb_trip_lengths <- gb_rail_hb_trip_lengths %>%
+  left_join(gb_rail_totals) %>%
+  mutate(band_share = round(trips/total_trips, 3)) %>%
+  select(-total_trips)
+
+gb_rail_hb_trip_lengths %>% write_csv(paste0(export, 'hb_mode6_gb_trip_length_bands.csv'))
+
+# Same for NHB
+gb_rail_nhb_trip_lengths <- trip_length_subset %>%
+  filter(trip_origin == 'nhb' & main_mode==6) %>%
+  select(-hb_purpose) %>%
+  mutate(tlb_index = cut(trip_dist_km, 
+                         breaks=breaks, 
+                         include.lowest=TRUE, 
+                         right=TRUE, 
+                         labels=FALSE)) %>%
+  filter(nhb_purpose != 99 & !is.na(tlb_index)) %>%
+  group_by(tlb_index, main_mode, nhb_purpose) %>%
+  summarise(trips = sum(weighted_trip, na.rm=TRUE),
+            atl = weighted.mean(trip_dist_km, weighted_trip, na.rm=TRUE)) %>%
+  ungroup() %>%
+  select(tlb_index, main_mode, nhb_purpose, trips, atl)
+
+gb_rail_nhb_trip_lengths <- nhb_placeholder %>%
+  full_join(gb_rail_nhb_trip_lengths) %>%
+  mutate(trips = replace_na(trips, 0))
+
+# Get % share for each number of trips
+gb_rail_totals <- gb_rail_nhb_trip_lengths %>%
+  select(tlb_desc, nhb_purpose, trips) %>%
+  group_by(nhb_purpose) %>%
+  summarise(total_trips = sum(trips,na.rm=TRUE))
+
+# Reattach - derive total
+gb_rail_nhb_trip_lengths <- gb_rail_nhb_trip_lengths %>%
+  left_join(gb_rail_totals) %>%
+  mutate(band_share = round(trips/total_trips, 3)) %>%
+  select(-total_trips)
+
+gb_rail_nhb_trip_lengths %>% write_csv(paste0(export, 'nhb_mode6_gb_trip_length_bands.csv'))
+
 # North only
 north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', 'E06000006',
               'E06000007', 'E06000008', 'E06000009', 'E06000010', 'E06000011', 'E06000012',
