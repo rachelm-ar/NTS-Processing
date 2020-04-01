@@ -42,7 +42,7 @@ highway.to_csv('jobs_by_car.csv')
 
 # PT job accessibility
 # Import travel time by MSOA OD pair, drop columns not required
-pt = pd.read_csv(_highway_data, usecols=['Start Centroid ID', 'End Centroid ID', 'Total Travel Time'])
+pt = pd.read_csv(_rail_data, usecols=['Start Centroid ID', 'End Centroid ID', 'Total Travel Time'])
 
 # Filter by maximal travel time (set to 60 minutes)
 max_travel_time = 60
