@@ -27,13 +27,14 @@ highway = pd.read_csv(_highway_data, usecols=['Start Centroid ID', 'End Centroid
 
 # Filter by maximal travel time (set to 60 minutes)
 max_travel_time = 60
-highway = highway[highway['Total Travel Time'] >= max_travel_time]
+highway = highway[highway['Total Travel Time'] <= max_travel_time]
 
 # Read total jobs by MSOA and join job figures to highway MSOA
 highway = highway.join(jobs.set_index('geo_code'), on='End Centroid ID')
 
 # Sum total jobs per MSOA
 highway = highway.groupby(['Start Centroid ID'])['Total'].sum()
+highway = pd.DataFrame(highway)
 
 # Join best ward fit and flag for <40% match for each MSOA and export to csv
 highway = highway.join(msoa_ward_lookup.set_index('msoa_area_code'), on='Start Centroid ID')
@@ -45,13 +46,14 @@ pt = pd.read_csv(_highway_data, usecols=['Start Centroid ID', 'End Centroid ID',
 
 # Filter by maximal travel time (set to 60 minutes)
 max_travel_time = 60
-pt = pt[pt['Total Travel Time'] >= max_travel_time]
+pt = pt[pt['Total Travel Time'] <= max_travel_time]
 
 # Read total jobs by MSOA and join job figures to highway MSOA
 pt = pt.join(jobs.set_index('geo_code'), on='End Centroid ID')
 
 # Sum total jobs per MSOA
 pt = pt.groupby(['Start Centroid ID'])['Total'].sum()
+pt = pd.DataFrame(pt)
 
 # Join best ward fit and flag for <40% match for each MSOA and export to csv
 pt = pt.join(msoa_ward_lookup.set_index('msoa_area_code'), on='Start Centroid ID')
