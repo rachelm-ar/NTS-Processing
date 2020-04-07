@@ -1,4 +1,4 @@
-### Organising NTS data and calculate time period share of one-way trips (AM, IP, PM, OP) ###
+### Organising NTS data and calculate mode split for business, commute and other trip purposes (car/rail/bus/walk), hb trips only ###
 
 
 ### Load libraries and import data ##############################################
@@ -16,92 +16,92 @@ new_area_types <- read_csv("Y:/NTS/new area type lookup/new_area_type.csv")
 
 
 # Classify trip origin to get HB/NHB splits
-hb <- c(23)
-nhb <- c(1,2,3,4,5,6,7,8,9,
-         10,11,12,13,14,15,
-         16,17,18,19,20,21,22)
+# hb <- c(23)
+# nhb <- c(1,2,3,4,5,6,7,8,9,
+#          10,11,12,13,14,15,
+#          16,17,18,19,20,21,22)
+# 
+# 
+# unclassified_build <- unclassified_build %>%
+#   mutate(trip_origin = case_when(
+#     TripPurpFrom_B01ID %in% hb ~ 'hb',
+#     TripPurpFrom_B01ID %in% nhb ~ 'nhb',
+#     TRUE ~ as.character(NA)
+#   ))
+# 
+# 
+# # Recode trip purposes as NTEM classification hb_purpose for HB trips
+# unclassified_build <- unclassified_build %>%
+#   mutate(hb_purpose = case_when(
+#     TripPurpTo_B01ID == 1 ~ '1', # Work
+#     TripPurpTo_B01ID == 2 ~ '2', # In course of work
+#     TripPurpTo_B01ID == 3 ~ '3', # Education
+#     TripPurpTo_B01ID == 4 ~ '4', # Food shopping
+#     TripPurpTo_B01ID == 5 ~ '4', # Non food shopping
+#     TripPurpTo_B01ID == 6 ~ '5', # Personal business medical
+#     TripPurpTo_B01ID == 7 ~ '5', # Personal business eat / drink
+#     TripPurpTo_B01ID == 8 ~ '5', # Personal business other
+#     TripPurpTo_B01ID == 9 ~ '6', # Eat / drink with friends
+#     TripPurpTo_B01ID == 10 ~ '7', # Visit friends
+#     TripPurpTo_B01ID == 11 ~ '6', # Other social
+#     TripPurpTo_B01ID == 12 ~ '6', # Entertain /  public activity
+#     TripPurpTo_B01ID == 13 ~ '6', # Sport: participate
+#     TripPurpTo_B01ID == 14 ~ '8', # Holiday: base
+#     TripPurpTo_B01ID == 15 ~ '8', # Day trip / just walk
+#     TripPurpTo_B01ID == 16 ~ '6', # Other non-escort
+#     TripPurpTo_B01ID == 17 ~ '99', # Escort home
+#     TripPurpTo_B01ID == 18 ~ '1', # Escort work
+#     TripPurpTo_B01ID == 19 ~ '2', # Escort in course of work
+#     TripPurpTo_B01ID == 20 ~ '3', # Escort education
+#     TripPurpTo_B01ID == 21 ~ '4', # Escort shopping / personal business
+#     TripPurpTo_B01ID == 22 ~ '7', # Other escort
+#     TripPurpTo_B01ID == 23 ~ '99', # Home
+#     TRUE ~ as.character('unclassified')
+#   ))
+# 
+# 
+# # Recode trip purposes as NTEM classification nhb_purpose for NHB trips
+# unclassified_build <- unclassified_build %>%
+#   mutate(nhb_purpose = case_when(
+#     TripPurpTo_B01ID == 1 ~ '12', # Work
+#     TripPurpTo_B01ID == 2 ~ '12', # In course of work
+#     TripPurpTo_B01ID == 3 ~ '13', # Education
+#     TripPurpTo_B01ID == 4 ~ '14', # Food shopping
+#     TripPurpTo_B01ID == 5 ~ '14', # Non food shopping
+#     TripPurpTo_B01ID == 6 ~ '15', # Personal business medical
+#     TripPurpTo_B01ID == 7 ~ '15', # Personal business eat / drink
+#     TripPurpTo_B01ID == 8 ~ '15', # Personal business other
+#     TripPurpTo_B01ID == 9 ~ '16', # Eat / drink with friends
+#     TripPurpTo_B01ID == 10 ~ '16', # Visit friends
+#     TripPurpTo_B01ID == 11 ~ '16', # Other social
+#     TripPurpTo_B01ID == 12 ~ '16', # Entertain /  public activity
+#     TripPurpTo_B01ID == 13 ~ '16', # Sport: participate
+#     TripPurpTo_B01ID == 14 ~ '18', # Holiday: base
+#     TripPurpTo_B01ID == 15 ~ '18', # Day trip / just walk
+#     TripPurpTo_B01ID == 16 ~ '16', # Other non-escort
+#     TripPurpTo_B01ID == 17 ~ '99', # Escort home
+#     TripPurpTo_B01ID == 18 ~ '12', # Escort work
+#     TripPurpTo_B01ID == 19 ~ '12', # Escort in course of work
+#     TripPurpTo_B01ID == 20 ~ '13', # Escort education
+#     TripPurpTo_B01ID == 21 ~ '14', # Escort shopping / personal business
+#     TripPurpTo_B01ID == 22 ~ '16', # Other escort
+#     TripPurpTo_B01ID == 23 ~ '99', # Home
+#     TRUE ~ as.character('unclassified')
+#   ))
 
-
-unclassified_build <- unclassified_build %>%
-  mutate(trip_origin = case_when(
-    TripPurpFrom_B01ID %in% hb ~ 'hb',
-    TripPurpFrom_B01ID %in% nhb ~ 'nhb',
-    TRUE ~ as.character(NA)
-  ))
-
-
-# Recode trip purposes as NTEM classification hb_purpose for HB trips
-unclassified_build <- unclassified_build %>%
-  mutate(hb_purpose = case_when(
-    TripPurpTo_B01ID == 1 ~ '1', # Work
-    TripPurpTo_B01ID == 2 ~ '2', # In course of work
-    TripPurpTo_B01ID == 3 ~ '3', # Education
-    TripPurpTo_B01ID == 4 ~ '4', # Food shopping
-    TripPurpTo_B01ID == 5 ~ '4', # Non food shopping
-    TripPurpTo_B01ID == 6 ~ '5', # Personal business medical
-    TripPurpTo_B01ID == 7 ~ '5', # Personal business eat / drink
-    TripPurpTo_B01ID == 8 ~ '5', # Personal business other
-    TripPurpTo_B01ID == 9 ~ '6', # Eat / drink with friends
-    TripPurpTo_B01ID == 10 ~ '7', # Visit friends
-    TripPurpTo_B01ID == 11 ~ '6', # Other social
-    TripPurpTo_B01ID == 12 ~ '6', # Entertain /  public activity
-    TripPurpTo_B01ID == 13 ~ '6', # Sport: participate
-    TripPurpTo_B01ID == 14 ~ '8', # Holiday: base
-    TripPurpTo_B01ID == 15 ~ '8', # Day trip / just walk
-    TripPurpTo_B01ID == 16 ~ '6', # Other non-escort
-    TripPurpTo_B01ID == 17 ~ '99', # Escort home
-    TripPurpTo_B01ID == 18 ~ '1', # Escort work
-    TripPurpTo_B01ID == 19 ~ '2', # Escort in course of work
-    TripPurpTo_B01ID == 20 ~ '3', # Escort education
-    TripPurpTo_B01ID == 21 ~ '4', # Escort shopping / personal business
-    TripPurpTo_B01ID == 22 ~ '7', # Other escort
-    TripPurpTo_B01ID == 23 ~ '99', # Home
-    TRUE ~ as.character('unclassified')
-  ))
-
-
-# Recode trip purposes as NTEM classification nhb_purpose for NHB trips
-unclassified_build <- unclassified_build %>%
-  mutate(nhb_purpose = case_when(
-    TripPurpTo_B01ID == 1 ~ '12', # Work
-    TripPurpTo_B01ID == 2 ~ '12', # In course of work
-    TripPurpTo_B01ID == 3 ~ '13', # Education
-    TripPurpTo_B01ID == 4 ~ '14', # Food shopping
-    TripPurpTo_B01ID == 5 ~ '14', # Non food shopping
-    TripPurpTo_B01ID == 6 ~ '15', # Personal business medical
-    TripPurpTo_B01ID == 7 ~ '15', # Personal business eat / drink
-    TripPurpTo_B01ID == 8 ~ '15', # Personal business other
-    TripPurpTo_B01ID == 9 ~ '16', # Eat / drink with friends
-    TripPurpTo_B01ID == 10 ~ '16', # Visit friends
-    TripPurpTo_B01ID == 11 ~ '16', # Other social
-    TripPurpTo_B01ID == 12 ~ '16', # Entertain /  public activity
-    TripPurpTo_B01ID == 13 ~ '16', # Sport: participate
-    TripPurpTo_B01ID == 14 ~ '18', # Holiday: base
-    TripPurpTo_B01ID == 15 ~ '18', # Day trip / just walk
-    TripPurpTo_B01ID == 16 ~ '16', # Other non-escort
-    TripPurpTo_B01ID == 17 ~ '99', # Escort home
-    TripPurpTo_B01ID == 18 ~ '12', # Escort work
-    TripPurpTo_B01ID == 19 ~ '12', # Escort in course of work
-    TripPurpTo_B01ID == 20 ~ '13', # Escort education
-    TripPurpTo_B01ID == 21 ~ '14', # Escort shopping / personal business
-    TripPurpTo_B01ID == 22 ~ '16', # Other escort
-    TripPurpTo_B01ID == 23 ~ '99', # Home
-    TRUE ~ as.character('unclassified')
-  ))
-
-# Drop hb_purpose = 99 - Return leg for hb trips
-unclassified_build <- subset(unclassified_build, hb_purpose != '99')
-
-# Pick a final purpose depending on purpose from
-unclassified_build <- unclassified_build %>%
-  mutate(trip_purpose = case_when(
-    trip_origin == 'hb' ~ hb_purpose,
-    trip_origin == 'nhb' ~ nhb_purpose,
-    TRUE ~ as.character('unclassified')
-  ))
-
-# drop 'unclassified' hb_purpose as cannot be used in regression by trip_purpose
-unclassified_build <- subset(unclassified_build, trip_purpose != 'unclassified')
+# # Drop hb_purpose = 99 - Return leg for hb trips
+# unclassified_build <- subset(unclassified_build, hb_purpose != '99')
+# 
+# # Pick a final purpose depending on purpose from
+# unclassified_build <- unclassified_build %>%
+#   mutate(trip_purpose = case_when(
+#     trip_origin == 'hb' ~ hb_purpose,
+#     trip_origin == 'nhb' ~ nhb_purpose,
+#     TRUE ~ as.character('unclassified')
+#   ))
+# 
+# # drop 'unclassified' hb_purpose as cannot be used in regression by trip_purpose
+# unclassified_build <- subset(unclassified_build, trip_purpose != 'unclassified')
 
 
 # Recode gender(Sex_B01ID) as gender(Male or Female)
@@ -349,20 +349,59 @@ nts_completed <- nts_completed %>%
   mutate(weighted_trip = W1 * W5xHh * W2)
 
 
-#### Calculat time period share of one-way trips and export ####
- 
-time_period_share <- nts_completed %>% filter(!start_time %in% c(5,6,"unclassified")) %>%
-  mutate(purpose = case_when(
-           hb_purpose == 1  ~ '1', # Commute trips
-           hb_purpose == 2  ~ '2', # Business trips
-           hb_purpose %in% c(3,4,5,6,7,8) ~ '3', # Other trips
-           TRUE ~ as.character('unclassified')
-         ))
+#### Recode main mode, calculat mode share for trip purposes and export ####
 
-time_period_share <- time_period_share %>% select(purpose, start_time, weighted_trip) %>%
-  group_by(purpose, start_time) %>%
+# Recode main mode(MainMode_B04ID) as main_mode (car/bus/rail/walk, small bus & light rail = bus)
+nts_completed <- nts_completed %>%
+  mutate(main_mode = case_when(
+    MainMode_B04ID == 1 ~ 'walk', # Walk
+    MainMode_B04ID == 3 ~ 'car', # Car/van driver
+    MainMode_B04ID == 4 ~ 'car', # Car/van passenger
+    MainMode_B04ID == 5 ~ 'car', # Motorcycle
+    MainMode_B04ID == 6 ~ 'car', # Other private transport
+    MainMode_B04ID == 7 ~ 'bus', # Bus in London
+    MainMode_B04ID == 8 ~ 'bus', # Other local bus
+    MainMode_B04ID == 9 ~ 'bus', # Non-local bus
+    MainMode_B04ID == 11 ~ 'rail', # Surface rail
+    MainMode_B04ID == 12 ~ 'car', # Taxi/minicab ie. a car
+    MainMode_B04ID == 13 ~ 'bus', # Other public transport ie. small bus or light rail.
+    TRUE ~ as.character('unclassified')
+  ))
+
+# Drop modes that are not modelled = cycling, tube
+nts_completed <- subset(nts_completed, main_mode != 'unclassified')
+
+
+#### Recode trip purposes as commute/business/other for both hb and nhb, excluding trips home (23) and export ####
+
+mode_share <- nts_completed %>% mutate(purpose = case_when(
+  TripPurpTo_B01ID == 1  ~ '1', # Commute trips
+  TripPurpTo_B01ID == 2  ~ '2', # Business trips
+  TripPurpTo_B01ID %in% c(3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22) ~ '3', # Other trips
+    TRUE ~ as.character('unclassified')
+  )) %>% filter(purpose != 'unclassified') # This should remove trips home (23), which can't be assigned to any of the above
+
+
+# calculate mode share for purposes
+mode_share_1 <- mode_share %>%
+  filter(purpose == '1' | purpose == '2') %>%
+  filter(soc_cat != -8 & soc_cat != -9  ) %>%
+  select(purpose, soc_cat, main_mode, weighted_trip) %>%
+  group_by(purpose, soc_cat, main_mode) %>%
   summarise(weighted_group_trips = sum(weighted_trip, na.rm = TRUE)) %>% 
-  mutate(share = 100*weighted_group_trips/sum(weighted_group_trips))
+  mutate(share = weighted_group_trips/sum(weighted_group_trips))
+  
+mode_share_2 <- mode_share %>%
+  filter(purpose == '3') %>%
+  filter(ns_sec != -9) %>%
+  select(purpose, ns_sec, main_mode,weighted_trip) %>%
+  group_by(purpose, ns_sec, main_mode) %>%
+  summarise(weighted_group_trips = sum(weighted_trip, na.rm = TRUE)) %>%
+  mutate(share = weighted_group_trips/sum(weighted_group_trips))
 
-time_period_share %>% write_csv("Y:/NTS/mode_time_splits/aggregate_time_split.csv")
+
+
+# Combine and export
+mode_share <- bind_rows(mode_share_1, mode_share_2)
+mode_share %>% write_csv("Y:/NTS/mode_time_splits/aggregate_mode_share_hb+nhb.csv")
 
