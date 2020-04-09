@@ -5,12 +5,14 @@ library("survey")
 library("combinat")
 library("magrittr")
 library("rlang")
+library("ggpmisc")
+library("ggpubr")
 
 # Redefine select if masked by MASS
 select <- dplyr::select
 
 # Read in Weekly trip rates
-trip_rates_df <- read_csv("Y:/NTS/weekly_trip_rates.csv")
+trip_rates_df <- read_csv("Y:/NTS/nhb_weekly_trip_rates.csv")
 
 # Transform catgeorical variables to factors
 variables <- c("age_work_status", 
@@ -19,11 +21,12 @@ variables <- c("age_work_status",
                "cars", 
                "soc_cat", 
                "ns_sec",
-               "area_type"
+               "tfn_area_type"
                )
 
 trip_rates_df <- trip_rates_df %>% mutate_at(variables, funs(factor))
 
+# Extract levels of variables
 Extract_levels <- function(variable_name,df){
   
   df %>%
@@ -32,28 +35,43 @@ Extract_levels <- function(variable_name,df){
     levels()
   
 }
-
 variable_levels <- lapply(variables, Extract_levels, trip_rates_df)
 
 # Formula for Negative binomial regression with all variables
 nbr_formula <- paste("tfn_trip_rate", paste(variables, collapse = " + "), sep = " ~ ")
 
+# Select only variables of interest
+trip_rates_df <- trip_rates_df %>% 
+  select(tfn_trip_rate,
+         nhb_purpose, 
+         age_work_status, 
+         gender, 
+         hh_adults, 
+         cars, 
+         soc_cat, 
+         ns_sec, 
+         tfn_area_type)
+
 # Split data by purpose
-purpose_split <- trip_rates_df %>% group_split(hb_purpose)
+purpose_split_df <- trip_rates_df %>% group_split(nhb_purpose)
 
 TfN_trip_rates <- list()
+final_df <- list()
+final_model <- list()
 
-for(j in 1:length(purpose_split)){
+a <- Sys.time()
+
+for(i in 1:length(purpose_split_df)){
   
   # Split data into 75% train and 25% test
-  smp_size <- floor(0.75*nrow(purpose_split[[j]]))
-  train_ind <- sample(seq_len(nrow(purpose_split[[j]])), size = smp_size)
+  smp_size <- floor(0.75*nrow(purpose_split_df[[i]]))
+  train_ind <- sample(seq_len(nrow(purpose_split_df[[i]])), size = smp_size)
   
-  for (i in 1:length(variables)){
+  for (j in 1:length(variables)){
     
-    if(i == 1){
+    if(j == 1){
       
-      purpose_data <- purpose_split[[j]]
+      purpose_data <- purpose_split_df[[i]]
       
     } else {
       
@@ -61,16 +79,16 @@ for(j in 1:length(purpose_split)){
       
     }
     
-    if(variables[[i]] == "gender"){
+    if(variables[[j]] == "gender"){
       
       next
       
     }
     
     # Find all combinations of classifications
-    Testing <- do.call(c, lapply(seq_along(variable_levels[[i]]), combn, x = variable_levels[[i]], simplify = FALSE))
+    Testing <- do.call(c, lapply(seq_along(variable_levels[[j]]), combn, x = variable_levels[[j]], simplify = FALSE))
     # Remove combinations which are not necessary. i.e a variable level by it's own
-    Testing <- Testing[(length(variable_levels[[i]]) + 1): (length(Testing)-1)]
+    Testing <- Testing[(length(variable_levels[[j]]) + 1): (length(Testing)-1)]
     
     # First combination is always no aggregation
     Testing <- c("", Testing)
@@ -79,9 +97,9 @@ for(j in 1:length(purpose_split)){
     results <- lapply(Testing, function(x){
       
       updated_df <- purpose_data %>%
-        mutate(!!variables[i] := case_when(
-          get(variables[i]) %in% x ~ str_c(x, collapse = " Join "),
-          TRUE ~ as.character(get(variables[i]))
+        mutate(!!variables[j] := case_when(
+          get(variables[j]) %in% x ~ str_c(x, collapse = " Join "),
+          TRUE ~ as.character(get(variables[j]))
         ))
       
       # Build a Negative-bionomial regression model
@@ -96,7 +114,7 @@ for(j in 1:length(purpose_split)){
       
       p_values <- tibble::rownames_to_column(p_values, "Variables")
       
-      p_values <- p_values %>% filter(str_detect(Variables, variables[i]))
+      p_values <- p_values %>% filter(str_detect(Variables, variables[j]))
       
       p_values_significant <- p_values %>% 
         rename(pvals = "Pr(>|z|)") %>% 
@@ -138,26 +156,26 @@ for(j in 1:length(purpose_split)){
     # Get dataframe of winning combination
     new_df <- results_df %>% extract2(combination_winner)
     
-    if (i == length(variables)){
+    if (j == length(variables)){
       
-      final_df <- new_df
+      final_df[[i]] <- new_df
       
     }
     
   }
   
   # Build final model
-  final_model <- glm.nb(formula = nbr_formula, data = final_df, subset = train_ind)
+  final_model[[i]] <- glm.nb(formula = nbr_formula, data = final_df[[i]], subset = train_ind)
   
   # Extract new variable levels
-  new_levels <- lapply(variables, Extract_levels, final_df)
+  new_levels <- lapply(variables, Extract_levels, final_df[[i]])
   names(new_levels) <- variables
   
   # Calculate combinations of all variables
   new_data <- do.call("crossing",new_levels)
   
   # Predict new trip rates
-  tfn_predictions <- predict(final_model, newdata = new_data, type = "response") %>% as.vector()
+  tfn_predictions <- predict(final_model[[i]], newdata = new_data, type = "response") %>% as.vector()
   
   new_data <- new_data %>% mutate(tfn_predictions = tfn_predictions)
   
@@ -168,7 +186,7 @@ for(j in 1:length(purpose_split)){
     separate_rows(cars, sep = " Join ") %>%
     separate_rows(soc_cat, sep = " Join ") %>%
     separate_rows(ns_sec, sep = " Join ") %>%
-    separate_rows(area_type, sep = " Join ")
+    separate_rows(tfn_area_type, sep = " Join ")
   
   # Build traveller type list:
   aws <- c(rep("0-16_child"                  , 8),
@@ -233,11 +251,11 @@ for(j in 1:length(purpose_split)){
                str_detect(soc_cat, "-9"),
                str_detect(ns_sec, "-9")) %>%
         mutate(traveller_type = k,
-               purpose = j) %>%
-        group_by(purpose, hh_adults, age_work_status, cars, soc_cat, ns_sec, area_type, traveller_type) %>%
+               purpose = i) %>%
+        group_by(purpose, hh_adults, age_work_status, cars, soc_cat, ns_sec, tfn_area_type, traveller_type) %>%
         summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE)) %>%
         ungroup() %>%
-        select(purpose, traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+        select(purpose, traveller_type, tfn_area_type, soc_cat, ns_sec, tfn_predictions)
       
     } else if (x$age_work_status == "75\\+_retired|75\\+_pte|75\\+_fte"){
       
@@ -248,13 +266,13 @@ for(j in 1:length(purpose_split)){
                str_detect(gender, x$gender),
                str_detect(cars, x$cars)) %>%
         mutate(traveller_type = k,
-               purpose = j,
+               purpose = i,
                weights75 = ifelse(age_work_status == "75+_fte", fte75,
                                   ifelse(age_work_status == "75+_pte", pte75, rte75))) %>%
-        group_by(purpose,traveller_type, hh_adults, gender, cars, soc_cat, ns_sec, area_type) %>%
+        group_by(purpose,traveller_type, hh_adults, gender, cars, soc_cat, ns_sec, tfn_area_type) %>%
         summarise(tfn_predictions = weighted.mean(tfn_predictions, w = weights75, na.rm = TRUE)) %>%
         ungroup() %>%
-        select(purpose, traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+        select(purpose, traveller_type, tfn_area_type, soc_cat, ns_sec, tfn_predictions)
       
     } else {
       
@@ -265,22 +283,162 @@ for(j in 1:length(purpose_split)){
                str_detect(gender, x$gender),
                str_detect(cars, x$cars)) %>%
         mutate(traveller_type = k,
-               purpose = j) %>%
-        select(purpose, traveller_type, area_type, soc_cat, ns_sec, tfn_predictions)
+               purpose = i) %>%
+        select(purpose, traveller_type, tfn_area_type, soc_cat, ns_sec, tfn_predictions)
     }
   }
   
-  TfN_trip_rates[[j]] <- TT_df %>% bind_rows()
+  TfN_trip_rates[[i]] <- TT_df %>% bind_rows()
   
 }
 
+b <- Sys.time()
+b-a
+
 TfN_trip_rates_result <- TfN_trip_rates %>%
   bind_rows() %>%
-  group_by(purpose, traveller_type, soc_cat, ns_sec, area_type) %>%
+  group_by(purpose, traveller_type, soc_cat, ns_sec, tfn_area_type) %>%
   summarise(tfn_predictions = mean(tfn_predictions))
-
-
-
 
 TfN_trip_rates_result %>% write_csv("Y:/NTS/TfN_trip_rates.csv")
 
+### Compare TfN trip rates to NTEM
+
+# Obtain same segments as NTEM
+tfn_ntem_replication <- TfN_trip_rates_result %>%
+  group_by(purpose, traveller_type, tfn_area_type) %>%
+  summarise(trip_rate = mean(tfn_predictions, na.rm = TRUE))
+
+tfn_ntem_replication <- tfn_ntem_replication %>% mutate_all(funs(as.numeric))
+
+# Read in NTEM trip rates
+ntem_trip_rate <- read_csv("Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv")
+
+# Join trip rates
+joined_trip_rates <- ntem_trip_rate %>% left_join(tfn_ntem_replication,
+                             by = c("purpose",
+                                    "traveller_type",
+                                    "tfn_area_type")
+                             )
+
+# Correlation = 0.875
+cor(joined_trip_rates$trip_rate.x, joined_trip_rates$trip_rate.y)
+
+# Plot of Ntem trip rates against TfN trip rates with regression line
+ggplot(data = joined_trip_rates, aes(x = trip_rate.x, y = trip_rate.y)) +
+  geom_point() + 
+  geom_smooth(method = "lm", se=FALSE, color="red", formula = y ~ x) +
+  labs(x = "NTEM trip rate", y = "TfN trip rate", title = "NTEM vs TfN Trip Rates") +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_y_continuous(breaks = round(seq(min(joined_trip_rates$trip_rate.y), max(joined_trip_rates$trip_rate.y), by = 1),1)) +
+  stat_poly_eq(formula = y ~ x, aes(label = paste(..rr.label..)), parse = TRUE)      
+
+# Plots of Ntem trip rates against TfN trip rates split by purpose
+Joined_trip_split <- joined_trip_rates %>% group_split(purpose)
+
+Comparison_Plot <- function(df){
+
+  ggplot(data = df, aes(x=trip_rate.x, y=trip_rate.y)) +
+    geom_point() + 
+    geom_smooth(method = "lm", se=FALSE, color="red", formula=y~x) +
+    labs(x = "NTEM trip rate", y = "TfN trip rate", title = paste0("NTEM vs TfN Trip Rates for purpose ", parent.frame()$i[])) + 
+    theme(plot.title = element_text(hjust = 0.5)) + 
+    scale_y_continuous(breaks = round(seq(min(df$trip_rate.y), max(df$trip_rate.y), by = 1),1)) +
+    stat_poly_eq(formula = y ~ x, aes(label = paste(..rr.label..)), parse = TRUE)  
+}  
+
+do.call(grid.arrange, c(lapply(Joined_trip_split, Comparison_Plot), nrow=4, ncol=2))
+
+joined_traveller_split <- joined_trip_rates %>% group_split(traveller_type)
+
+traveller_type_correlations <- sapply(joined_traveller_split, function(x){
+  
+  cor(x$trip_rate.x, x$trip_rate.y)
+  
+})
+
+traveller_type_correlations %>% mean()
+
+# Outliers
+joined_trip_rates 
+plot(joined_trip_rates$trip_rate.x, joined_trip_rates$trip_rate.y)
+regression <- lm(joined_trip_rates$trip_rate.x ~ joined_trip_rates$trip_rate.y)
+abline(regression)
+joined_trip_rates <- joined_trip_rates %>% mutate(residuals = residuals(regression))
+outlier_threshold <- 0.3
+
+# Print only names of outliers
+outliers <- joined_trip_rates[ abs(joined_trip_rates$residuals) > outlier_threshold, ]
+
+###### Differentiation in SOC and NS-sec for working age people
+
+### SOC
+
+# Comparison of SOC for working people - Jack's parameters
+Filtered_soc <- TfN_trip_rates_result %>%
+  filter(soc_cat %in% c(1,2,3),
+         purpose %in% c(1,2,3,4,5,6,7,7,8),
+         traveller_type %in% c(seq(9,24,1), seq(49,64,1))) %>%
+  group_by(purpose, soc_cat) %>%
+  summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE))
+
+# Comparison of NS-SEC for working people - Jack's parameters
+
+Filtered_sec <- TfN_trip_rates_result %>%
+  filter(ns_sec != -9,
+         traveller_type %in% c(seq(9,24,1), seq(49,64,1))) %>%
+  group_by(purpose, ns_sec) %>%
+  summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE)) %>%
+  pull(tfn_predictions)
+
+### Jack's Neelum Parameters
+
+# Filter for soc categories of interest and working age people
+Filtered_soc <- TfN_trip_rates_result %>% 
+  filter(soc_cat %in% c(1,2,3),
+         purpose %in% c(1,2),
+         traveller_type %in% c(seq(9,18,1), seq(49,64,1))) %>%
+  group_by(purpose, soc_cat) %>%
+  summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE)) %>% 
+
+# Filter for ns sec categories of interest and all not working people
+Filter_sec <- TfN_trip_rates_result %>%
+  filter(ns_sec != -9,
+         traveller_type %in% c(seq(9,24,1), seq(49,64,1)),
+         !(purpose %in% c(1,2))) %>%
+  group_by(ns_sec) %>%
+  summarise(mean = mean(tfn_predictions, na.rm = TRUE)) %>% t()
+
+trip_rates_df %>%
+  filter(nhb_purpose == 1, 
+         soc_cat == 3, 
+         age_work_status %in% c("16-74_fte","16-74_pte")) %>%
+  pull(tfn_trip_rate) %>% hist(main = "NS SEC 3")
+
+
+
+hb_trips <- read_csv("Y:/NTS/hb_weekly_trip_rates.csv")
+nhb_trips <- read_csv("Y:/NTS/nhb_weekly_trip_rates.csv")
+
+nhb_trips %>% View()
+
+hb_trips %>% select(tfn_area_type) %>% distinct()
+
+nhb_trips %>% colnames()
+
+a <- Sys.time()
+glm.nb(tfn_trip_rate ~
+         nhb_purpose_hb_leg +
+       data = purpose_split_df[[1]])
+b <- Sys.time()
+b-a
+
+trip_rates_df %>% colnames()
+
+trip_rates_df %>% select() %>% distinct()
+
+trip_rates_df %>% 
+  select(nhb_purpose, nhb_purpose_hb_leg, tfn_trip_rate) %>%
+  group_by(nhb_purpose_hb_leg)
+
+glm.nb
