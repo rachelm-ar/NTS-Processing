@@ -4,6 +4,7 @@
 #### Load libraries and import data ####
 require("tidyverse")
 require("data.table")
+require("ggplot2")
 
 # Import uward_mode_share and rail accessibility data
 # ward_mode_share has been filtered to exclude observations with < 5 trips and purpose/area/car combinations with <20 wards
@@ -31,13 +32,22 @@ regression_list <- list()
 id_list <- unique(ward_mode_share$id)
 
 # Loop through all regressions, append outputs to regression_list
-for (id in id_list) {
-  regression_df <- ward_mode_share[ward_mode_share$id == id, ]
-  fit_id <- lm(data = regression_df, m6 ~ jobs)
-  print(length(summary(fit_id)$coefficients)>4)
+for (i in id_list) {
+  fit_id <- lm(data = subset(ward_mode_share, id == i), m6 ~ jobs)
+  #print(length(summary(fit_id)$coefficients)>4)
   list_temp <- list(regression_df$id[1], summary(fit_id)$coefficients[1,1], summary(fit_id)$coefficients[2,1])
   regression_list <- append(regression_list, list_temp)
-  }
+  
+  lm_plot <- ggplot(data = subset(ward_mode_share, id == i), aes(x = jobs, y = m6)) +
+    geom_point(data = subset(ward_mode_share, id == i)) +
+    geom_smooth(method='lm')
+
+  file_name = paste("C:/Users/scar2.0/Documents/lm_plots/plot_", i, ".png", sep="")
+  png(file_name)
+  print(lm_plot)
+  dev.off()
+
+}
 
 dim(regression_list) <- c(3,128)
 rownames(regression_list) <- c("id", "intercept", "coefficent")
