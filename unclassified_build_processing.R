@@ -33,7 +33,6 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character(NA)
   ))
 
-
 # Recode trip purposes as NTEM classification hb_purpose for HB trips
 unclassified_build <- unclassified_build %>%
   mutate(hb_purpose = case_when(
@@ -121,7 +120,6 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character('unclassified')
   ))
 
-
 # Pick a final purpose depending on purpose from
 unclassified_build <- unclassified_build %>%
   mutate(trip_purpose = case_when(
@@ -130,10 +128,8 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character('unclassified')
   ))
 
-
 # drop 'unclassified' hb_purpose as cannot be used in regression by trip_purpose
 unclassified_build <- subset(unclassified_build, trip_purpose != 'unclassified')
-
 
 # Recode gender(Sex_B01ID) as gender(Male or Female)
 unclassified_build <- unclassified_build %>%
@@ -142,7 +138,6 @@ unclassified_build <- unclassified_build %>%
     Sex_B01ID == 2 ~ 'Female',
     TRUE ~ as.character(Sex_B01ID)
   ))
-
 
 # Combine Age and work status to age_workstatus (excluding 75+ AND pte/fte/stu as insignificant N (<0.2% combined))
 unclassified_build <- unclassified_build %>%
@@ -166,7 +161,6 @@ unclassified_build <- unclassified_build %>%
   NumCarVan_B02ID == 3 ~ '2+',
     TRUE ~ as.character(NumCarVan_B02ID)
   ))
-
 
 # Adapt number of cars available to NTEM methodology
 unclassified_build <- unclassified_build %>%
