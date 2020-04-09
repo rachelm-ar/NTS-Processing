@@ -35,7 +35,7 @@ id_list <- unique(ward_mode_share$id)
 for (i in id_list) {
   fit_id <- lm(data = subset(ward_mode_share, id == i), m6 ~ jobs)
   #print(length(summary(fit_id)$coefficients)>4)
-  list_temp <- list(regression_df$id[1], summary(fit_id)$coefficients[1,1], summary(fit_id)$coefficients[2,1])
+  list_temp <- list(i, summary(fit_id)$coefficients[1,1], summary(fit_id)$coefficients[2,1])
   regression_list <- append(regression_list, list_temp)
   
   lm_plot <- ggplot(data = subset(ward_mode_share, id == i), aes(x = jobs, y = m6)) +
