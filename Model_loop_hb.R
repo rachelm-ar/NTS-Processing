@@ -307,7 +307,7 @@ TfN_trip_rates_result <- TfN_trip_rates %>%
 
 # Tfn Trip Rates - Not replicated for NTEM
 TfN_trip_rates_result %>% 
-  write_csv("C:/Users/Pluto/OneDrive - Transport for the North/TfN_Trip_Rates/hb_TfN_trip_rates.csv")
+  write_csv("Y:/NTS/TfN_Trip_Rates.csv")
 
 ### Compare TfN trip rates to NTEM
 
@@ -333,13 +333,10 @@ joined_trip_rates <- ntem_trip_rate %>% left_join(tfn_ntem_replication,
 joined_trip_rates %>% 
   select(-trip_rate.x) %>% 
   rename(trip_rate = trip_rate.y) %>%
-  write_csv("C:/Users/Pluto/OneDrive - Transport for the North/TfN_Trip_Rates/hb_TfN_trip_rates_ntem_replication.csv")
+  write_csv("Y:/NTS/TfN_Trip_Rates/hb_TfN_trip_rates_ntem_replication.csv")
 
 # Correlation = 0.875
 cor(joined_trip_rates$trip_rate.x, joined_trip_rates$trip_rate.y)
-
-moddd <- lm(trip_rate.x ~ trip_rate.y,data = joined_trip_rates)
-
 
 # Plot of Ntem trip rates against TfN trip rates with regression line
 ggplot(data = joined_trip_rates, aes(x = trip_rate.x, y = trip_rate.y)) +
@@ -360,8 +357,9 @@ Comparison_Plot <- function(df){
     geom_smooth(method = "lm", se=FALSE, color="red", formula=y~x) +
     labs(x = "NTEM trip rate", y = "TfN trip rate", title = paste0("NTEM vs TfN Trip Rates for purpose ", parent.frame()$i[])) + 
     theme(plot.title = element_text(hjust = 0.5)) + 
-    scale_y_continuous(breaks = round(seq(min(df$trip_rate.y), max(df$trip_rate.y), by = 1),1)) +
-    stat_poly_eq(formula = y ~ x, aes(label = paste(..rr.label..)), parse = TRUE)  
+    stat_poly_eq(formula = y ~ x, aes(label = paste(..rr.label..)), parse = TRUE) +
+    scale_x_continuous(expand = c(0, 0)) + scale_y_continuous(expand = c(0, 0))
+  
 }  
 
 do.call(grid.arrange, c(lapply(Joined_trip_split, Comparison_Plot), nrow=4, ncol=2))
@@ -406,7 +404,6 @@ Filtered_soc <- TfN_trip_rates_result %>%
   summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE))
 
 # Comparison of NS-SEC for working people - Jack's parameters
-
 Filtered_sec <- TfN_trip_rates_result %>%
   filter(ns_sec != -9) %>%
   group_by(purpose, ns_sec) %>%
@@ -423,32 +420,14 @@ Filtered_soc <- TfN_trip_rates_result %>%
   summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE)) %>% 
 
 # Filter for ns sec categories of interest and all not working people
-Filter_sec <- TfN_trip_rates_result %>%
+Filtered_sec <- TfN_trip_rates_result %>%
   filter(ns_sec != -9,
-         traveller_type %in% c(seq(9,24,1), seq(49,64,1)),
          !(purpose %in% c(1,2))) %>%
   group_by(ns_sec) %>%
-  summarise(mean = mean(tfn_predictions, na.rm = TRUE)) %>% t()
+  summarise(mean = mean(tfn_predictions, na.rm = TRUE))
 
-trip_rates_df %>%
-  filter(hb_purpose == 1, 
-         soc_cat == 3, 
-         age_work_status %in% c("16-74_fte","16-74_pte")) %>%
-  pull(tfn_trip_rate) %>% hist(main = "NS SEC 3")
-
-
-trip_rates_df %>% 
-  filter(ns_sec == 4, hb_purpose == 1) %>%
-  group_by(age_work_status) %>%
-  count()
+TfN_trip_rates_result %>%
+  group_by(purpose) %>%
+  summarise(mean = mean(tfn_predictions))
 
 hb_trips <- read_csv("Y:/NTS/hb_weekly_trip_rates.csv")
-
-
-
-
-my_df <- data.frame(x = c(1,1,1,2,2,2),
-           y = c(1,2,3,4,5,6))
-my_df %>% filter(x != 1 & y !=1)
-data.frame(x = c(1,2,2,2),
-           y = c(1,4,5,6))
