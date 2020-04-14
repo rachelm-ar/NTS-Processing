@@ -1,7 +1,7 @@
 require(tidyverse)
 
 # Get children's trip rates from NTEM trip rates
-ntem_trip_rates <- read_csv('Y:/NorMITs Synthesiser/import/ntem_segment_production_params/ntem_trip_rates_2016.csv')
+ntem_trip_rates <- read_csv('Y:/NTS/TfN_Trip_Rates/hb_TfN_trip_rates.csv')
 
 children_tr <- ntem_trip_rates %>%
   filter(traveller_type %in% c(1, 2, 3, 4, 5, 6, 7, 8)) %>%
