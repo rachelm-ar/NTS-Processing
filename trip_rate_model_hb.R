@@ -510,10 +510,4 @@ ggplot(data = joined_trip_rates, aes(x = trip_rate.x, y = trip_rate.y)) +
                aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
                parse = TRUE)
 
-res <- residuals(final_model[[3]], type="deviance")
-plot(log(predict(final_model[[3]])), res)
-abline(h=0, lty=2)
 
-
-qqnorm(res)
-qqline(res)
