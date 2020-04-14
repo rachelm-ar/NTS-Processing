@@ -452,3 +452,68 @@ hb_trip_rates <- function(csv_input, output_dir, ntem_tr_input){
 #hb_trips <- read_csv("Y:/NTS/hb_weekly_trip_rates.csv")
 #
 #
+
+final_df[[3]]
+
+# Split data into 75% train and 25% test
+smp_size <- floor(0.75*nrow(final_df[[3]]))
+train_ind <<- sample(seq_len(nrow(final_df[[3]])), size = smp_size)
+
+
+# Histogram of raw data
+edu_df <- trip_rates_df %>% filter(hb_purpose == 3, age_work_status == "0-16_child")
+
+ggplot(edu_df, aes(x=tfn_trip_rate)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white") +
+  geom_density(alpha=.2, fill="#FF6666") +
+  xlim(-1,15) +
+  labs(x = "Trip Rate", title = "Education Trip Rates for Children (Raw Data)")
+
+# Histogram of tfn predictions
+edu_tfn_df <- TfN_trip_rates_result %>% filter(purpose == 3, traveller_type %in% c(1,2,3,4,5,6,7,8))
+
+ggplot(edu_tfn_df, aes(x=tfn_predictions)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white") +
+  geom_density(alpha=.2, fill="#FF6666") +
+  xlim(-1,10) +
+  labs(x = "Trip Rate", title = "Education Trip Rates for children (NBR Output)")
+
+final_model[[3]] %>% plot()
+
+ggPredict(final_model[[3]], se=TRUE,interactive=TRUE)
+
+ggPredict(final_model[[1]])
+
+ggPredict(lm(nbr_formula, data = final_df[[3]]))
+
+
+#read in ntem trip rates
+ntem_trip_rate <- read_csv("Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv")
+edu_ntem_df <- ntem_trip_rate %>% filter(purpose == 3, traveller_type %in% c(1,2,3,4,5,6,7,8))
+edu_tfn_ntem_df <- edu_tfn_df %>% group_by(purpose,traveller_type,tfn_area_type) %>% summarise(trip_rate = mean(tfn_predictions))
+edu_tfn_ntem_df <- edu_tfn_ntem_df %>% rename(area_type = tfn_area_type)
+edu_tfn_ntem_df <- edu_tfn_ntem_df %>% mutate_all(funs(as.numeric))
+
+# Join trip rates
+joined_trip_rates <- edu_ntem_df %>% left_join(edu_tfn_ntem_df,
+                                                  by = c("purpose",
+                                                         "traveller_type",
+                                                         "area_type"))
+
+ggplot(data = joined_trip_rates, aes(x = trip_rate.x, y = trip_rate.y)) +
+  geom_point() + 
+  geom_smooth(method = "lm", se=FALSE, color="red", formula = y ~ x) +
+  labs(x = "NTEM trip rate", y = "TfN trip rate", title = "NTEM vs TfN TR for TP Education and Children") +
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_y_continuous(breaks = round(seq(min(joined_trip_rates$trip_rate.y), max(joined_trip_rates$trip_rate.y), by = 1),1)) +
+  stat_poly_eq(formula = y ~ x, 
+               aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
+               parse = TRUE)
+
+res <- residuals(final_model[[3]], type="deviance")
+plot(log(predict(final_model[[3]])), res)
+abline(h=0, lty=2)
+
+
+qqnorm(res)
+qqline(res)

@@ -1,4 +1,3 @@
-# First test this with combination[1:2] and then all combinations
 nhb_trip_rates <- function(csv_input, output_dir, ntem_tr_input){
   
   # List of packages required
