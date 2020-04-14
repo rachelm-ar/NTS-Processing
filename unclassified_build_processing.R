@@ -205,10 +205,8 @@ unclassified_build <- unclassified_build %>%
   TRUE ~ as.character(HHoldAreaType1_B01ID)
 ))
 
-
 # Drop area_type = -8
 unclassified_build <- subset(unclassified_build, area_type != -8)
-
 
 # Convert SOC Types(XSOC2000_B02ID) as soc_stat
 unclassified_build <- unclassified_build %>%
@@ -238,8 +236,8 @@ unclassified_build <- unclassified_build %>%
     MainMode_B04ID == 2 ~ '2', # Bicycle
     MainMode_B04ID == 3 ~ '3', # Car/van driver
     MainMode_B04ID == 4 ~ '3', # Car/van passenger
-    MainMode_B04ID == 5 ~ '3', # Motorcycle
-    MainMode_B04ID == 6 ~ '3', # Other private transport
+    MainMode_B04ID == 5 ~ '4', # Motorcycle
+    MainMode_B04ID == 6 ~ '4', # Other private transport
     MainMode_B04ID == 7 ~ '5', # Bus in London
     MainMode_B04ID == 8 ~ '5', # Other local bus
     MainMode_B04ID == 9 ~ '5', # Non-local bus
@@ -423,12 +421,12 @@ trip_and_people_weights %>% write_csv('hb_weekly_trip_rates.csv')
 
 # NHB trip rate
 all_nhb_purpose <- unclassified_build %>%
-  select(nhb_purpose, nhb_purpose_hb_leg) %>%
+  select(nhb_purpose) %>%
   distinct() %>%
   mutate(ph = 1)
 
 all_individuals <- unclassified_build %>%
-  select(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type) %>%
+  select(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type, main_mode, nhb_purpose_hb_leg) %>%
   distinct() %>%
   mutate(ph = 1)
 
@@ -442,7 +440,7 @@ week_total_trips <- unclassified_build %>%
   select(-ph) %>%
   mutate(W5xHh = replace_na(W5xHh, 0)) %>%
   mutate(weighted_trip = W1 * W5xHh * W2) %>%
-  group_by(IndividualID, nhb_purpose, nhb_purpose_hb_leg, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type) %>%
+  group_by(IndividualID, nhb_purpose, nhb_purpose_hb_leg, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type, main_mode) %>%
   summarise(weekly_trips = sum(weighted_trip, na.rm=TRUE)) %>%
   ungroup()
 
@@ -454,22 +452,22 @@ person_purpose_count <- week_total_trips %>%
 
 # Step 2 - Get sum of weighted individuals
 week_total_individuals <- unclassified_build %>%
-  select(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type, W1, W2) %>%
+  select(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type, nhb_purpose_hb_leg, main_mode, W1, W2) %>%
   unique() %>%
   mutate(person_weight = W1 * W2) %>%
-  group_by(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type) %>%
+  group_by(IndividualID, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, area_type, tfn_area_type, nhb_purpose_hb_leg, main_mode) %>%
   summarise(person_weight = sum(W2)) %>%
   ungroup()
 
 # Step 3 - Divide total trips by weighted sum of individuals
 trip_and_people_weights <- week_total_trips %>%
   full_join(week_total_individuals,
-            by = c('IndividualID', 'age_work_status', 'gender', 'hh_adults', 'cars', 'soc_cat', 'ns_sec', 'area_type', 'tfn_area_type')) %>%
+            by = c('IndividualID', 'age_work_status', 'gender', 'hh_adults', 'cars', 'soc_cat', 'ns_sec', 'area_type', 'tfn_area_type', 'main_mode', 'nhb_purpose_hb_leg')) %>%
   mutate(tfn_trip_rate = weekly_trips/person_weight)
 
 person_purpose_count_ptr <- week_total_trips %>%
-  select(IndividualID, nhb_purpose, nhb_purpose_hb_leg) %>%
+  select(IndividualID, nhb_purpose) %>%
   group_by(IndividualID) %>%
   count()
 
-trip_and_people_weights %>% write_csv('nhb_weekly_trip_rates.csv')
+trip_and_people_weights %>% write_csv('Y:/NTS/nhb_weekly_trip_rates.csv')
