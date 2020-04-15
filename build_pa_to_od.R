@@ -159,7 +159,7 @@ acm <- acm %>%
 
 target_mode <- 6
 
-# Car pa to od
+# Purpose and time constrained pa to od
 mode_pa_to_od <- pa_to_od %>%
   filter(mode_from_home == target_mode) %>%
   filter(mode_to_home == target_mode) %>%
@@ -189,6 +189,44 @@ mode_pa_to_od <- acm %>%
   mutate(direction_factor = replace_na(direction_factor,0)) %>%
   mutate(direction_factor = round(direction_factor,5))
 
-export_string <- paste0('mode_', target_mode, '_pa_to_od.csv')
+export_string <- paste0('mode_', target_mode, '_p_tp_pa_to_od.csv')
+
+mode_pa_to_od %>% write_csv(paste0('Y:/NTS/', export_string))
+
+# Time constrained only pa to od
+mode_pa_to_od <- pa_to_od %>%
+  filter(mode_from_home == target_mode) %>%
+  filter(mode_to_home == target_mode) %>%
+  group_by(time_from_home,
+           time_to_home) %>%
+  summarise(from_home_trip_weight = sum(from_home_trip_weight,na.rm=TRUE)) %>%
+  ungroup()
+
+# Set totals
+# Doing this on from trips only, should probably consolodate both sides first
+p_acm <- acm %>%
+  select(time_from_home, time_to_home) %>%
+  distinct()
+
+from_home_trips <- mode_pa_to_od %>%
+  group_by(time_from_home) %>%
+  summarise(from_total = sum(from_home_trip_weight,na.rm=TRUE)) %>%
+  ungroup()
+
+mode_pa_to_od <- mode_pa_to_od %>%
+  left_join(from_home_trips, by=c('time_from_home')) %>%
+  mutate(direction_factor = from_home_trip_weight/from_total)
+
+mode_pa_to_od <- mode_pa_to_od %>%
+  select(time_from_home, time_to_home, direction_factor)
+
+mode_pa_to_od <- p_acm %>%
+  left_join(mode_pa_to_od, by = c(
+    'time_from_home',
+    'time_to_home')) %>%
+  mutate(direction_factor = replace_na(direction_factor,0)) %>%
+  mutate(direction_factor = round(direction_factor,5))
+
+export_string <- paste0('mode_', target_mode, '_p_pa_to_od.csv')
 
 mode_pa_to_od %>% write_csv(paste0('Y:/NTS/', export_string))
