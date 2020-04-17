@@ -50,6 +50,13 @@ partial_trips <- nts_ntem_df %>%
 nts_ntem_df <- bind_rows(whole_trips, partial_trips) %>%
   arrange(TripDisIncSW_spread)
 
+# Fill in null SOC cats with 0, for zero segments
+nts_ntem_df <- nts_ntem_df %>%
+  mutate(soc_cat = case_when(
+    soc_cat == -9 ~ 0,
+    TRUE ~ soc_cat
+  ))
+
 # Subset down
 # Not spread just now
 trip_length_subset <- nts_ntem_df %>%
@@ -157,7 +164,7 @@ for(i in 1:nrow(target_params)){
   sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
 
   # If this is less than 20, reduce the number of quarts
-  if(sample_size < 20){
+  if(sample_size < 30){
     quarts <- fallback_quarts
   } else{
     quarts <- standard_quarts

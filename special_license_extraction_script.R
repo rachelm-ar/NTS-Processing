@@ -122,7 +122,9 @@ ntem_trip_cols = c('PSUID',
                    'TripDisIncSW',
                    'TripTravTime',
                    'TripOrigUrbCd_B01ID',
-                   'TripDestUrbCd_B01ID', 
+                   'TripDestUrbCd_B01ID',
+                   'TripDestUA2009_B01ID',
+                   'TripOrigUA2009_B01ID',
                    'W5',
                    'W5xHh')
 
