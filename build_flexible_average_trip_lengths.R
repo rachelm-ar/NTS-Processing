@@ -5,8 +5,6 @@ require(tidyverse)
 # Import ntem_build - NTEM segmented dataset 
 nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
 
-target_modes = c(3,6)
-
 # Trip length in miles
 miles_test <- nts_ntem_df %>%
   select(TripDisIncSW, main_mode) %>%
@@ -94,13 +92,17 @@ max_north_trip <- '500'
 # Define band shares to give rough lognormal
 # TODO: Can be done with lognorm fucntion based on mean & sd - just not sure how to get that into quartiles.
 standard_quarts <- c(0.01, 0.31, 0.57, 0.76, 0.86, 0.92, 0.96, 0.98, 0.99, 1)
-fallback_quarts <- c(0.01, 0.31, 0.57, 0.76, 0.86)
+fallback_quarts <- c(0.05, 0.31, 0.57, 0.86)
 
 # Highway single bands
 # TODO: Smart breaks
 
 # Import target combos for parameters - loops will give segments that we don't want
 target_params <- read_csv(paste0(export, "/target_output_params.csv"))
+
+# Bin for atl (average trip length)
+atl_bin <- c(param_name=NULL, atl=NULL)
+sz_bin <- c(param_name=NULL, sample=NULL)
 
 for(i in 1:nrow(target_params)){
   
@@ -111,16 +113,18 @@ for(i in 1:nrow(target_params)){
   ns_sec_cat_sub <- target_params$ns_sec[[i]]
 
   # Give segment a name
-  if(is.na(ns_sec_cat_sub)) {
-    segment <- paste0('soc', soc_cat_sub)
+  if(is.na(ns_sec_cat_sub) & is.na(soc_cat_sub)) {
+    # Null Segment
+    segment <- paste0('')
+  } else if(is.na(ns_sec_cat_sub)){
+    segment <- paste0('_soc', soc_cat_sub)
   } else{
-    segment <- paste0('ns', ns_sec_cat_sub)
+    segment <- paste0('_ns', ns_sec_cat_sub)
   }
 
   # Define param name
   param_name <- paste0('p', purpose_sub,
                        '_m', mode_sub,
-                       '_',
                        segment)
   print(param_name)
 
@@ -132,18 +136,25 @@ for(i in 1:nrow(target_params)){
              trip_dist_km <= max_north_trip)
   
   # Filter soc or sec
-  if(is.na(ns_sec_cat_sub)) {
+  if(is.na(ns_sec_cat_sub) & is.na(soc_cat_sub)) {
+    # Do nothing
+    print('This must be education')
+  } else if(is.na(ns_sec_cat_sub)){
+    # Filter on soc cat sub
     trip_lengths <- trip_lengths %>%
       filter(soc_cat == soc_cat_sub)
   } else{
+    # Filter on ns_sec cat sub
     trip_lengths <- trip_lengths %>%
       filter(ns_sec == ns_sec_cat_sub)
-    segment <- paste0('ns', ns_sec_cat_sub)
   }
-  
+
   # get set length for sample size oversight
   sample_size = nrow(trip_lengths)
   print(paste("Number of records:", sample_size))
+
+  # Append to sample bin
+  sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
 
   # If this is less than 20, reduce the number of quarts
   if(sample_size < 20){
@@ -156,6 +167,8 @@ for(i in 1:nrow(target_params)){
   tlo <- trip_lengths$trip_dist_km
   tlo_mean <- mean(tlo)
   tlo_sd <- sd(tlo)
+  
+  atl_bin <- bind_rows(atl_bin, c(param_name = param_name, atl=tlo_mean))
 
   breaks <- c(0, quantile(tlo, probs=quarts))
   names(breaks) <- NULL
@@ -221,7 +234,11 @@ for(i in 1:nrow(target_params)){
 
   hist(trip_lengths$band_share, breaks=breaks)
 
-  trip_lengths %>% write_csv(paste0(export, "tlb_", param_name, ".csv"))
+  trip_lengths %>% write_csv(paste0(export, "hb_tlb_", param_name, ".csv"))
 }
+
+# TODO: Write atl bin
+atl_bin %>% write_csv(paste0(export, "hb_ave_distance.csv"))
+sz_bin %>% write_csv(paste0(export, "tld_sample_sizes.csv"))
 
 # TODO: same for NHB
