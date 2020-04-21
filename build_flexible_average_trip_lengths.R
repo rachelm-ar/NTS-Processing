@@ -98,8 +98,8 @@ trip_length_subset <- trip_length_subset %>%
 max_north_trip <- '500'
 # Define band shares to give rough lognormal
 # TODO: Can be done with lognorm fucntion based on mean & sd - just not sure how to get that into quartiles.
-standard_quarts <- c(0.01, 0.31, 0.57, 0.76, 0.86, 0.92, 0.96, 0.98, 0.99, 1)
-fallback_quarts <- c(0.05, 0.31, 0.57, 0.86)
+standard_quarts <- c(0.3, 0.45, 0.6, 0.75, 0.85, 0.92, 0.96, 0.98, 0.99, 1)
+fallback_quarts <- c(0.31, 0.57, 0.86, .99)
 
 # Highway single bands
 # TODO: Smart breaks
