@@ -9,7 +9,7 @@ require(tidyverse)
 
 # Path to tab files - should be SPSS equivalent?
 file <- 'D:/UKDA-7553-tab/tab'
-export <- 'Y:/NTS/'
+export <- 'D:/NTS/'
 
 attitudes_file_path = paste0(file, '/attitudesspecial2017_protect.tab')
 days_file_path = paste0('/dayspecial2017_protect.tab')
@@ -88,6 +88,7 @@ npr_individual_cols <- c('PSUID',
                          'Sex_B01ID',
                          'XSOC2000_B02ID', # Standard occupational classification
                          'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
+                         'CarAccess_B01ID',
                          'EcoStat_B01ID')
 
 full_trip_cols = c('TripID', # Unique Trip ID
@@ -574,6 +575,6 @@ nts_ntem_df <- nts_df %>%
 
 # Export processed data for analysis
 nts_ntem_df %>%
-  write_csv(export, '/tfn_ntem_build.csv')
+  write_csv(paste0(export, '/tfn_ntem_build.csv'))
 
 # END

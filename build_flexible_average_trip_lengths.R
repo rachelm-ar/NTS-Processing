@@ -61,7 +61,7 @@ nts_ntem_df <- nts_ntem_df %>%
 # Not spread just now
 trip_length_subset <- nts_ntem_df %>%
   select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
-         trip_origin, TripDisIncSW, TripDisIncSW_spread, weighted_trip) %>%
+         trip_origin, TripDisIncSW, TripDisIncSW_spread, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
   filter(!is.na(weighted_trip)) %>%
   mutate(trip_dist_km = TripDisIncSW_spread*1.60934)
 
@@ -83,6 +83,22 @@ north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', '
               'E08000037', 'W06000001', 'W06000002', 'W06000003', 'W06000004', 'W06000005',
               'W06000006')
 
+# 1 = North East
+# 2 = North West
+# 3 = Yorkshire and the Humber
+# 4 = East Midlands - yes please
+north_region <- c(1,2,3,4)
+
+# Region count
+region_count <- nts_ntem_df %>%
+  select(TripOrigGOR_B02ID, TripDestGOR_B02ID) %>%
+  group_by(TripOrigGOR_B02ID, TripDestGOR_B02ID) %>%
+  count()
+# Looks quite okay
+
+# Fix target trip origin hb/nhb
+target_trip_origin <- 'hb'
+
 # Weekdays only
 weekdays <- c(1,2,3,4,5)
 # Last 3 years only
@@ -90,16 +106,17 @@ years <- c(2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
            2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017)
 
 trip_length_subset <- trip_length_subset %>%
-  filter(HHoldOSLAUA_B01ID %in% north_la)
+  filter(HHoldOSLAUA_B01ID %in% north_la) %>%
+  filter(TripOrigGOR_B02ID %in% north_region) %>%
+  filter(TripDestGOR_B02ID %in% north_region) %>%
+  filter(trip_origin = 'hb')
 # Removed years & weekdays for fullest possible sample
 
-## Working method
-# max north trip based on internal distance measure
-max_north_trip <- '500'
 # Define band shares to give rough lognormal
 # TODO: Can be done with lognorm fucntion based on mean & sd - just not sure how to get that into quartiles.
-standard_quarts <- c(0.3, 0.45, 0.6, 0.75, 0.85, 0.92, 0.96, 0.98, 0.99, 1)
-fallback_quarts <- c(0.31, 0.57, 0.86, .99)
+# standard_quarts <- c(0.3, 0.45, 0.6, 0.75, 0.85, 0.92, 0.96, 0.98, 0.99, 1)
+standard_quarts <- c(.3, .5, .65, .75, .85, .95, 1)
+fallback_quarts <- c(0.5, .75, .85, 1)
 
 # Highway single bands
 # TODO: Smart breaks
@@ -137,11 +154,9 @@ for(i in 1:nrow(target_params)){
 
   # Subset to target distribution
   trip_lengths <- trip_length_subset %>%
-    filter(trip_origin == 'hb' &
-             hb_purpose == purpose_sub &
-             main_mode==mode_sub &
-             trip_dist_km <= max_north_trip)
-  
+    filter(hb_purpose == purpose_sub &
+             main_mode==mode_sub)
+
   # Filter soc or sec
   if(is.na(ns_sec_cat_sub) & is.na(soc_cat_sub)) {
     # Do nothing
@@ -246,6 +261,6 @@ for(i in 1:nrow(target_params)){
 
 # TODO: Write atl bin
 atl_bin %>% write_csv(paste0(export, "hb_ave_distance.csv"))
-sz_bin %>% write_csv(paste0(export, "tld_sample_sizes.csv"))
+sz_bin %>% write_csv(paste0(export, "hb_tld_sample_sizes.csv"))
 
 # TODO: same for NHB
