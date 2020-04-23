@@ -363,8 +363,6 @@ usable_households <- unq_household %>%
 # Join usable households to unclassified_build
 unclassified_build <- usable_households %>% left_join(unclassified_build)
 
-
-
 # Weekly trip rates for Hb ------------------------------------------------
 
 # Extract unique trips of an individual has made
@@ -392,23 +390,26 @@ unique_trips_all %>% write_csv("Y:/NTS/weekly_trip_rates_HA.csv")
 nhb_unique_trips <- unclassified_build %>%
   filter(trip_purpose %in% c(12,13,14,15,16,18)) %>%
   mutate(trip_weights = W2 * W5xHh) %>%
-  group_by(IndividualID, trip_purpose, nhb_purpose_hb_leg, main_mode, W1, W2) %>%
+  group_by(IndividualID, trip_purpose, nhb_purpose_hb_leg, main_mode, soc_cat, ns_sec, W1, W2) %>%
   summarise(trip_weights = sum(trip_weights),
             weekly_trips = n()) %>%
   ungroup() %>%
   mutate(trip_weights = trip_weights/W2,
          trip_purpose = as.integer(trip_purpose),
-         nhb_purpose_hb_leg = as.integer(nhb_purpose_hb_leg))
+         nhb_purpose_hb_leg = as.integer(nhb_purpose_hb_leg),
+         main_mode = as.integer(main_mode))
 
-nhb_unique_trips_all <- try1 %>%
-  complete(nesting(IndividualID, main_mode),
+nhb_unique_trips_all <- nhb_unique_trips %>%
+  complete(nesting(IndividualID, soc_cat, ns_sec),
            trip_purpose = c(12,13,14,15,16,18),
            nhb_purpose_hb_leg = c(1,2,3,4,5,6,7,8),
+           main_mode = c(1,2,3,5,6),
            fill = list(weekly_trips = 0)) %>%
   mutate(trip_weights = replace_na(trip_weights, 0),
          W1 = replace_na(W1, 0),
          W2 = replace_na(W2, 0))
 
+nhb_unique_trips_all %>% write_csv("C:/Users/Pluto/Documents/nhb_trip_rates.csv")
 nhb_unique_trips_all %>% write_csv("Y:/NTS/weekly_trip_rates_nhb_HA.csv")
 
 #### Weekly trip rate calculations (Ian Williams NTS Report Method) #####################
@@ -479,12 +480,12 @@ nhb_unique_trips_all %>% write_csv("Y:/NTS/weekly_trip_rates_nhb_HA.csv")
 
 # NHB trip rate
 all_nhb_purpose <- unclassified_build %>%
-  select(trip_purpose, nhb_purpose_hb_leg, main_mode) %>%
+  select(trip_purpose, nhb_purpose_hb_leg) %>%
   distinct() %>%
   mutate(ph = 1)
 
 all_individuals <- unclassified_build %>%
-  select(IndividualID, trip_purpose, main_mode, nhb_purpose_hb_leg) %>%
+  select(IndividualID, trip_purpose, nhb_purpose_hb_leg, main_mode) %>%
   distinct() %>%
   mutate(ph = 1)
 

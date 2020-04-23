@@ -126,7 +126,7 @@ Variable_status <- function(df){
       "
   
   # Build an initial ZINB model
-  int_model <- zeroinfl(formula = weekly_trips ~ age_work_status + cars + gender + hh_adults + soc_cat + ns_sec + tfn_area_type | 1,
+  int_model <- zeroinfl(formula = weekly_trips ~ age_work_status + cars + gender + hh_adults + soc_cat + tfn_area_type | 1,
                         data = df,
                         dist = "negbin",
                         subset = train_ind)
@@ -283,7 +283,7 @@ hb_trip_rates <- function(hb_csv_input, output_dir, ntem_tr_input){
         filter(str_detect(Variables, variables[j])) %>%
         pull()
       
-      if(all(var_pvals > 0.05) & j != length(variables)){
+      if(all(var_pvals > 0.01) & j != length(variables)){
         
         print(paste0("Skipping ", variables[j], " (", j, ") for purpose ", i, " - ", Sys.time()))
         
@@ -291,7 +291,7 @@ hb_trip_rates <- function(hb_csv_input, output_dir, ntem_tr_input){
         
       }
       
-      if(any(var_pvals < 0.05) & var_status[[1]][j] == "configure") {
+      if(any(var_pvals < 0.01) & var_status[[1]][j] == "configure") {
         
         ### Obtain combinations
         
@@ -304,7 +304,7 @@ hb_trip_rates <- function(hb_csv_input, output_dir, ntem_tr_input){
         # Remove any combinations which merge insignificant classifications with insignificant clasifications
         insig_vars <- var_status[[2]] %>%
           filter(str_detect(Variables, variables[j])) %>%
-          filter(p_vals > 0.05) %>%
+          filter(p_vals > 0.01) %>%
           pull(Variables) %>%
           str_replace(variables[j], "")
         
@@ -315,7 +315,7 @@ hb_trip_rates <- function(hb_csv_input, output_dir, ntem_tr_input){
         # Remove any combinations which merge significant classifications with significant classifications
         sig_vars <- var_status[[2]] %>%
           filter(str_detect(Variables, variables[j])) %>%
-          filter(p_vals < 0.05) %>%#
+          filter(p_vals < 0.01) %>%#
           pull(Variables) %>%
           str_replace(variables[j], "")
         
