@@ -16,6 +16,7 @@ days_file_path = paste0('/dayspecial2017_protect.tab')
 individual_file_path <- paste0(file, '/individualspecial2017_protect.tab')
 psu_id_file_path <- paste0(file, '/psuspecial2017_protect.tab')
 household_file_path <- paste0(file, '/householdspecial2017_protect.tab')
+ldj_file_path <- paste0(file, '/ldjspecial2017_protect.tab')
 trip_file_path <- paste0(file, '/tripspecial2017_protect.tab')
 stage_file_path <- paste0(file, '/stagesecure2017_protect.tab')
 
@@ -27,109 +28,69 @@ column_method <- 'ntem'
 
 psu_cols <- c('PSUID', 'PSUPopDensity')
 
-# For the purposes of NTEM replication, we only need the following:
-full_household_cols = c('HouseholdID', # Unique Household Identifier - Second Heirarchical Variable
-                        'PSUID', # Joining variable
-                        'SurveyYear', # We want to know the year
-                        'OutCom_B02ID', # Competitiveness of household
-                        'HHIncome2002_B01ID', # 23 household income bands
-                        'HHoldAreaType1_B01ID', # 15 categories of Household area type
-                        'HHoldNumAdults', # Number of adults in household
-                        'NumCar', # Number of 3/4 wheelers (Excl Land Rover and Jeep)
-                        'NumMCycle', # Number of Motorcycles
-                        'NumVanLorry', # Number of vans/lorries
-                        'NumCarVan_B02ID', # Number of household cars/light vans incl. landrover, jeep, minibus etc in NTEM bandings
-                        'WalkRail', # Walk time from household to nearest rail station
-                        'StationKmTRACC', # KM to nearest rail station by road
-                        'DescTa_B01ID', # Frequency of rail service at nearest railway station
-                        'HHoldAreaType2_B01ID', # Household Area Type - Settlement Size
-                        'W1',
-                        'W2'
-)
-
-ntem_household_cols <- c('PSUID',
-                         'SurveyYear',
-                         'HouseholdID',
-                         'HHoldOSWard_B01ID',
-                         'HHoldOSLAUA_B01ID',
-                         'OutCom_B02ID',
-                         'HHoldAreaType1_B01ID',
-                         'HHoldNumAdults',
-                         'NumCarVan_B02ID',
-                         'W1',
-                         'W2')
-
-full_individual_cols = c('IndividualID', # Unique individual identifier - third heirarchical variable 
-                         'HouseholdID', # Joining variable
-                         'PSUID', # Joining variable
-                         'PersNo', # Person number within household
-                         'Age_B01ID', # Age of person
-                         'Sex_B01ID', # Gender of person 
-                         'XSOC2000_B02ID', # Standard occupational classification
-                         'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
-                         'IndIncome2002_B02ID', # Individual income in three bands
-                         'EcoStat_B01ID') # Working status of individual
+household_cols <- c('PSUID',
+                    'SurveyYear',
+                    'HouseholdID',
+                    'HHoldOSWard_B01ID',
+                    'HHoldOSLAUA_B01ID',
+                    'OutCom_B02ID',
+                    'HHoldAreaType1_B01ID',
+                    'HHoldNumAdults',
+                    'NumCarVan_B02ID',
+                    'W1',
+                    'W2')
 
 # For the purposes of NTEM replication, we the following will do:
-
-ntem_individual_cols = c('PSUID',
-                         'HouseholdID',
-                         'IndividualID',
-                         'Age_B01ID',
-                         'Sex_B01ID',
-                         'XSOC2000_B02ID', # Standard occupational classification
-                         'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
-                         'EcoStat_B01ID')
-
-npr_individual_cols <- c('PSUID',
-                         'HouseholdID',
-                         'IndividualID',
-                         'Age_B01ID',
-                         'Sex_B01ID',
-                         'XSOC2000_B02ID', # Standard occupational classification
-                         'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
-                         'CarAccess_B01ID',
-                         'EcoStat_B01ID')
-
-full_trip_cols = c('TripID', # Unique Trip ID
-                   'DayID', # ID given to all trips made by an indicidual on a given travel day
-                   'IndividualID', # Joining variable
-                   'HouseholdID', # Joining variable
-                   'PSUID', # Joining variable
-                   'PersNo', # Joining variable
-                   'TravDay', # Day of travel week
-                   'TripPurpose_B01ID', # Trip Purpose
-                   'NumStages_B01ID', # Number of trip stages in bands
-                   'TripDisIncSW', # Trip distance, in miles
-                   'TripStart_B02ID', # 51 bands of trip start time
-                   'TripEnd_B02ID', # 51 bands of trip end time
-                   'TripTravTime', # Total travel time in minutes
-                   'W5', # Trip/Stage weight 
-                   'W5xHh' # Trip/Stage weight excluding household
-)
+individual_cols <- c('PSUID',
+                     'HouseholdID',
+                     'IndividualID',
+                     'Age_B01ID',
+                     'Sex_B01ID',
+                     'XSOC2000_B02ID', # Standard occupational classification
+                     'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
+                     'CarAccess_B01ID',
+                     'DrivLic_B02ID',
+                     'EcoStat_B01ID')
 
 # TODO: NTM purpose banding could be instructive: TripPurpose_B07ID
 
-ntem_trip_cols = c('PSUID',
-                   'HouseholdID',
-                   'IndividualID',
-                   'TripID',
-                   'TravDay',
-                   'MainMode_B04ID',
-                   'TripPurpFrom_B01ID',
-                   'TripPurpTo_B01ID',
-                   'TripStart_B01ID', # 51 bands of trip start time
-                   'TripEnd_B01ID',
-                   'TripDisIncSW',
-                   'TripTravTime',
-                   'TripOrigUrbCd_B01ID',
-                   'TripDestUrbCd_B01ID',
-                   'TripOrigCounty_B01ID',
-                   'TripDestCounty_B01ID',
-                   'TripOrigGOR_B02ID',
-                   'TripDestGOR_B02ID',
-                   'W5',
-                   'W5xHh')
+trip_cols = c('PSUID',
+              'HouseholdID',
+              'IndividualID',
+              'TripID',
+              'TravDay',
+              'MainMode_B04ID',
+              'TripPurpFrom_B01ID',
+              'TripPurpTo_B01ID',
+              'TripStart_B01ID', # 51 bands of trip start time
+              'TripEnd_B01ID',
+              'TripDisIncSW',
+              'TripTravTime',
+              'TripOrigUrbCd_B01ID',
+              'TripDestUrbCd_B01ID',
+              'TripOrigCounty_B01ID',
+              'TripDestCounty_B01ID',
+              'TripOrigGOR_B02ID',
+              'TripDestGOR_B02ID',
+              'W5',
+              'W5xHh')
+
+ldj_cols <- c('PSUID',
+              'IndividualID',
+              'HouseholdID',
+              'TripID',
+              'LDJID',
+              'W4',
+              'LDJPurpFrom_B01ID')
+
+stage_cols <- c('PSUID',
+                'IndividualID',
+                'HouseholdID',
+                'TripID',
+                'StageID',
+                'NumParty_B01ID',
+                'StageMode_B04ID',
+                'StageDistance_B01ID')
 
 # Imports ####
 # NTS is organised in a hierarchical structure. This starts with PSUs:
@@ -143,24 +104,30 @@ psu_df <- read_delim(psu_id_file_path, delim = "\t", guess_max = 400000) %>%
 # The solution is to remove the 2s for the last 3 years, compare completed to uncompleted and filter out
 # older surveys that look uncompleted
 
-# Import
+# Import household
 household_df <- read_delim(household_file_path, delim = "\t", guess_max = 400000) %>%
-  select(ntem_household_cols)
+  select(household_cols)
 
 year_com_count <- household_df %>%
   select(SurveyYear, OutCom_B02ID) %>%
   group_by(SurveyYear, OutCom_B02ID) %>%
   count()
 
-# The third variable is individuals. 
+# import individuals. 
 individual_df <- read_delim(individual_file_path, delim = "\t", guess_max = 400000) %>%
-  select(npr_individual_cols)
+  select(individual_cols)
 
-# The fourth variable is trips
+#  Import trips
 # Columns of interest:
-
 trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 4000000) %>%
-  select(ntem_trip_cols)
+  select(trip_cols)
+
+# import ldj
+ldj_df <- read_delim(ldj_file_path, delim='\t', guess_max = 400000) %>%
+  select(ldj_cols)
+
+stage_df <- read_delim(stage_file_path, delim='\t', guess_max = 5000000) %>%
+  select(stage_cols)
 
 # Table Joins ####
 # We now join these tables together using the Heirarchical variables
@@ -174,6 +141,18 @@ nts_df <- nts_df %>%
 
 nts_df <- nts_df %>%
   left_join(trip_df, by=c('PSUID', 'HouseholdID', 'IndividualID'))
+
+nts_df <- nts_df %>%
+  left_join(ldj_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
+
+# LDJ TEST
+ldj_purp_count <- nts_df %>%
+  select(LDJID) %>%
+  group_by(LDJID) %>%
+  count()
+
+nts_df <- nts_df %>%
+  left_join(stage_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
 
 nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build.csv'))
 

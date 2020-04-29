@@ -71,65 +71,130 @@ pa_to_od <- from_to_trips %>%
          mode_to_home, purpose_to_home, time_to_home, to_home_trip_weight)
 
 # Classify trips
+# Classification type can be 'NTEM' or 'Aggregate'
+classification_type <- 'aggregate'
 
-pa_to_od <- pa_to_od %>%
-  mutate(purpose_from_home = case_when(
-    purpose_from_home == 1 ~ '1', # Work
-    purpose_from_home == 2 ~ '2', # In course of work
-    purpose_from_home == 3 ~ '3', # Education
-    purpose_from_home == 4 ~ '4', # Food shopping
-    purpose_from_home == 5 ~ '4', # Non food shopping
-    purpose_from_home == 6 ~ '5', # Personal business medical
-    purpose_from_home == 7 ~ '5', # Personal business eat / drink
-    purpose_from_home == 8 ~ '5', # Personal business other
-    purpose_from_home == 9 ~ '6', # Eat / drink with friends
-    purpose_from_home == 10 ~ '7', # Visit friends
-    purpose_from_home == 11 ~ '6', # Other social
-    purpose_from_home == 12 ~ '6', # Entertain /  public activity
-    purpose_from_home == 13 ~ '6', # Sport: participate
-    purpose_from_home == 14 ~ '8', # Holiday: base
-    purpose_from_home == 15 ~ '8', # Day trip / just walk
-    purpose_from_home == 16 ~ '6', # Other non-escort
-    purpose_from_home == 17 ~ '99', # Escort home
-    purpose_from_home == 18 ~ '1', # Escort work
-    purpose_from_home == 19 ~ '2', # Escort in course of work
-    purpose_from_home == 20 ~ '3', # Escort education
-    purpose_from_home == 21 ~ '4', # Escort shopping / personal business
-    purpose_from_home == 22 ~ '7', # Other escort
-    purpose_from_home == 23 ~ '99', # Home
-    TRUE ~ as.character('unclassified')
-  ))
+if (classification_type == 'NTEM'){
 
-pa_to_od <- pa_to_od %>%
-  mutate(purpose_to_home = case_when(
-    purpose_to_home == 1 ~ '1', # Work
-    purpose_to_home == 2 ~ '2', # In course of work
-    purpose_to_home == 3 ~ '3', # Education
-    purpose_to_home == 4 ~ '4', # Food shopping
-    purpose_to_home == 5 ~ '4', # Non food shopping
-    purpose_to_home == 6 ~ '5', # Personal business medical
-    purpose_to_home == 7 ~ '5', # Personal business eat / drink
-    purpose_to_home == 8 ~ '5', # Personal business other
-    purpose_to_home == 9 ~ '6', # Eat / drink with friends
-    purpose_to_home == 10 ~ '7', # Visit friends
-    purpose_to_home == 11 ~ '6', # Other social
-    purpose_to_home == 12 ~ '6', # Entertain /  public activity
-    purpose_to_home == 13 ~ '6', # Sport: participate
-    purpose_to_home == 14 ~ '8', # Holiday: base
-    purpose_to_home == 15 ~ '8', # Day trip / just walk
-    purpose_to_home == 16 ~ '6', # Other non-escort
-    purpose_to_home == 17 ~ '99', # Escort home
-    purpose_to_home == 18 ~ '1', # Escort work
-    purpose_to_home == 19 ~ '2', # Escort in course of work
-    purpose_to_home == 20 ~ '3', # Escort education
-    purpose_to_home == 21 ~ '4', # Escort shopping / personal business
-    purpose_to_home == 22 ~ '7', # Other escort
-    purpose_to_home == 23 ~ '99', # Home
-    TRUE ~ as.character('unclassified')
-  ))
+  pa_to_od <- pa_to_od %>%
+    mutate(purpose_from_home = case_when(
+      purpose_from_home == 1 ~ '1', # Work
+      purpose_from_home == 2 ~ '2', # In course of work
+      purpose_from_home == 3 ~ '3', # Education
+      purpose_from_home == 4 ~ '4', # Food shopping
+      purpose_from_home == 5 ~ '4', # Non food shopping
+      purpose_from_home == 6 ~ '5', # Personal business medical
+      purpose_from_home == 7 ~ '5', # Personal business eat / drink
+      purpose_from_home == 8 ~ '5', # Personal business other
+      purpose_from_home == 9 ~ '6', # Eat / drink with friends
+      purpose_from_home == 10 ~ '7', # Visit friends
+      purpose_from_home == 11 ~ '6', # Other social
+      purpose_from_home == 12 ~ '6', # Entertain /  public activity
+      purpose_from_home == 13 ~ '6', # Sport: participate
+      purpose_from_home == 14 ~ '8', # Holiday: base
+      purpose_from_home == 15 ~ '8', # Day trip / just walk
+      purpose_from_home == 16 ~ '6', # Other non-escort
+      purpose_from_home == 17 ~ '99', # Escort home
+      purpose_from_home == 18 ~ '1', # Escort work
+      purpose_from_home == 19 ~ '2', # Escort in course of work
+      purpose_from_home == 20 ~ '3', # Escort education
+      purpose_from_home == 21 ~ '4', # Escort shopping / personal business
+      purpose_from_home == 22 ~ '7', # Other escort
+      purpose_from_home == 23 ~ '99', # Home
+      TRUE ~ as.character('unclassified')
+    ))
 
+  pa_to_od <- pa_to_od %>%
+    mutate(purpose_to_home = case_when(
+      purpose_to_home == 1 ~ '1', # Work
+      purpose_to_home == 2 ~ '2', # In course of work
+      purpose_to_home == 3 ~ '3', # Education
+      purpose_to_home == 4 ~ '4', # Food shopping
+      purpose_to_home == 5 ~ '4', # Non food shopping
+      purpose_to_home == 6 ~ '5', # Personal business medical
+      purpose_to_home == 7 ~ '5', # Personal business eat / drink
+      purpose_to_home == 8 ~ '5', # Personal business other
+      purpose_to_home == 9 ~ '6', # Eat / drink with friends
+      purpose_to_home == 10 ~ '7', # Visit friends
+      purpose_to_home == 11 ~ '6', # Other social
+      purpose_to_home == 12 ~ '6', # Entertain /  public activity
+      purpose_to_home == 13 ~ '6', # Sport: participate
+      purpose_to_home == 14 ~ '8', # Holiday: base
+      purpose_to_home == 15 ~ '8', # Day trip / just walk
+      purpose_to_home == 16 ~ '6', # Other non-escort
+      purpose_to_home == 17 ~ '99', # Escort home
+      purpose_to_home == 18 ~ '1', # Escort work
+      purpose_to_home == 19 ~ '2', # Escort in course of work
+      purpose_to_home == 20 ~ '3', # Escort education
+      purpose_to_home == 21 ~ '4', # Escort shopping / personal business
+      purpose_to_home == 22 ~ '7', # Other escort
+      purpose_to_home == 23 ~ '99', # Home
+      TRUE ~ as.character('unclassified')
+    ))
+  valid_purpose <- c('1','2','3','4','5','6','7','8')
+
+} else if (classification_type == 'aggregate'){
+  
+  pa_to_od <- pa_to_od %>%
+    mutate(purpose_from_home = case_when(
+      purpose_from_home == 1 ~ 'commute', # Work
+      purpose_from_home == 2 ~ 'business', # In course of work
+      purpose_from_home == 3 ~ 'other', # Education
+      purpose_from_home == 4 ~ 'other', # Food shopping
+      purpose_from_home == 5 ~ 'other', # Non food shopping
+      purpose_from_home == 6 ~ 'other', # Personal business medical
+      purpose_from_home == 7 ~ 'other', # Personal business eat / drink
+      purpose_from_home == 8 ~ 'other', # Personal business other
+      purpose_from_home == 9 ~ 'other', # Eat / drink with friends
+      purpose_from_home == 10 ~ 'other', # Visit friends
+      purpose_from_home == 11 ~ 'other', # Other social
+      purpose_from_home == 12 ~ 'other', # Entertain /  public activity
+      purpose_from_home == 13 ~ 'other', # Sport: participate
+      purpose_from_home == 14 ~ 'other', # Holiday: base
+      purpose_from_home == 15 ~ 'other', # Day trip / just walk
+      purpose_from_home == 16 ~ 'other', # Other non-escort
+      purpose_from_home == 17 ~ '99', # Escort home
+      purpose_from_home == 18 ~ 'other', # Escort work
+      purpose_from_home == 19 ~ 'other', # Escort in course of work
+      purpose_from_home == 20 ~ 'other', # Escort education
+      purpose_from_home == 21 ~ 'other', # Escort shopping / personal business
+      purpose_from_home == 22 ~ 'other', # Other escort
+      purpose_from_home == 23 ~ '99', # Home
+      TRUE ~ as.character('unclassified')
+    ))
+
+  pa_to_od <- pa_to_od %>%
+    mutate(purpose_to_home = case_when(
+      purpose_to_home == 1 ~ 'commute', # Work
+      purpose_to_home == 2 ~ 'business', # In course of work
+      purpose_to_home == 3 ~ 'other', # Education
+      purpose_to_home == 4 ~ 'other', # Food shopping
+      purpose_to_home == 5 ~ 'other', # Non food shopping
+      purpose_to_home == 6 ~ 'other', # Personal business medical
+      purpose_to_home == 7 ~ 'other', # Personal business eat / drink
+      purpose_to_home == 8 ~ 'other', # Personal business other
+      purpose_to_home == 9 ~ 'other', # Eat / drink with friends
+      purpose_to_home == 10 ~ 'other', # Visit friends
+      purpose_to_home == 11 ~ 'other', # Other social
+      purpose_to_home == 12 ~ 'other', # Entertain /  public activity
+      purpose_to_home == 13 ~ 'other', # Sport: participate
+      purpose_to_home == 14 ~ 'other', # Holiday: base
+      purpose_to_home == 15 ~ 'other', # Day trip / just walk
+      purpose_to_home == 16 ~ 'other', # Other non-escort
+      purpose_to_home == 17 ~ '99', # Escort home
+      purpose_to_home == 18 ~ 'other', # Escort work
+      purpose_to_home == 19 ~ 'other', # Escort in course of work
+      purpose_to_home == 20 ~ 'other', # Escort education
+      purpose_to_home == 21 ~ 'other', # Escort shopping / personal business
+      purpose_to_home == 22 ~ 'other', # Other escort
+      purpose_to_home == 23 ~ '99', # Home
+      TRUE ~ as.character('unclassified')
+    ))
+  valid_purpose <- c('commute','business','other')
+
+}
 # Time
-valid_purpose <- c('1','2','3','4','5','6','7','8')
+
 valid_time <- c(1,2,3,4,5,6)
 
 # Filter out outliers
@@ -189,7 +254,7 @@ mode_pa_to_od <- acm %>%
   mutate(direction_factor = replace_na(direction_factor,0)) %>%
   mutate(direction_factor = round(direction_factor,5))
 
-export_string <- paste0('mode_', target_mode, '_p_tp_pa_to_od.csv')
+export_string <- paste0('mode_', target_mode, '_', classification_type, '_p_tp_pa_to_od.csv')
 
 mode_pa_to_od %>% write_csv(paste0('Y:/NTS/', export_string))
 
@@ -229,6 +294,6 @@ mode_pa_to_od <- p_acm %>%
   mutate(direction_factor = replace_na(direction_factor,0)) %>%
   mutate(direction_factor = round(direction_factor,5))
 
-export_string <- paste0('mode_', target_mode, '_fhp_pa_to_od.csv')
+export_string <- paste0('mode_', target_mode, '_', classification_type, '_fhp_pa_to_od.csv')
 
 mode_pa_to_od %>% write_csv(paste0('Y:/NTS/', export_string))
