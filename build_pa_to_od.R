@@ -72,7 +72,7 @@ pa_to_od <- from_to_trips %>%
 
 # Classify trips
 # Classification type can be 'NTEM' or 'Aggregate'
-classification_type <- 'aggregate'
+classification_type <- 'NTEM'
 
 if (classification_type == 'NTEM'){
 
@@ -222,7 +222,7 @@ acm <- acm %>%
 
 # TODO: Should be a function that does every mode (for mode in target_modes)
 
-target_mode <- 6
+target_mode <- 3
 
 # Purpose and time constrained pa to od
 mode_pa_to_od <- pa_to_od %>%
