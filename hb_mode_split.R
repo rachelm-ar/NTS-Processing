@@ -151,12 +151,21 @@ unclassified_build <- unclassified_build %>% left_join(new_area_types, by = c("H
 
 # Drop NA area type (problem: significant number of NA for HHoldOSWard_B01ID, n = 135495 out of 1959837 (~7%)
 unclassified_build <- unclassified_build %>% filter(new_area_type != is.na(new_area_type))
-# Mutate area type 1 and 2 into area_type 1_2
+
+# Mutate area type 1 and 2 into area_type '1'
 unclassified_build <- unclassified_build %>%
   mutate(new_area_type = case_when(
-    new_area_type %in% c(1,2) ~ '1_2',
-        TRUE ~ as.character(new_area_type)
+    new_area_type %in% c(1, 2) ~ '1',
+    TRUE ~ as.character(new_area_type)
   ))
+
+#This operation could probably be simplified and sped up a lot with the right function...
+# Objective is to duplicate the area types 1 and 2 that are combined into '1'  as '2'
+# Duplicate new_area_type '1' (containing 1 and 2), rename as '2' and merge with old dataset so that '1' and '2'
+# are identical but same values (1 and 2 combined)
+merge_temp <- unclassified_build %>% filter(new_area_type == '1') %>% mutate(new_area_type = '2')
+unclassified_build <- rbind(unclassified_build, merge_temp)
+
 
 # Transform catgeorical variables to factors
 facts <- c("hb_purpose", "cars", "area_type", "new_area_type",  "main_mode")
