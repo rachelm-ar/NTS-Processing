@@ -98,7 +98,7 @@ unclassified_build <- unclassified_build %>%
   mutate(cars = case_when(
     NumCarVan_B02ID == 1 ~ '0',
     NumCarVan_B02ID == 2 ~ '1',
-    NumCarVan_B02ID == 3 ~ '1',
+    NumCarVan_B02ID == 3 ~ '2+',
     TRUE ~ '-8'
     )) %>%
   filter(cars != '-8')
@@ -120,7 +120,7 @@ unclassified_build <- unclassified_build %>%
   mutate(cars = case_when(
     HHoldNumAdults == 1 & cars == '1' ~ '1+',
     HHoldNumAdults == 1 & cars == '2+' ~ '1+',
-    TRUE ~ '-8'
+    TRUE ~ as.character(cars)
   )) %>%
   filter(cars != '-8')
 
