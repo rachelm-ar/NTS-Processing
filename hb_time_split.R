@@ -257,7 +257,8 @@ unclassified_build <- unclassified_build %>%
   mutate(new_area_type = case_when(
     new_area_type %in% c(1, 2) ~ '1',
     TRUE ~ as.character(new_area_type)
-  ))
+  )) %>%
+  filter(new_area_type !is.na(new_area_type))
 
 
 #This operation could probably be simplified and sped up a lot with the right function...
