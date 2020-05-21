@@ -209,6 +209,20 @@ mpsd_df <- unclassified_build %>%
   summarise(trip_rate = sum(trip_rate, na.rm = TRUE)) %>%
   write_csv("Y:/NTS/2017 trips by purpose soc mode distance/2017_mode_purpose_soc_dist.csv")
 
+# Calculate 95% confidence interval for proportions (alpha = 0.05) with z-score
+# (correct? t-score instead? or other?) 
+alpha = 0.05
+z = qnorm(1-alpha/2)
+total_trips <- sum(mpsd_df$trip_rate)
+mpsd_df$trip_proportion <- mpsd_df$trip_rate/total_trips
+mpsd_df$trip_rate_lower <- mpsd_df$trip_proportion - 1*z*sqrt(mpsd_df$trip_proportion*(1-mpsd_df$trip_proportion)/mpsd_df$trip_rate)
+mpsd_df$trip_rate_upper <- mpsd_df$trip_proportion + 1*z*sqrt(mpsd_df$trip_proportion*(1-mpsd_df$trip_proportion)/mpsd_df$trip_rate)
+mpsd_df$trip_rate_lower[which(is.nan(mpsd_df$trip_rate_lower))]=0
+mpsd_df$trip_rate_upper[which(is.nan(mpsd_df$trip_rate_upper))]=0
+
+# Export to csv
+mpsd_df %>% write_csv("Y:/NTS/2017 trips by purpose soc mode distance/2017_mode_purpose_soc_dist_CI.csv")
+
 
 #### MARTIN ####
 
