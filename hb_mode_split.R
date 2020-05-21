@@ -1,5 +1,6 @@
 ### Load libraries and import data ##############################################
 library("tidyverse")
+library("data.table")
 
 # Import unclassified build
 unclassified_build <- read_csv("Y:/NTS/tfn_unclassified_build.csv")
@@ -157,12 +158,11 @@ unclassified_build <- unclassified_build %>%
   mutate(new_area_type = case_when(
     new_area_type %in% c(1, 2) ~ '1',
     TRUE ~ as.character(new_area_type)
-  ))
+  )) %>%
+  filter(new_area_type != is.na(new_area_type))
 
-#This operation could probably be simplified and sped up a lot with the right function...
-# Objective is to duplicate the area types 1 and 2 that are combined into '1'  as '2'
-# Duplicate new_area_type '1' (containing 1 and 2), rename as '2' and merge with old dataset so that '1' and '2'
-# are identical but same values (1 and 2 combined)
+#Probably there is a much nicer way to do this - duplicate the merged area types 1 and 2 code as '1' into '2'
+# 1 and 2 should be identical with  same values (1 and 2 combined)
 merge_temp <- unclassified_build %>% filter(new_area_type == '1') %>% mutate(new_area_type = '2')
 unclassified_build <- rbind(unclassified_build, merge_temp)
 
@@ -171,6 +171,19 @@ unclassified_build <- rbind(unclassified_build, merge_temp)
 facts <- c("hb_purpose", "cars", "area_type", "new_area_type",  "main_mode")
 unclassified_build <- unclassified_build %>% mutate_at(facts, funs(factor))
 
+
+# Re-weight short-walk trips by a factor of 7
+walk_trips <- unclassified_build %>%
+  select(IndividualID, trip_purpose, W5xHh, main_mode, TripDisIncSW) %>%
+  filter(TripDisIncSW < 1.609344, main_mode == "walking" & trip_purpose != 8) %>%
+  mutate(W5xHh = 7)
+
+# Replace updated short walk trips with new trip weights
+setDT(unclassified_build)             
+setDT(walk_trips) 
+
+unclassified_build[walk_trips, on = c("IndividualID", "trip_purpose", "main_mode", "TripDisIncSW"), W5xHh := i.W5xHh]
+unclassified_build <- as_tibble(unclassified_build)
 
 # Weight trips, calculate trips by mode and mode split, export csv
 mode_df <- unclassified_build %>%
