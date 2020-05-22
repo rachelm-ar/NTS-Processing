@@ -5,18 +5,12 @@
 #################################
 #' Script should run via source and output Trip rates csv to Y:/NTS/TfN_Trip_Rates folder
 #' 
-#' There are Several functions which can be run post-model such as extracting weighted neelum soc and sec parameters 
+#' There are two functions which can be run post-model:
+#' 
+#' 1. tfn_vs_ntem - trigger: tfn_vs_ntem_tr = TRUE
+#' 2. soc_sec_compare - trigger: soc_sec_weight = TRUE
 #'
-#'1. Extract comparisons of weighted trip rates for soc and sec by number of trips in each segments from production model
-#'   soc_sec_compare(tfn_trip_rates_csv = #Insert TfN trip rates path here,
-#'                   production_csv = #Insert productions csv here - from production model,
-#'                   post_model = TRUE)
-#'
-#'2. Compare TfN trip rates to NTEM
-#'   tfn_vs_ntem(tfn_csv = # path to tfn trip rates csv
-#'               ntem_csv = # path to ntem csv
-#'               post_model = TRUE)
-#'
+#' To run these functions, edit the arguments at the bottom of the script
 #'
 #' TODO:
 #' 1. Weighting for 75+ people does not seem to be working correctly
@@ -498,7 +492,7 @@ overall_comparison <- function(df){
   
 }
 
-tfn_vs_ntem <- function(tfn_df, tfn_csv, ntem_csv, post_model = FALSE){
+tfn_vs_ntem <- function(tfn_df, tfn_trip_rates_csv, ntem_csv, post_model = FALSE){
   
   "
       Description
@@ -544,7 +538,7 @@ tfn_vs_ntem <- function(tfn_df, tfn_csv, ntem_csv, post_model = FALSE){
     
   } else if (post_model == TRUE){
     
-    tfn <- read_csv(tfn_csv)
+    tfn <- read_csv(tfn_trip_rates_csv)
     
   }
   
@@ -751,7 +745,7 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
       group_by(ns) %>%
       summarise(mean_ns = sum(weighted_trips)/5) %>%
       mutate(p = "other") %>%
-      select(p, ns, mean_ns)
+      dplyr::select(p, ns, mean_ns)
     
     neelum_ns <- dcast(ns_trip_rates, p ~ ns) %>% as_tibble()
     colnames(neelum_ns) <- c("Purpose", "NS-SeC 1", "NS-SeC 2", "NS-SeC 3", "NS-SeC 4", "NS-SeC 5")
@@ -783,8 +777,28 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
   saveWorkbook(wb, export_dir, overwrite = TRUE)
   
 }
-                
-hb_trip_rates <- function(hb_csv_input, tr_comparison){
+
+stop_quietly <- function() {
+  
+  "
+    Description
+      ----------
+      - Stops a function quietly without any error message
+  
+  "
+  
+  opt <- options(show.error.messages = FALSE)
+  on.exit(options(opt))
+  stop()
+  
+}
+
+hb_trip_rates <- function(hb_csv_input, 
+                          tfn_trip_rates_csv, 
+                          ntem_csv, 
+                          production_csv, 
+                          tfn_vs_ntem_tr = FALSE, 
+                          soc_sec_weight = FALSE){
   
   # Install and load packages
   packages_list <- c("MASS",
@@ -799,12 +813,43 @@ hb_trip_rates <- function(hb_csv_input, tr_comparison){
                      "ggpubr",
                      "rlist",
                      "gridExtra",
-                     "openxlsx")
+                     "openxlsx",
+                     "reshape2")
   
   Read_packages(packages_list)
   
   # Redefine select if masked by MASS
   select <- dplyr::select
+  
+  # Optional Function 1 - tfn_vs_ntem comparison:
+  if (tfn_vs_ntem_tr == TRUE){
+    
+    tfn_vs_ntem(tfn_trip_rates_csv = tfn_trip_rates_csv,
+                ntem_csv = ntem_csv,
+                post_model = TRUE)
+    
+    print(paste("Post Model tfn vs ntem comparison complete"))
+    
+  }
+  
+  # Optional Function 2 - soc_sec_compare for weighted neelum parameters
+  if (soc_sec_weight == TRUE){
+    
+    soc_sec_compare(tfn_trip_rates_csv = tfn_trip_rates_csv,
+                    production_csv = production_csv,
+                    post_model = TRUE)
+    
+    print(paste("Post Model soc and sec comparison complete"))
+    
+  }
+  
+  if(any(c(tfn_vs_ntem_tr, soc_sec_weight))){
+    
+    print(paste("Post Model Functions Complete - Ending Function early"))
+    
+    stop_quietly()
+    
+  }
   
   # Read in Weekly trip rates
   hb_df <- read_csv(hb_csv_input)
@@ -1143,4 +1188,9 @@ hb_trip_rates <- function(hb_csv_input, tr_comparison){
   
 }
 
-#hb_trip_rates(hb_csv_input = hb_csv_input)
+hb_trip_rates(hb_csv_input = hb_csv_input,
+              tfn_trip_rates_csv = "",
+              ntem_csv = ntem_csv,
+              production_csv = "",
+              tfn_vs_ntem_tr = FALSE,
+              soc_sec_weight = FALSE)
