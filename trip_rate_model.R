@@ -11,14 +11,14 @@
 #' 2. soc_sec_compare - trigger: soc_sec_weight = TRUE
 #'
 #' To run these functions, edit the arguments at the bottom of the script
-#'
+#' 
 #' TODO:
 #' 1. Weighting for 75+ people does not seem to be working correctly
 #' 2. Education trip rates are still down
 #' 3. Holiday trip rates are massively over predicting - I suspect the data inputted requires changing (maybe day trips should exclude walking trips)
 #' 4. Add Differentiation within year as a variable (SurveyYear)
 #' 5. Fix file path system
-
+#' 
 # Path for trip rates input from trip_rate_pre_processing.R
 hb_csv_input <- "Y:/NTS/TfN_Trip_Rates/trip_rate_model_input.csv"
 
