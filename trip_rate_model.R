@@ -19,11 +19,6 @@
 #' 4. Add Differentiation within year as a variable (SurveyYear)
 #' 5. Fix file path system
 #' 
-# Path for trip rates input from trip_rate_pre_processing.R
-hb_csv_input <- "Y:/NTS/TfN_Trip_Rates/trip_rate_model_input.csv"
-
-# Path for ntem trip rates
-ntem_csv <- "Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv"
 
 Extract_levels <- function(variable_name,df){
   
@@ -278,7 +273,7 @@ Build_models <- function(combs, purpose_data, variables, j, nbr_formula){
   
 }
 
-Convert_travellertypes <- function(tt_unlist, k, new_data, fte75, pte75, rte75, i){
+Convert_travellertypes <- function(tt_unlist, k, new_data, i){
   
   "
       Description
@@ -296,15 +291,6 @@ Convert_travellertypes <- function(tt_unlist, k, new_data, fte75, pte75, rte75, 
       
       new_data:
         Dataframe with trip rates
-        
-      fte75:
-        75+_fte weights
-      
-      pte75:
-        75+_pte weights
-      
-      rte75:
-        75+_retired weights
         
       i:
         Identify which purpose
@@ -331,23 +317,6 @@ Convert_travellertypes <- function(tt_unlist, k, new_data, fte75, pte75, rte75, 
              purpose = i) %>%
       group_by(purpose, hh_adults, age_work_status, cars, soc_cat, ns_sec, tfn_area_type, traveller_type) %>%
       summarise(tfn_predictions = mean(tfn_predictions, na.rm = TRUE)) %>%
-      ungroup() %>%
-      select(purpose, traveller_type, tfn_area_type, soc_cat, ns_sec, tfn_predictions)
-    
-  } else if (x$age_work_status == "75\\+_retired|75\\+_pte|75\\+_fte"){
-    
-    #TT 41-48 and 81-88
-    tt_df <- new_data %>%
-      filter(str_detect(hh_adults, x$hh_adults),
-             str_detect(age_work_status, x$age_work_status),
-             str_detect(gender, x$gender),
-             cars == x$cars) %>%
-      mutate(traveller_type = k,
-             purpose = i,
-             weights75 = ifelse(age_work_status == "75+_fte", fte75,
-                                ifelse(age_work_status == "75+_pte", pte75, rte75))) %>%
-      group_by(purpose,traveller_type, hh_adults, gender, cars, soc_cat, ns_sec, tfn_area_type) %>%
-      summarise(tfn_predictions = weighted.mean(tfn_predictions, w = weights75, na.rm = TRUE)) %>%
       ungroup() %>%
       select(purpose, traveller_type, tfn_area_type, soc_cat, ns_sec, tfn_predictions)
     
@@ -696,28 +665,42 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
     # Number of trips of each segment from production model
     productions <- read_csv(production_csv)
     
-    # Extract total number of trips for each purpose segmented by soc
-    soc_total <- productions %>%
-      filter(p %in% c(1,2), traveller_type %in% c(seq(9,18,1), seq(49,64,1))) %>%
-      group_by(p, soc) %>%
-      summarise(total_trips = sum(trips))
+    workers_ind <- c(seq(9,24,1), seq(49,64,1))
+    fte_ind <- c(seq(9,16,1), seq(49,56,1))
     
-    # Calculate weights of each segment (For every purpose and soc category, weights should add to 1)
-    soc_weights <- productions %>%
-      filter(p %in% c(1,2), soc != 0, traveller_type %in% c(seq(9,18,1), seq(49,64,1))) %>%
+    soc_productions <- productions %>%
+      filter(p %in% c(1,2), traveller_type %in% workers_ind) %>%
+      mutate(employment = if_else(traveller_type %in% fte_ind, "fte", "pte"))
+    
+    soc_total <- soc_productions %>%
+      group_by(p, soc, employment) %>%
+      summarise(segment_trips = sum(trips))
+      
+    soc_weights <- soc_productions %>%
       left_join(soc_total) %>%
-      mutate(weights = trips/total_trips) %>%
-      arrange(p, soc)
+      mutate(weights = trips/segment_trips)
     
-    # Calculate weighted mean
-    soc_trip_rates <- tfn_trip_rates %>%
-      filter(p %in% c(1,2), soc != 0, traveller_type %in% c(seq(9,18,1), seq(49,64,1))) %>%
+    soc_emp_tr <- tfn_trip_rates %>%
+      filter(p %in% c(1,2), soc != 0, traveller_type %in% workers_ind) %>%
       mutate(soc = as.double(soc)) %>%
-      arrange(p, soc) %>%
       left_join(soc_weights) %>%
       mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(p,soc) %>%
+      group_by(p, soc, employment) %>%
       summarise(mean_soc = sum(weighted_trips)/5)
+    
+    p_soc_trips <- soc_total %>%
+      group_by(p, soc) %>%
+      summarise(all_trips = sum(segment_trips))
+    
+    p_soc_weights <- soc_total %>%
+      left_join(p_soc_trips) %>%
+      mutate(trip_proportion = segment_trips/all_trips)
+    
+    soc_trip_rates <- soc_emp_tr %>%
+      left_join(p_soc_weights) %>%
+      mutate(trip_rate = mean_soc * trip_proportion) %>%
+      group_by(p, soc) %>%
+      summarise(trip_rate = sum(trip_rate))
     
     neelum_soc <- dcast(soc_trip_rates, p ~ soc) %>% as_tibble()
     colnames(neelum_soc) <- c("Purpose", "Soc 1", "Soc 2", "Soc 3")
@@ -725,6 +708,166 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
       mutate(Purpose = c("Commute", "Business"))
     
     ### The same procedure for NS-SeC but with different filters
+    
+    ns_total <- ns_productions %>%
+      group_by(p) %>%
+      summarise(segment_trips = sum(trips))
+    
+    ns_weights <- ns_productions %>%
+      left_join(ns_total) %>%
+      mutate(weights = trips/segment_trips)
+    
+    tfn_trip_rates %>%
+      filter(!p %in% c(1,2)) %>%
+      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
+      left_join(ns_weights) %>%
+      mutate(weighted_trips = trip_rate * weights) %>%
+      summarise(mean_trips = sum(weighted_trips/5)) 
+    
+    ### ATTEMPT 6
+    
+    ns_productions <- productions %>%
+      filter(!p %in% c(1,2))
+    
+    ns_total <- ns_productions %>%
+      group_by(p, ns) %>%
+      summarise(segment_trips = sum(trips))
+    
+    ns_weights <- ns_productions %>%
+      left_join(ns_total) %>%
+      mutate(weights = trips/segment_trips)
+    
+    tfn_trip_rates %>%
+      filter(!p %in% c(1,2)) %>%
+      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
+      left_join(ns_weights) %>%
+      mutate(weighted_trips = trip_rate * weights) %>%
+      group_by(ns) %>%
+      summarise(mean_trips = sum(weighted_trips)/5)
+    
+    ### ATTEMPT 5 - Segment just ns
+    
+    ns_tfn_trip_rates <- tfn_trip_rates %>%
+      filter(!p %in% c(1,2)) %>%
+      group_by(traveller_type, soc, ns, area_type) %>%
+      summarise(trip_rate = sum(trip_rate)) %>%
+      ungroup()
+    
+    ns_total <- productions %>%
+      filter(!p %in% c(1,2)) %>% 
+      group_by(ns) %>%
+      summarise(total_trips = sum(trips))
+    
+    ns_weights <- productions %>% 
+      filter(!p %in% c(1,2)) %>%
+      group_by(traveller_type, soc, ns, area_type) %>%
+      summarise(trips = sum(trips)) %>%
+      left_join(ns_total) %>%
+      mutate(weights = trips/total_trips)
+    
+    ns_tfn_trip_rates %>%
+      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
+      left_join(ns_weights) %>% 
+      mutate(weighted_trips = trip_rate * weights) %>%
+      group_by(ns) %>%
+      summarise(mean_trips = sum(weighted_trips)/7)
+    
+    ### ATTEMPT 4 - Segment both p and ns
+    ns_total <- productions %>%
+      filter(!p %in% c(1,2)) %>%
+      group_by(p, ns) %>%
+      summarise(total_trips = sum(trips))
+    
+    ns_weights <- productions %>%
+      filter(!p %in% c(1,2)) %>%
+      left_join(ns_total) %>%
+      mutate(weights = trips/total_trips)
+    
+    tfn_trip_rates %>%
+      filter(!p %in% c(1,2)) %>%
+      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
+      left_join(ns_weights) %>%
+      mutate(weighted_trips = trip_rate * weights) %>%
+      group_by(p, ns) %>%
+      summarise(mean_trips = sum(weighted_trips)) %>%
+      group_by(ns) %>%
+      summarise(mean_trips = sum(mean_trips))
+    
+    ntem_tr <- read_csv(ntem_csv)
+    
+    ntem_tr %>%
+      filter(!purpose %in% c(1,2)) %>%
+      group_by(traveller_type, area_type) %>%
+      summarise(trip_rate = sum(trip_rate)) %>%
+      ungroup() %>%
+      summarise(mean(trip_rate))
+    
+    ### ATTEMPT 3
+    
+    ns_tfn_trip_rates <- tfn_trip_rates %>%
+      filter(!p %in% c(1,2)) %>%
+      group_by(traveller_type, soc, ns, area_type) %>%
+      summarise(trip_rate = sum(trip_rate)) %>%
+      ungroup()
+    
+    ns_total <- productions %>%
+      filter(!p %in% c(1,2)) %>%
+      group_by(ns) %>%
+      summarise(total_trips = sum(trips))
+    
+    ns_weights <- productions %>%
+      filter(!p %in% c(1,2)) %>%
+      left_join(ns_total) %>%
+      mutate(weights = trips/total_trips)
+    
+    ns_tfn_trip_rates %>%
+      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
+      left_join(ns_weights) %>%
+      mutate(weighted_trips = trip_rate * weights) %>%
+      group_by(ns) %>%
+      summarise(mean_ns = sum(weighted_trips)/5)
+    
+    ###
+    ns_total <- productions %>%
+      filter(!p %in% c(1,2)) %>%
+      group_by(p,ns) %>%
+      summarise(total_trips = sum(trips))
+    
+    p_ns_weights <- productions %>%
+      filter(!p %in% c(1,2)) %>% 
+      left_join(ns_total) %>%
+      mutate(weights = trips/total_trips)
+    
+    p_ns_trip_rates <- tfn_trip_rates %>%
+      filter(!p %in% c(1,2)) %>%
+      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
+      left_join(p_ns_weights) %>%
+      mutate(weighted_trips = trip_rate * weights) %>%
+      group_by(p,ns) %>%
+      summarise(mean_ns = sum(weighted_trips)/7) %>%
+      left_join(ns_total) %>%
+      group_by(ns) %>%
+      summarise(trip_rate = sum(mean_ns))
+    
+    ns_weights <- p_ns_trip_rates %>%
+      group_by(ns) %>%
+      summarise(total_trips_ns = sum(total_trips))
+    
+    p_ns_trip_rates %>%
+      left_join(ns_weights) %>%
+      mutate(weights_ns = total_trips/total_trips_ns,
+             weighted_trips_ns = mean_ns * weights_ns) %>%
+      group_by(ns) %>%
+      summarise(mean_trips = sum(weighted_trips_ns))
+    
+    p_ns_trip_rates %>%
+      filter(ns == 1) %>%
+      left_join(ns_weights) %>% 
+      mutate(weights_ns = total_trips/total_trips_ns,
+             weighted_trips_ns = mean_ns * weights_ns) %>%
+      group_by(ns) %>%
+      summarise(sum(weighted_trips_ns))
+    
     ns_total <- productions %>%
       filter(!p %in% c(1,2)) %>%
       group_by(ns) %>%
@@ -742,8 +885,9 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
       arrange(p, ns) %>%
       left_join(ns_weights) %>%
       mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(ns) %>%
+      group_by(p,ns) %>%
       summarise(mean_ns = sum(weighted_trips)/5) %>%
+      ungroup() %>%
       mutate(p = "other") %>%
       dplyr::select(p, ns, mean_ns)
     
@@ -793,12 +937,8 @@ stop_quietly <- function() {
   
 }
 
-hb_trip_rates <- function(hb_csv_input, 
-                          tfn_trip_rates_csv, 
-                          ntem_csv, 
-                          production_csv, 
-                          tfn_vs_ntem_tr = FALSE, 
-                          soc_sec_weight = FALSE){
+hb_trip_rates <- function(hb_csv_input, tfn_trip_rates_csv, ntem_csv, production_csv, 
+                          tfn_vs_ntem_tr = FALSE, soc_sec_weight = FALSE) {
   
   # Install and load packages
   packages_list <- c("MASS",
@@ -816,6 +956,7 @@ hb_trip_rates <- function(hb_csv_input,
                      "openxlsx",
                      "reshape2")
   
+  # Install (if not already) and load libraries
   Read_packages(packages_list)
   
   # Redefine select if masked by MASS
@@ -849,32 +990,15 @@ hb_trip_rates <- function(hb_csv_input,
     
     stop_quietly()
     
+  } else {
+    
+    print(paste("No Post Model options select - Running main"))
+    
   }
   
   # Read in Weekly trip rates
-  hb_df <- read_csv(hb_csv_input)
-  
-  # Read in ntem csv for comparison between tfn trip rates and ntem
-  ntem_csv <- "Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv"
-  
-  # Filter and transform data
-  #hb_df <- Process_data(hb_df)
-  
-  hb_df <- hb_df %>%
-    filter(soc_cat != -8)
-  
-  # Transform categorical variables into factors
-  hb_df <- hb_df %>%
-    mutate_at(c("age_work_status",
-                "gender",
-                "hh_adults",
-                "cars",
-                "soc_cat",
-                "ns_sec",
-                "tfn_area_type"), 
-              funs(factor))
-  
-  
+  hb_df <- read_csv(hb_csv)
+
   # Extract variable levels
   variables <- c("age_work_status",
                  "gender", 
@@ -882,11 +1006,18 @@ hb_trip_rates <- function(hb_csv_input,
                  "cars", 
                  "soc_cat", 
                  "ns_sec",
+                 "SurveyYear",
                  "tfn_area_type")
   
-  variable_levels <- lapply(variables, Extract_levels, hb_df)
-  names(variable_levels) <- variables
+  hb_df <- hb_df %>%
+    filter(soc_cat != -8) %>%
+    mutate_at(variables, .funs = factor, ordered = is.ordered(variables))
   
+  # Classifications of each variable
+  variable_levels <- hb_df %>%
+    select(all_of(variables)) %>%
+    sapply(levels)
+
   # Split data by purpose
   purpose_df <- hb_df %>% group_split(trip_purpose)
   
@@ -935,7 +1066,7 @@ hb_trip_rates <- function(hb_csv_input,
       }
       
       # Gender has only two classifications => skip
-      if(vars[[j]] == "gender") {
+      if(vars[[j]] %in% c("gender","SurveyYear")) {
         
         print(paste0("Skipping Gender for Purpose ", i))
         
@@ -1040,18 +1171,20 @@ hb_trip_rates <- function(hb_csv_input,
       }
       
     }
-    
+  
     # Build final model
     final_model[[i]] <- glm.nb(formula = nbr_formula,
                                data = final_df[[i]],
                                subset = train_ind)
     
     # Extract new variable levels
-    new_levels <- lapply(vars, Extract_levels, df = final_df[[i]])
-    names(new_levels) <- vars
+    new_levels <- final_df[[i]] %>%
+      mutate_at(variables, .funs = factor, ordered = is.ordered(variables)) %>%
+      select(all_of(variables)) %>%
+      sapply(levels)
     
     # Calculate combinations of all variables
-    new_data <- do.call("crossing",new_levels)
+    new_data <- do.call("crossing", new_levels)
     
     # Predict new trip rates
     tfn_predictions <- predict(final_model[[i]], newdata = new_data, type = "response") %>% as.vector()
@@ -1069,41 +1202,31 @@ hb_trip_rates <- function(hb_csv_input,
       
     }
     
+    # Convert to factors and unjoin any rows with the same trip rate
     new_data <- new_data %>%
-      mutate_at(c("age_work_status",
-                  "gender",
-                  "hh_adults",
-                  "cars",
-                  "soc_cat",
-                  "ns_sec",
-                  "tfn_area_type"), 
-                funs(factor))
-    
-    new_data <- new_data %>%
-      separate_rows("hh_adults", sep = " Join ") %>%
-      separate_rows("gender", sep = " Join ") %>%
-      separate_rows("age_work_status", sep = " Join ") %>%
-      separate_rows("cars", sep = " Join ") %>%
-      separate_rows("soc_cat", sep = " Join ") %>%
-      separate_rows("ns_sec", sep = " Join ") %>%
-      separate_rows("tfn_area_type", sep = " Join ")
+      mutate_at(variables, .funs = factor, ordered = is.ordered(variables)) %>% # Convert to factors
+      separate_rows(all_of(variables), sep = " Join ")
     
     # Build traveller type list:
-    aws <- c(rep("0-16_child"                  , 8),
-             rep("16-74_fte"                   , 8),
-             rep("16-74_pte"                   , 8),
-             rep("16-74_stu"                   , 8),
-             rep("16-74_unm"                   , 8),
-             rep("75\\+_retired|75\\+_pte|75\\+_fte" , 8),
-             rep("16-74_fte"                   , 8),
-             rep("16-74_pte"                   , 8),
-             rep("16-74_stu"                   , 8),
-             rep("16-74_unm"                   , 8),
-             rep("75\\+_retired|75\\+_pte|75\\+_fte" , 8))
+    aws <- c(
+      rep("0-16_child"    , 8),
+      rep("16-74_fte"     , 8),
+      rep("16-74_pte"     , 8),
+      rep("16-74_stu"     , 8),
+      rep("16-74_unm"     , 8),
+      rep("75\\+_retired" , 8),
+      rep("16-74_fte"     , 8),
+      rep("16-74_pte"     , 8),
+      rep("16-74_stu"     , 8),
+      rep("16-74_unm"     , 8),
+      rep("75\\+_retired" , 8)
+    )
     
-    gndr <- c(rep("Male|Female"                , 8),
-              rep("Male"                       , 40),
-              rep("Female"                     , 40))
+    gndr <- c(
+      rep("Male|Female"  , 8),
+      rep("Male"         , 40),
+      rep("Female"       , 40)
+    )
     
     crs <- rep(c("0", "1+", "0", "1", "2+", "0", "1", "2+"), 11)
     
@@ -1119,29 +1242,11 @@ hb_trip_rates <- function(hb_csv_input,
       map(flatten_chr) %>%
       lapply(as.list)
     
-    # Extracts weights to apply to 75+ to replicate NTEM classifications
-    weights75plus <- hb_df %>% 
-      filter(str_detect(age_work_status, "75\\+_retired|75\\+_fte|75\\+_pte")) %>%
-      group_by(age_work_status) %>% 
-      count()
-    
-    total75 <- weights75plus %>% pull(n) %>% sum()
-    fte75 <- weights75plus %>% filter(age_work_status == "75+_fte") %>% pull(n)
-    fte75 <- fte75/total75
-    pte75 <- weights75plus %>% filter(age_work_status == "75+_pte") %>% pull(n)
-    pte75 <- pte75/total75
-    rte75 <- weights75plus %>% filter(age_work_status == "75+_retired") %>% pull(n)
-    rte75 <- rte75/total75
-    
     # Convert Individual and Household characteristics to traveller types
     tt_df <- mapply(Convert_travellertypes, 
                     tt_unlist = traveller_types_unlist, 
                     k = seq_along(traveller_types_unlist), 
-                    MoreArgs = list(new_data = new_data, 
-                                    fte75 = fte75, 
-                                    pte75 = pte75, 
-                                    rte75 = rte75, 
-                                    i=i),
+                    MoreArgs = list(new_data = new_data, i=i),
                     SIMPLIFY = FALSE)
     
     # Collect all traveller types into a data frame
@@ -1177,7 +1282,7 @@ hb_trip_rates <- function(hb_csv_input,
   print(paste0("Finished saving trip rates csv"))
   
   # Comparison of tfn and ntem
-  tfn_vs_ntem(tfn_df = trip_rates_out, ntem_csv = ntem_csv)
+  tfn_vs_ntem(tfn_df = trip_rates_out, ntem_csv = ntem_csv_input)
   
   print(paste0("Finished tfn vs ntem comparison"))
   
@@ -1188,9 +1293,26 @@ hb_trip_rates <- function(hb_csv_input,
   
 }
 
-hb_trip_rates(hb_csv_input = hb_csv_input,
-              tfn_trip_rates_csv = "",
-              ntem_csv = ntem_csv,
-              production_csv = "",
-              tfn_vs_ntem_tr = FALSE,
-              soc_sec_weight = FALSE)
+# Path for trip rates input from trip_rate_pre_processing.R
+hb_csv <- "Y:/NTS/TfN_Trip_Rates/trip_rate_model_input.csv"
+
+# Path for ntem trip rates
+ntem_csv <- "Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv"
+
+# Path to tfn_trip_rates csv for post model procesing
+tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv"
+
+# Path to production csv from production model
+production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_tp.csv"
+
+# Triggers for post model processing
+tfn_vs_ntem_tr = FALSE
+soc_sec_weight = FALSE
+
+#hb_trip_rates(hb_csv_input = hb_csv_input,
+#              tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv",
+#              ntem_csv = ntem_csv,
+#              production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_ns.csv",
+#              tfn_vs_ntem_tr = FALSE,
+#              soc_sec_weight = TRUE)
+#
