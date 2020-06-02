@@ -8,6 +8,17 @@
 library("tidyverse")
 library("data.table")
 
+
+test <- data.frame(x = factor(c(1,2,3,4,5)),
+           y = factor(c(6,7,8,9,10)))
+
+recode(c(1,5,3,4,6), "a", "b", "c", "d", .default = "nothing")
+
+test$x %>% recode('1' = '10', .default = levels(test$x))
+
+test %>%
+  mutate(x = recode(x, '1' = '10', .default = levels(x)))
+
 # Redefine select if masked by MASS
 select <- dplyr::select
 
@@ -141,6 +152,9 @@ unclassified_build <- unclassified_build %>%
     Sex_B01ID == 2 ~ 'Female',
     TRUE ~ as.character(Sex_B01ID)
   ))
+
+unclassified_build
+ntem
 
 # Combine Age and work status to age_workstatus (excluding 75+ AND pte/fte/stu as insignificant N (<0.2% combined))
 unclassified_build <- unclassified_build %>%
@@ -375,6 +389,8 @@ setDT(walk_trips)
 unclassified_build[walk_trips, on = c("IndividualID", "trip_purpose", "main_mode", "TripDisIncSW"), W5xHh := i.W5xHh]
 unclassified_build <- as_tibble(unclassified_build)
 
+unclassified_build %>% write_csv("Y:/NTS/classified_nts_walk_infill.csv")
+
 # Apply Ian Williams Weighting methodology
 weighted_trip_rates <- unclassified_build %>%
   filter(trip_purpose %in% c(1:8)) %>%
@@ -391,5 +407,26 @@ trip_rates_export <- weighted_trip_rates %>%
   complete(nesting(IndividualID, SurveyYear, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, tfn_area_type),
            trip_purpose = 1:8,
            fill = list(weekly_trips = 0, trip_rate = 0))
+
+trip_rates_export %>%
+  filter(trip_purpose == 3, age_work_status == "0-16_child") %>%
+  summarise(mean(trip_rate), median=(trip_rate), sd(trip_rate))
+
+num <- 256777
+
+unclassified_build %>%
+  filter(trip_purpose == 3,
+         TripDisIncSW < 1.6)
+
+trip_rates_export %>%
+  filter(trip_purpose == 3) %>%
+  group_by(age_work_status) %>%
+  summarise(tr = mean(trip_rate), count = n()) %>%
+  ungroup() %>%
+  mutate(weighted_mean = count/num * tr)
+  
+ntem %>%
+  filter(purpose == 3, (traveller_type %in% c(1:8))) %>%
+  summarise(mean(trip_rate))
 
 trip_rates_export %>% write_csv("Y:/NTS/TfN_Trip_Rates/trip_rate_model_input.csv")
