@@ -3,7 +3,9 @@ require(tidyverse)
 # Code purpose: Build mode specific PA to OD factors
 
 # Import ntem_build - NTEM segmented dataset 
-nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
+# nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
+nts_ntem_df <- read_csv("Y:/NTS/classified_nts_walk_infill.csv",
+                        guess_max = 10^9)
 
 # Trip length in miles
 miles_test <- nts_ntem_df %>%
@@ -57,6 +59,47 @@ trip_length_subset <- nts_ntem_df %>%
          trip_origin, TripDisIncSW, TripDisIncSW_spread, weighted_trip) %>%
   filter(!is.na(weighted_trip)) %>%
   mutate(trip_dist_km = TripDisIncSW_spread*1.60934)
+
+## Bit to get segmented all mode trip lengths
+commute_purpose <- c(1)
+business_purpose <- c(2)
+other_purpose <- c(3,4,5,6,7,8)
+
+purpose_vector <- list(commute_purpose, business_purpose)
+soc_vector <- c(1,2,3)
+ns_vector <- c(1,2,3,4,5)
+
+# Commute and business
+for(i in 1:length(purpose_vector)){
+
+  purpose_sub <- trip_length_subset %>%
+    filter(hb_purpose %in% purpose_vector[[i]])
+  
+  for(j in 1:length(soc_vector)){
+    soc_sub <- purpose_sub %>%
+      filter(soc_cat == soc_vector[[j]])
+    
+    name <- paste0(c(purpose_vector[[i]],soc_vector[[j]]), collapse='')
+    
+    mean <- soc_sub$trip_dist_km %>%
+      mean(na.rm = TRUE)
+    print(paste(name, mean))
+  }
+}
+
+purpose_sub <- trip_length_subset %>%
+  filter(hb_purpose %in% other_purpose)
+
+for(i in 1:length(ns_vector)){
+  ns_sub <- purpose_sub %>%
+    filter(ns_sec == ns_vector[[i]])
+
+  name <- ns_vector[[i]]
+  mean <- ns_sub$trip_dist_km %>%
+    mean(na.rm=TRUE)
+  print(paste(name, mean))
+}
+## End of bit to get all mode trip lengths
 
 # TODO: Implement different modes etc as loop
 # TODO: Should do 'trips in North' filter as LA OD
