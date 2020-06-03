@@ -336,6 +336,9 @@ north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', '
               'E08000024', 'E08000032', 'E08000033', 'E08000034', 'E08000035', 'E08000036',
               'E08000037', 'W06000001', 'W06000002', 'W06000003', 'W06000004', 'W06000005',
               'W06000006')
+
+teesside_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005')
+
 # Weekdays only
 weekdays <- c(1,2,3,4,5)
 # Last 3 years only
@@ -343,7 +346,7 @@ years <- c(2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
            2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017)
 
 trip_length_subset <- trip_length_subset %>%
-  filter(HHoldOSLAUA_B01ID %in% north_la) %>%
+  filter(HHoldOSLAUA_B01ID %in% teesside_la) %>%
   filter(TravDay %in% weekdays) %>%
   filter(SurveyYear %in% years)
 
@@ -380,7 +383,8 @@ hb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup() %>%
-  select(tlb_index, tlb_desc, hb_purpose, main_mode)
+  select(tlb_index, tlb_desc, hb_purpose, main_mode) %>%
+  mutate(hb_purpose = as.integer(hb_purpose))
 
 nhb_placeholder <- tlb_desc %>%
   left_join(nhb_purpose) %>%
@@ -390,7 +394,8 @@ nhb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup %>%
-  select(tlb_index, tlb_desc, nhb_purpose, main_mode)
+  select(tlb_index, tlb_desc, nhb_purpose, main_mode) %>%
+  mutate(nhb_purpose = as.integer(nhb_purpose))
 
 # Get HB trip lengths
 
@@ -609,7 +614,8 @@ hb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup() %>%
-  select(tlb_index, tlb_desc, hb_purpose, main_mode)
+  select(tlb_index, tlb_desc, hb_purpose, main_mode) %>%
+  mutate(hb_purpose = as.integer(hb_purpose))
 
 nhb_placeholder <- tlb_desc %>%
   left_join(nhb_purpose) %>%
@@ -619,7 +625,8 @@ nhb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup %>%
-  select(tlb_index, tlb_desc, nhb_purpose, main_mode)
+  select(tlb_index, tlb_desc, nhb_purpose, main_mode) %>%
+  mutate(nhb_purpose = as.integer(nhb_purpose))
 
 # Get HB trip lengths
 
