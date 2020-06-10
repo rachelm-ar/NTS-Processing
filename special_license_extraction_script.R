@@ -48,6 +48,7 @@ individual_cols <- c('PSUID',
                      'Sex_B01ID',
                      'XSOC2000_B02ID', # Standard occupational classification
                      'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
+                     'SIC1992_B02ID',
                      'CarAccess_B01ID',
                      'DrivLic_B02ID',
                      'EcoStat_B01ID')
