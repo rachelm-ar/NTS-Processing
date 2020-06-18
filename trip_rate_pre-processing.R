@@ -122,8 +122,7 @@ unclassified_build <- unclassified_build %>%
 unclassified_build <- unclassified_build %>%
   left_join(
     read_csv('lookup/lookup_HHoldAreaType1.csv'), by = 'HHoldAreaType1_B01ID') %>%
-    mutate(
-      area_type = replace_na(area_type,  as.character(HHoldAreaType1_B01ID)))
+  mutate(area_type = replace_na(area_type,  as.character(HHoldAreaType1_B01ID)))
 
 
 # Drop area_type = -8
@@ -133,8 +132,7 @@ unclassified_build <- subset(unclassified_build, area_type != -8)
 unclassified_build <- unclassified_build %>%
   left_join(
     read_csv('lookup/lookup_XSOC2000.csv'), by = 'XSOC2000_B02ID') %>%
-  mutate(
-    soc_cat = replace_na(soc_cat,  as.character(XSOC2000_B02ID)))
+  mutate(soc_cat = replace_na(soc_cat,  as.character(XSOC2000_B02ID)))
 
 
 
@@ -145,22 +143,9 @@ unclassified_build <- unclassified_build %>%
 
 # recode main mode(MainMode_B04ID) as main_mode
 unclassified_build <- unclassified_build %>%
-  mutate(main_mode = case_when(
-    MainMode_B04ID == 1 ~ '1', # Walk
-    MainMode_B04ID == 2 ~ '2', # Bicycle
-    MainMode_B04ID == 3 ~ '3', # Car/van driver
-    MainMode_B04ID == 4 ~ '3', # Car/van passenger
-    MainMode_B04ID == 5 ~ '3', # Motorcycle
-    MainMode_B04ID == 6 ~ '3', # Other private transport
-    MainMode_B04ID == 7 ~ '5', # Bus in London
-    MainMode_B04ID == 8 ~ '5', # Other local bus
-    MainMode_B04ID == 9 ~ '5', # Non-local bus
-    MainMode_B04ID == 10 ~ '99', # London Underground - leave for now
-    MainMode_B04ID == 11 ~ '6', # Surface rail
-    MainMode_B04ID == 12 ~ '3', # Taxi/minicab ie. a car
-    MainMode_B04ID == 13 ~ '5', # Other public transport ie. small bus or light rail.
-    TRUE ~ as.character(MainMode_B04ID)
-  ))
+  left_join(
+    read_csv('lookup/lookup_MainMod.csv'), by = 'MainMode_B04ID') %>%
+  mutate(main_mode = replace_na(main_mode,  as.character(MainMode_B04ID)))
 
 # Set time period params
 am_peak <- c(8,9,10)
