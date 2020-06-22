@@ -20,35 +20,6 @@
 #' 5. Fix file path system
 #' 
 
-Extract_levels <- function(variable_name,df){
-  
-  "
-  Description
-  ----------
-  Obtain the unique levels of a variable in a given dataframe
-  
-  Parameters
-  ----------
-  
-  variable_name: 
-    Variable to extract factors of
-    
-  df:
-    Input a data-frame variable
-  
-  Returns
-  ----------
-  A vector of the variable's levels
-  
-  "
-  
-  df %>%
-    pull(variable_name) %>%
-    as.factor() %>%
-    levels()
-  
-}
-
 Read_packages <- function(packages_list){
   
   "
@@ -76,49 +47,6 @@ Read_packages <- function(packages_list){
   
   # Load packages
   lapply(packages_list, require, character.only = TRUE)
-  
-}
-
-Process_data <- function(df){
-  
-  "
-  Description
-  ----------
-  - Remove not available categories for soc and sec
-  - Transform categorical variables into factors
-  
-  Parameters
-  ----------
-  df:
-    Trip rates data frame
-    
-  Return
-  ----------
-  transformed_df:
-    Trip rates data frame prepared for modelling
-  
-  "
-  
-  # Remove not available categories of soc and sec
-  filtered_df <- df %>%
-    filter(soc_cat != -8)
-  #(ns_sec == -9 & age_work_status == "0-16_child")|(ns_sec != -9))
-  
-  # Transform categorical variables into factors
-  # Convert to factors
-  transformed_df <- filtered_df %>%
-    mutate_at(c("age_work_status",
-                "gender",
-                "hh_adults",
-                "cars",
-                "soc_cat",
-                "ns_sec",
-                "tfn_area_type"), 
-              funs(factor)) %>%                                
-    select(weekly_trips, trip_weights, trip_purpose, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, tfn_area_type) %>%
-    mutate(new_weights = replace_na(trip_weights/weekly_trips,1),
-           new_weights = ifelse(is.infinite(new_weights), 1, new_weights),
-           trip_weights = ifelse(trip_weights == 0, 1, trip_weights)) 
   
 }
 
@@ -656,58 +584,111 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
       mutate(Purpose = c("Education", "Shopping", "Personal Business", "Social", "Visit Friends", "Holiday and Trips"))
     
   } else if (post_model == TRUE){
+    # Questions to ask Chris:
+    
+    1. "FTE for commute and business only?"
+    2. "no nhb trips for commute and we setle with 0.08 for business?"
+    
     
     # Tfn Trip rates
     tfn_trip_rates <- read_csv(tfn_trip_rates_csv)
     
-    mean_type <- "Weighted_Mean"
-    
     # Number of trips of each segment from production model
     productions <- read_csv(production_csv)
+    
+    mean_type <- "Weighted_Mean"
     
     workers_ind <- c(seq(9,24,1), seq(49,64,1))
     fte_ind <- c(seq(9,16,1), seq(49,56,1))
     
-    soc_productions <- productions %>%
-      filter(p %in% c(1,2), traveller_type %in% workers_ind) %>%
-      mutate(employment = if_else(traveller_type %in% fte_ind, "fte", "pte"))
+    #####
     
-    soc_total <- soc_productions %>%
-      group_by(p, soc, employment) %>%
-      summarise(segment_trips = sum(trips))
-      
-    soc_weights <- soc_productions %>%
-      left_join(soc_total) %>%
-      mutate(weights = trips/segment_trips)
-    
-    soc_emp_tr <- tfn_trip_rates %>%
+    soc_tfn_tr <- tfn_trip_rates %>%
+      select(-ns) %>%
       filter(p %in% c(1,2), soc != 0, traveller_type %in% workers_ind) %>%
-      mutate(soc = as.double(soc)) %>%
-      left_join(soc_weights) %>%
-      mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(p, soc, employment) %>%
-      summarise(mean_soc = sum(weighted_trips)/5)
+      mutate(soc = as.double(soc))
     
-    p_soc_trips <- soc_total %>%
+    soc_productions <- productions %>%
+      select(-ns) %>%
+      filter(p %in% c(1,2), soc != 0) 
+    
+    # Non weighted Average
+    soc_tfn_tr %>%
       group_by(p, soc) %>%
-      summarise(all_trips = sum(segment_trips))
+      summarise(mean(trip_rate)/5)
     
-    p_soc_weights <- soc_total %>%
-      left_join(p_soc_trips) %>%
-      mutate(trip_proportion = segment_trips/all_trips)
-    
-    soc_trip_rates <- soc_emp_tr %>%
-      left_join(p_soc_weights) %>%
-      mutate(trip_rate = mean_soc * trip_proportion) %>%
+    # Weighted average (without taking into account of fte and pte)
+    soc_segment_trips <- soc_productions %>%
       group_by(p, soc) %>%
-      summarise(trip_rate = sum(trip_rate))
+      summarise(segment_trips = sum(trips))
     
-    neelum_soc <- dcast(soc_trip_rates, p ~ soc) %>% as_tibble()
+    soc_weights <- soc_productions %>%
+      left_join(soc_segment_trips) %>%
+      mutate(weight_trips = trips/segment_trips)
+    
+    soc_tr <- soc_tfn_tr %>%
+      left_join(soc_weights) %>% 
+      mutate(mean_trips = trip_rate * weight_trips) %>%
+      group_by(p, soc) %>%
+      summarise(trip_rate = sum(mean_trips)/5)
+    
+    neelum_soc <- dcast(soc_tr, p ~ soc) %>% as_tibble()
     colnames(neelum_soc) <- c("Purpose", "Soc 1", "Soc 2", "Soc 3")
-    neelum_soc <- neelum_soc %>%
-      mutate(Purpose = c("Commute", "Business"))
+    neelum_soc <- mutate(neelum_soc, Purpose = c("Commute", "Business"))
     
     ### The same procedure for NS-SeC but with different filters
+     
+    ns_productions <- productions %>%
+      filter(!p %in% c(1,2)) %>%
+      select(-soc)
+    
+    ns_tfn_tr <- tfn_trip_rates %>%
+      filter(!p %in% c(1,2)) %>%
+      select(-soc)
+    
+    # Non weighted
+    
+    ns_tfn_tr %>%
+      group_by(p,ns) %>%
+      summarise(mean(trip_rate)/5)
+    
+    ns_tfn_tr %>%
+      group_by(p,ns) %>%
+      summarise(total_trips = mean(trip_rate)/5)
+    
+    # Weight by purpose first method:
+    ns_total <- ns_productions %>%
+      group_by(p, ns) %>%
+      summarise(segment_trips = sum(trips))
+    
+    ns_weights <- ns_productions %>%
+      left_join(ns_total) %>%
+      mutate(weights = trips/segment_trips)
+    
+    ns_tfn_tr %>%
+      left_join(ns_weights) %>%
+      mutate(mean_tr = trip_rate * weights) %>%
+      group_by(ns) %>%
+      summarise(trip_rate = sum(mean_tr/5))
+    
+    # Weight just by ns
+    ns_total <- ns_productions %>%
+      group_by(ns) %>%
+      summarise(segment_trips = sum(trips))
+    
+    ns_weights <- ns_productions %>%
+      left_join(ns_total) %>%
+      mutate(weights = trips/segment_trips)
+    
+    ns_tfn_tr %>%
+      left_join(ns_weights) %>%
+      mutate(mean_tr = trip_rate * weights) %>%
+      group_by(ns) %>%
+      summarise(trip_rate = sum(mean_tr/5))
+    
+    ####
+    ns_productions <- productions %>%
+      filter(!p %in% c(1,2))
     
     ns_total <- ns_productions %>%
       group_by(p) %>%
@@ -716,183 +697,60 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
     ns_weights <- ns_productions %>%
       left_join(ns_total) %>%
       mutate(weights = trips/segment_trips)
+  
     
-    tfn_trip_rates %>%
+    ns_trip_rates <- tfn_trip_rates %>%
       filter(!p %in% c(1,2)) %>%
       mutate(soc = ifelse(soc == "none", NA, soc)) %>%
       left_join(ns_weights) %>%
       mutate(weighted_trips = trip_rate * weights) %>%
-      summarise(mean_trips = sum(weighted_trips/5)) 
-    
-    ### ATTEMPT 6
-    
-    ns_productions <- productions %>%
-      filter(!p %in% c(1,2))
-    
-    ns_total <- ns_productions %>%
-      group_by(p, ns) %>%
-      summarise(segment_trips = sum(trips))
-    
-    ns_weights <- ns_productions %>%
-      left_join(ns_total) %>%
-      mutate(weights = trips/segment_trips)
-    
-    tfn_trip_rates %>%
-      filter(!p %in% c(1,2)) %>%
-      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
-      left_join(ns_weights) %>%
-      mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(ns) %>%
+      group_by(p) %>%
       summarise(mean_trips = sum(weighted_trips)/5)
     
-    ### ATTEMPT 5 - Segment just ns
+    neelum_ns <- dcast(ns_trip_rates, . ~ ns) %>% as_tibble()
+    colnames(neelum_ns) <- c("Purpose", "NS-SeC 1", "NS-SeC 2", "NS-SeC 3", "NS-SeC 4", "NS-SeC 5")
+    neelum_ns <- mutate(neelum_ns, Purpose = "Other")
     
-    ns_tfn_trip_rates <- tfn_trip_rates %>%
-      filter(!p %in% c(1,2)) %>%
-      group_by(traveller_type, soc, ns, area_type) %>%
-      summarise(trip_rate = sum(trip_rate)) %>%
-      ungroup()
     
-    ns_total <- productions %>%
-      filter(!p %in% c(1,2)) %>% 
-      group_by(ns) %>%
-      summarise(total_trips = sum(trips))
+    ##########
     
-    ns_weights <- productions %>% 
-      filter(!p %in% c(1,2)) %>%
-      group_by(traveller_type, soc, ns, area_type) %>%
-      summarise(trips = sum(trips)) %>%
-      left_join(ns_total) %>%
-      mutate(weights = trips/total_trips)
+    upd_prod <- productions %>%
+      mutate(p = case_when(
+        p == 1 ~ "1",
+        p == 2 ~ "2",
+        p %in% c(3:8) ~ "other"
+      ))
     
-    ns_tfn_trip_rates %>%
-      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
-      left_join(ns_weights) %>% 
-      mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(ns) %>%
-      summarise(mean_trips = sum(weighted_trips)/7)
+    # Populations
+    upd_prod %>%
+      group_by(p) %>%
+      summarise(sum(trips))
     
-    ### ATTEMPT 4 - Segment both p and ns
-    ns_total <- productions %>%
-      filter(!p %in% c(1,2)) %>%
-      group_by(p, ns) %>%
-      summarise(total_trips = sum(trips))
+    # Unweighted full time employed commute and business
+    tfn_trip_rates %>%
+      filter(p %in% c(1,2), traveller_type %in% workers_ind) %>%
+      group_by(p) %>%
+      summarise(trip_rate = mean(trip_rate)/5)
     
-    ns_weights <- productions %>%
-      filter(!p %in% c(1,2)) %>%
-      left_join(ns_total) %>%
-      mutate(weights = trips/total_trips)
+    
+    
+    tfn_trip_rates %>%
+      filter(p %in% c(1,2)) %>%
+      group_by(p, soc) %>%
+      summarise(mean(trip_rate))
     
     tfn_trip_rates %>%
       filter(!p %in% c(1,2)) %>%
-      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
-      left_join(ns_weights) %>%
-      mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(p, ns) %>%
-      summarise(mean_trips = sum(weighted_trips)) %>%
       group_by(ns) %>%
-      summarise(mean_trips = sum(mean_trips))
-    
-    ntem_tr <- read_csv(ntem_csv)
-    
-    ntem_tr %>%
-      filter(!purpose %in% c(1,2)) %>%
-      group_by(traveller_type, area_type) %>%
-      summarise(trip_rate = sum(trip_rate)) %>%
-      ungroup() %>%
       summarise(mean(trip_rate))
     
-    ### ATTEMPT 3
-    
-    ns_tfn_trip_rates <- tfn_trip_rates %>%
-      filter(!p %in% c(1,2)) %>%
-      group_by(traveller_type, soc, ns, area_type) %>%
-      summarise(trip_rate = sum(trip_rate)) %>%
-      ungroup()
-    
-    ns_total <- productions %>%
-      filter(!p %in% c(1,2)) %>%
-      group_by(ns) %>%
-      summarise(total_trips = sum(trips))
-    
-    ns_weights <- productions %>%
-      filter(!p %in% c(1,2)) %>%
-      left_join(ns_total) %>%
-      mutate(weights = trips/total_trips)
-    
-    ns_tfn_trip_rates %>%
-      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
-      left_join(ns_weights) %>%
-      mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(ns) %>%
-      summarise(mean_ns = sum(weighted_trips)/5)
-    
-    ###
-    ns_total <- productions %>%
-      filter(!p %in% c(1,2)) %>%
-      group_by(p,ns) %>%
-      summarise(total_trips = sum(trips))
-    
-    p_ns_weights <- productions %>%
-      filter(!p %in% c(1,2)) %>% 
-      left_join(ns_total) %>%
-      mutate(weights = trips/total_trips)
-    
-    p_ns_trip_rates <- tfn_trip_rates %>%
-      filter(!p %in% c(1,2)) %>%
-      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
-      left_join(p_ns_weights) %>%
-      mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(p,ns) %>%
-      summarise(mean_ns = sum(weighted_trips)/7) %>%
-      left_join(ns_total) %>%
-      group_by(ns) %>%
-      summarise(trip_rate = sum(mean_ns))
-    
-    ns_weights <- p_ns_trip_rates %>%
-      group_by(ns) %>%
-      summarise(total_trips_ns = sum(total_trips))
-    
-    p_ns_trip_rates %>%
-      left_join(ns_weights) %>%
-      mutate(weights_ns = total_trips/total_trips_ns,
-             weighted_trips_ns = mean_ns * weights_ns) %>%
-      group_by(ns) %>%
-      summarise(mean_trips = sum(weighted_trips_ns))
-    
-    p_ns_trip_rates %>%
-      filter(ns == 1) %>%
-      left_join(ns_weights) %>% 
-      mutate(weights_ns = total_trips/total_trips_ns,
-             weighted_trips_ns = mean_ns * weights_ns) %>%
-      group_by(ns) %>%
-      summarise(sum(weighted_trips_ns))
-    
-    ns_total <- productions %>%
-      filter(!p %in% c(1,2)) %>%
-      group_by(ns) %>%
-      summarise(total_trips = sum(trips))
-    
-    ns_weights <- productions %>%
-      filter(!p %in% c(1,2)) %>%
-      left_join(ns_total) %>%
-      mutate(weights = trips/total_trips) %>%
-      arrange(p, ns)
-    
-    ns_trip_rates <- tfn_trip_rates %>% 
-      filter(!p %in% c(1,2)) %>%
-      mutate(soc = ifelse(soc == "none", NA, soc)) %>%
-      arrange(p, ns) %>%
-      left_join(ns_weights) %>%
-      mutate(weighted_trips = trip_rate * weights) %>%
-      group_by(p,ns) %>%
-      summarise(mean_ns = sum(weighted_trips)/5) %>%
+    soc_trip_rates %>%
       ungroup() %>%
-      mutate(p = "other") %>%
-      dplyr::select(p, ns, mean_ns)
+      group_by(p) %>%
+      summarise(mean(trip_rate))
     
-    neelum_ns <- dcast(ns_trip_rates, p ~ ns) %>% as_tibble()
-    colnames(neelum_ns) <- c("Purpose", "NS-SeC 1", "NS-SeC 2", "NS-SeC 3", "NS-SeC 4", "NS-SeC 5")
+    
+    neelum_soc
     
   }
   

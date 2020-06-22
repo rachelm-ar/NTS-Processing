@@ -5,16 +5,27 @@
 #' select <- dplyr::select
 
 
+<<<<<<< Updated upstream
 # Load libraries and import data ------------------------------------------
 library("dplyr")
 library("readr")
 library("tidyr")
 library("data.table")
 
+=======
+# Redefine select if masked by MASS
+>>>>>>> Stashed changes
 select <- dplyr::select
+
+# Load libraries and import data ------------------------------------------
+library("dplyr")
+library("readr")
 
 # Import unclassified build
 unclassified_build <- read_csv("C:/Users/Pluto/Documents/Trip_rate_testing/tfn_unclassified_build.csv")
+
+unclassified_build2 <- unclassified_build
+unclassified_build <- unclassified_build2
 
 unclassified_build2 <- unclassified_build
 unclassified_build <- unclassified_build2
@@ -70,7 +81,7 @@ unclassified_build <- unclassified_build %>%
     TripPurpTo_B01ID == 12 ~ '6', # Entertain /  public activity
     TripPurpTo_B01ID == 13 ~ '6', # Sport: participate
     TripPurpTo_B01ID == 14 ~ '8', # Holiday: base
-    TripPurpTo_B01ID == 15 ~ '8', # Day trip / just walk
+    TripPurpTo_B01ID == 15 ~ '9', # Day trip / just walk
     TripPurpTo_B01ID == 16 ~ '6', # Other non-escort
     TripPurpTo_B01ID == 17 ~ '99', # Escort home
     TripPurpTo_B01ID == 18 ~ '1', # Escort work
@@ -401,7 +412,7 @@ unclassified_build <- as_tibble(unclassified_build)
 
 # Apply Ian Williams Weighting methodology
 weighted_trip_rates <- unclassified_build %>%
-  filter(trip_purpose %in% c(1:8)) %>%
+  filter(trip_purpose %in% c(1:9)) %>%
   mutate(trip_weights = W1 * W5xHh * W2) %>%
   group_by(IndividualID, trip_purpose, SurveyYear, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, tfn_area_type, W2) %>%
   summarise(trip_weights = sum(trip_weights),
@@ -413,7 +424,23 @@ weighted_trip_rates <- unclassified_build %>%
 
 trip_rates_export <- weighted_trip_rates %>%
   complete(nesting(IndividualID, SurveyYear, age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, tfn_area_type),
-           trip_purpose = 1:8,
+           trip_purpose = 1:9,
            fill = list(weekly_trips = 0, trip_rate = 0))
 
+<<<<<<< Updated upstream
 trip_rates_export %>% write_csv("C:/Users/Pluto/Documents/Trip_rate_testing/trip_rate_model_input_test.csv")
+=======
+
+trip_rates_export %>%
+  filter(trip_purpose %in% c(8,9)) %>%
+  group_by(trip_purpose) %>%
+  summarise(mean(trip_rate))
+
+unclassified_build %>%
+  filter(trip_purpose %in% c(8,9)) %>%
+  group_by(trip_purpose) %>%
+  count()
+
+
+trip_rates_export %>% write_csv("Y:/NTS/TfN_Trip_Rates/trip_rate_model_input.csv")
+>>>>>>> Stashed changes
