@@ -4,35 +4,6 @@
 #'
 #################################
 
-Extract_levels <- function(variable_name,df){
-  
-  "
-  Description
-  ----------
-  Obtain the unique levels of a variable in a given dataframe
-  
-  Parameters
-  ----------
-  
-  variable_name: 
-    Variable to extract factors of
-    
-  df:
-    Input a data-frame variable
-  
-  Returns
-  ----------
-  A vector of the variable's levels
-  
-  "
-  
-  df %>%
-    pull(variable_name) %>%
-    as.factor() %>%
-    levels()
-  
-}
-
 Read_packages <- function(packages_list){
   
   "

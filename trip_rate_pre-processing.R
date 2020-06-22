@@ -4,22 +4,15 @@
 #' 2. age_work_status: full time and part time was mixed up 
 #' select <- dplyr::select
 
-
-<<<<<<< Updated upstream
 # Load libraries and import data ------------------------------------------
 library("dplyr")
 library("readr")
 library("tidyr")
 library("data.table")
 
-=======
 # Redefine select if masked by MASS
->>>>>>> Stashed changes
-select <- dplyr::select
 
-# Load libraries and import data ------------------------------------------
-library("dplyr")
-library("readr")
+select <- dplyr::select
 
 # Import unclassified build
 unclassified_build <- read_csv("C:/Users/Pluto/Documents/Trip_rate_testing/tfn_unclassified_build.csv")
