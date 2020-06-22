@@ -2,17 +2,22 @@
 #' Changes from unclassified_build_processing.R:
 #' 1. hb_trip_purpose: correctly '4 and 5' were mixed up and many others
 #' 2. age_work_status: full time and part time was mixed up 
-#' 
+#' select <- dplyr::select
+
 
 # Load libraries and import data ------------------------------------------
-library("tidyverse")
+library("dplyr")
+library("readr")
+library("tidyr")
 library("data.table")
 
-# Redefine select if masked by MASS
 select <- dplyr::select
 
 # Import unclassified build
-unclassified_build <- read_csv("Y:/NTS/tfn_unclassified_build.csv")
+unclassified_build <- read_csv("C:/Users/Pluto/Documents/Trip_rate_testing/tfn_unclassified_build.csv")
+
+unclassified_build2 <- unclassified_build
+unclassified_build <- unclassified_build2
 
 # Import new area_type classification of wards
 new_area_types <- read_csv("Y:/NTS/new area type lookup/new_area_type.csv")
@@ -33,6 +38,22 @@ unclassified_build <- unclassified_build %>%
   ))
 
 # Recode trip purposes as NTEM classification hb_purpose for HB trips
+#' When we remove Day trip/just walk we still have too many walking trips, but now we have lost alot of trips in all other modes
+#' This suggests we add Day trip/just walk in but exclude walking trips
+#' Since we still have too many walking trips, let's exclude short walking trips for holiday too.
+
+#TripPurp14 <- unclassified_build %>%
+#  filter(TripPurpTo_B01ID %in% c(14,15), MainMode_B04ID != 1)
+#
+#unclassified_build <- unclassified_build %>%
+#  filter(!TripPurpTo_B01ID %in% c(14,15))
+
+#TripPurp14 <- TripPurp14 %>%
+#  filter((MainMode_B04ID %in% 2:13 | (MainMode_B04ID == 1 & TripDisIncSW > 1)))
+
+unclassified_build <- unclassified_build %>%
+  bind_rows(TripPurp14)
+
 unclassified_build <- unclassified_build %>% 
   mutate(hb_purpose = case_when(
     TripPurpTo_B01ID == 1 ~ '1', # Work
@@ -89,7 +110,6 @@ unclassified_build <- unclassified_build %>%
     TripPurpFrom_B01ID == 23 ~ '99', # Home
     TRUE ~ as.character('unclassified')
   ))
-
 
 # TODO: This will need editing to match hb_purpose
 # Recode trip purposes as NTEM classification nhb_purpose for NHB trips
@@ -222,11 +242,9 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character(XSOC2000_B02ID)
   ))
 
-
 # NS-Sec already in correct classification, rename for legibility
 unclassified_build <- unclassified_build %>%
   rename(ns_sec = NSSec_B03ID)
-
 
 # recode main mode(MainMode_B04ID) as main_mode
 unclassified_build <- unclassified_build %>%
@@ -246,6 +264,10 @@ unclassified_build <- unclassified_build %>%
     MainMode_B04ID == 13 ~ '5', # Other public transport ie. small bus or light rail.
     TRUE ~ as.character(MainMode_B04ID)
   ))
+
+unclassified_build %>%
+  filter(trip_purpose == 8) %>%
+  count(main_mode)
 
 # Set time period params
 am_peak <- c(8,9,10)
@@ -278,7 +300,7 @@ unclassified_build <- unclassified_build %>%
   ))
 
 # Drop unclassified time_period - apply only for time_period regression?
-#unclassified_build <- subset(unclassified_build, start_time != 'unclassified' | end_time != 'unclassified')
+# unclassified_build <- subset(unclassified_build, start_time != 'unclassified' | end_time != 'unclassified')
 
 # Append tfn area types
 unclassified_build <- unclassified_build %>%
@@ -375,6 +397,8 @@ setDT(walk_trips)
 unclassified_build[walk_trips, on = c("IndividualID", "trip_purpose", "main_mode", "TripDisIncSW"), W5xHh := i.W5xHh]
 unclassified_build <- as_tibble(unclassified_build)
 
+#unclassified_build %>% write_csv("Y:/NTS/classified_nts_walk_infill.csv")
+
 # Apply Ian Williams Weighting methodology
 weighted_trip_rates <- unclassified_build %>%
   filter(trip_purpose %in% c(1:8)) %>%
@@ -392,4 +416,4 @@ trip_rates_export <- weighted_trip_rates %>%
            trip_purpose = 1:8,
            fill = list(weekly_trips = 0, trip_rate = 0))
 
-trip_rates_export %>% write_csv("Y:/NTS/TfN_Trip_Rates/trip_rate_model_input.csv")
+trip_rates_export %>% write_csv("C:/Users/Pluto/Documents/Trip_rate_testing/trip_rate_model_input_test.csv")

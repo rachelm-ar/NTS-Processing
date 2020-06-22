@@ -937,7 +937,7 @@ stop_quietly <- function() {
   
 }
 
-hb_trip_rates <- function(hb_csv_input, tfn_trip_rates_csv, ntem_csv, production_csv, 
+hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv, 
                           tfn_vs_ntem_tr = FALSE, soc_sec_weight = FALSE) {
   
   # Install and load packages
@@ -1309,7 +1309,7 @@ production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_tp.csv"
 tfn_vs_ntem_tr = FALSE
 soc_sec_weight = FALSE
 
-#hb_trip_rates(hb_csv_input = hb_csv_input,
+#hb_trip_rates(hb_csv = hb_csv,
 #              tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv",
 #              ntem_csv = ntem_csv,
 #              production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_ns.csv",
