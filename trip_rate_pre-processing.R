@@ -32,9 +32,7 @@ new_area_types <- read_csv("Y:/NTS/new area type lookup/new_area_type.csv")
 
 # Classify trip origin to get HB/NHB splits
 hb <- c(23)
-nhb <- c(1,2,3,4,5,6,7,8,9,
-         10,11,12,13,14,15,
-         16,17,18,19,20,21,22)
+nhb <- c(1:22)
 
 unclassified_build <- unclassified_build %>%
   mutate(trip_origin = case_when(
@@ -43,94 +41,17 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character(NA)
   ))
 
-# Recode trip purposes as NTEM classification hb_purpose for HB trips
+# Recode trip purposes as NTEM classification hb_purpose for HB trips, hb prior leg of nhb trips, and NTEM classification nhb_purpose for NHB trips
+## TODO: This will need editing to match hb_purpose (for nhb_purpose)
+
 unclassified_build <- unclassified_build %>% 
-  mutate(hb_purpose = case_when(
-    TripPurpTo_B01ID == 1 ~ '1', # Work
-    TripPurpTo_B01ID == 2 ~ '2', # In course of work
-    TripPurpTo_B01ID == 3 ~ '3', # Education
-    TripPurpTo_B01ID == 4 ~ '4', # Food shopping
-    TripPurpTo_B01ID == 5 ~ '4', # Non food shopping
-    TripPurpTo_B01ID == 6 ~ '5', # Personal business medical
-    TripPurpTo_B01ID == 7 ~ '5', # Personal business eat / drink
-    TripPurpTo_B01ID == 8 ~ '5', # Personal business other
-    TripPurpTo_B01ID == 9 ~ '6', # Eat / drink with friends
-    TripPurpTo_B01ID == 10 ~ '7', # Visit friends
-    TripPurpTo_B01ID == 11 ~ '6', # Other social
-    TripPurpTo_B01ID == 12 ~ '6', # Entertain /  public activity
-    TripPurpTo_B01ID == 13 ~ '6', # Sport: participate
-    TripPurpTo_B01ID == 14 ~ '8', # Holiday: base
-    TripPurpTo_B01ID == 15 ~ '8', # Day trip / just walk
-    TripPurpTo_B01ID == 16 ~ '6', # Other non-escort
-    TripPurpTo_B01ID == 17 ~ '99', # Escort home
-    TripPurpTo_B01ID == 18 ~ '1', # Escort work
-    TripPurpTo_B01ID == 19 ~ '2', # Escort in course of work
-    TripPurpTo_B01ID == 20 ~ '3', # Escort education
-    TripPurpTo_B01ID == 21 ~ '4', # Escort shopping / personal business
-    TripPurpTo_B01ID == 22 ~ '6', # Other escort
-    TripPurpTo_B01ID == 23 ~ '99', # Home
-    TRUE ~ as.character('unclassified')
-  ))
+  left_join(
+    read_csv('lookup/lookup_TripPurpTo.csv'), by = 'TripPurpTo_B01ID') %>%
+  mutate(
+    hb_purpose = replace_na(hb_purpose, 'unclassified'),
+    nhb_purpose_hb_leg = replace_na(nhb_purpose_hb_leg, 'unclassified'),
+    nhb_purpose = replace_na(nhb_purpose, 'unclassified'))
 
-# Classify hb prior leg of nhb trips
-unclassified_build <- unclassified_build %>%
-  mutate(nhb_purpose_hb_leg = case_when(
-    TripPurpFrom_B01ID == 1 ~ '1', # Work
-    TripPurpFrom_B01ID == 2 ~ '2', # In course of work
-    TripPurpFrom_B01ID == 3 ~ '3', # Education
-    TripPurpFrom_B01ID == 4 ~ '4', # Food shopping
-    TripPurpFrom_B01ID == 5 ~ '4', # Non food shopping
-    TripPurpFrom_B01ID == 6 ~ '5', # Personal business medical
-    TripPurpFrom_B01ID == 7 ~ '5', # Personal business eat / drink
-    TripPurpFrom_B01ID == 8 ~ '5', # Personal business other
-    TripPurpFrom_B01ID == 9 ~ '6', # Eat / drink with friends
-    TripPurpFrom_B01ID == 10 ~ '7', # Visit friends
-    TripPurpFrom_B01ID == 11 ~ '6', # Other social
-    TripPurpFrom_B01ID == 12 ~ '6', # Entertain /  public activity
-    TripPurpFrom_B01ID == 13 ~ '6', # Sport: participate
-    TripPurpFrom_B01ID == 14 ~ '8', # Holiday: base
-    TripPurpFrom_B01ID == 15 ~ '8', # Day trip / just walk
-    TripPurpFrom_B01ID == 16 ~ '6', # Other non-escort
-    TripPurpFrom_B01ID == 17 ~ '99', # Escort home
-    TripPurpFrom_B01ID == 18 ~ '1', # Escort work
-    TripPurpFrom_B01ID == 19 ~ '2', # Escort in course of work
-    TripPurpFrom_B01ID == 20 ~ '3', # Escort education
-    TripPurpFrom_B01ID == 21 ~ '4', # Escort shopping / personal business
-    TripPurpFrom_B01ID == 22 ~ '7', # Other escort
-    TripPurpFrom_B01ID == 23 ~ '99', # Home
-    TRUE ~ as.character('unclassified')
-  ))
-
-
-# TODO: This will need editing to match hb_purpose
-# Recode trip purposes as NTEM classification nhb_purpose for NHB trips
-unclassified_build <- unclassified_build %>%
-  mutate(nhb_purpose = case_when(
-    TripPurpTo_B01ID == 1 ~ '12', # Work
-    TripPurpTo_B01ID == 2 ~ '12', # In course of work
-    TripPurpTo_B01ID == 3 ~ '13', # Education
-    TripPurpTo_B01ID == 4 ~ '14', # Food shopping
-    TripPurpTo_B01ID == 5 ~ '14', # Non food shopping
-    TripPurpTo_B01ID == 6 ~ '15', # Personal business medical
-    TripPurpTo_B01ID == 7 ~ '15', # Personal business eat / drink
-    TripPurpTo_B01ID == 8 ~ '15', # Personal business other
-    TripPurpTo_B01ID == 9 ~ '16', # Eat / drink with friends
-    TripPurpTo_B01ID == 10 ~ '16', # Visit friends
-    TripPurpTo_B01ID == 11 ~ '16', # Other social
-    TripPurpTo_B01ID == 12 ~ '16', # Entertain /  public activity
-    TripPurpTo_B01ID == 13 ~ '16', # Sport: participate
-    TripPurpTo_B01ID == 14 ~ '18', # Holiday: base
-    TripPurpTo_B01ID == 15 ~ '18', # Day trip / just walk
-    TripPurpTo_B01ID == 16 ~ '16', # Other non-escort
-    TripPurpTo_B01ID == 17 ~ '99', # Escort home
-    TripPurpTo_B01ID == 18 ~ '12', # Escort work
-    TripPurpTo_B01ID == 19 ~ '12', # Escort in course of work
-    TripPurpTo_B01ID == 20 ~ '13', # Escort education
-    TripPurpTo_B01ID == 21 ~ '14', # Escort shopping / personal business
-    TripPurpTo_B01ID == 22 ~ '16', # Other escort
-    TripPurpTo_B01ID == 23 ~ '99', # Home
-    TRUE ~ as.character('unclassified')
-  ))
 
 # Pick a final purpose depending on purpose from
 unclassified_build <- unclassified_build %>%
@@ -153,17 +74,17 @@ unclassified_build <- unclassified_build %>%
     TRUE ~ as.character(Sex_B01ID)
   ))
 
-unclassified_build
-ntem
+# unclassified_build
+# ntem
 
 # Combine Age and work status to age_workstatus (excluding 75+ AND pte/fte/stu as insignificant N (<0.2% combined))
 unclassified_build <- unclassified_build %>%
   mutate(age_work_status = case_when(
     Age_B01ID %in% c(1,2,3,4,5) ~ '0-16_child',
-    Age_B01ID %in% c(6,7,8,9,10,11,12,13,14,15,16,17,18) & EcoStat_B01ID %in% c(1,3) ~ '16-74_fte',
-    Age_B01ID %in% c(6,7,8,9,10,11,12,13,14,15,16,17,18) & EcoStat_B01ID %in% c(2,4) ~ '16-74_pte',
-    Age_B01ID %in% c(6,7,8,9,10,11,12,13,14,15,16,17,18) & EcoStat_B01ID == 7 ~ '16-74_stu',
-    Age_B01ID %in% c(6,7,8,9,10,11,12,13,14,15,16,17,18) & EcoStat_B01ID %in% c(5,6,8,9,10,11) ~ '16-74_unm',
+    Age_B01ID %in% c(6:18) & EcoStat_B01ID %in% c(1,3) ~ '16-74_fte',
+    Age_B01ID %in% c(6:18) & EcoStat_B01ID %in% c(2,4) ~ '16-74_pte',
+    Age_B01ID %in% c(6:18) & EcoStat_B01ID == 7 ~ '16-74_stu',
+    Age_B01ID %in% c(6:18) & EcoStat_B01ID %in% c(5,6,8,9,10,11) ~ '16-74_unm',
     Age_B01ID %in% c(19,20,21) & EcoStat_B01ID %in% c(5,6,8,9,10,11) ~ '75+_retired',
     TRUE ~ as.character('unclassified')
   )) %>% subset(age_work_status != 'unclassified')
@@ -199,42 +120,20 @@ unclassified_build <- unclassified_build %>%
 
 # Recode area type (HHoldAreaType1_B01ID) as NTEM area classification area_type
 unclassified_build <- unclassified_build %>%
-  mutate(area_type = case_when(
-    HHoldAreaType1_B01ID == 1 ~ '1',
-    HHoldAreaType1_B01ID == 2 ~ '2',
-    HHoldAreaType1_B01ID == 3 ~ '3',
-    HHoldAreaType1_B01ID == 4 ~ '3',
-    HHoldAreaType1_B01ID == 5 ~ '3',
-    HHoldAreaType1_B01ID == 6 ~ '3',
-    HHoldAreaType1_B01ID == 7 ~ '3',
-    HHoldAreaType1_B01ID == 8 ~ '3',
-    HHoldAreaType1_B01ID == 9 ~ '4',
-    HHoldAreaType1_B01ID == 10 ~ '5',
-    HHoldAreaType1_B01ID == 11 ~ '6',
-    HHoldAreaType1_B01ID == 12 ~ '6',
-    HHoldAreaType1_B01ID == 13 ~ '7',
-    HHoldAreaType1_B01ID == 14 ~ '7',
-    HHoldAreaType1_B01ID == 15 ~ '8',
-    TRUE ~ as.character(HHoldAreaType1_B01ID)
-  ))
+  left_join(
+    read_csv('lookup/lookup_HHoldAreaType1.csv'), by = 'HHoldAreaType1_B01ID') %>%
+  mutate(area_type = replace_na(area_type,  as.character(HHoldAreaType1_B01ID)))
+
 
 # Drop area_type = -8
 unclassified_build <- subset(unclassified_build, area_type != -8)
 
 # Convert SOC Types(XSOC2000_B02ID) as soc_stat
 unclassified_build <- unclassified_build %>%
-  mutate(soc_cat = case_when(
-    XSOC2000_B02ID == 1 ~ '1', # 1	Managers and senior officials
-    XSOC2000_B02ID == 2 ~ '1', # 2	Professional occupations
-    XSOC2000_B02ID == 3 ~ '1', # 3	Associate professional and technical occupations
-    XSOC2000_B02ID == 4 ~ '2', # 4	Administrative and secretarial occupations
-    XSOC2000_B02ID == 5 ~ '2', # 5	Skilled trades occupations
-    XSOC2000_B02ID == 6 ~ '2', # 6	Personal service occupations
-    XSOC2000_B02ID == 7 ~ '2', # 7	Sales and customer service occupations
-    XSOC2000_B02ID == 8 ~ '3', # 8	Process, plant and machine operatives
-    XSOC2000_B02ID == 9 ~ '3', # 9	Elementary occupations
-    TRUE ~ as.character(XSOC2000_B02ID)
-  ))
+  left_join(
+    read_csv('lookup/lookup_XSOC2000.csv'), by = 'XSOC2000_B02ID') %>%
+  mutate(soc_cat = replace_na(soc_cat,  as.character(XSOC2000_B02ID)))
+
 
 
 # NS-Sec already in correct classification, rename for legibility
@@ -244,22 +143,9 @@ unclassified_build <- unclassified_build %>%
 
 # recode main mode(MainMode_B04ID) as main_mode
 unclassified_build <- unclassified_build %>%
-  mutate(main_mode = case_when(
-    MainMode_B04ID == 1 ~ '1', # Walk
-    MainMode_B04ID == 2 ~ '2', # Bicycle
-    MainMode_B04ID == 3 ~ '3', # Car/van driver
-    MainMode_B04ID == 4 ~ '3', # Car/van passenger
-    MainMode_B04ID == 5 ~ '3', # Motorcycle
-    MainMode_B04ID == 6 ~ '3', # Other private transport
-    MainMode_B04ID == 7 ~ '5', # Bus in London
-    MainMode_B04ID == 8 ~ '5', # Other local bus
-    MainMode_B04ID == 9 ~ '5', # Non-local bus
-    MainMode_B04ID == 10 ~ '99', # London Underground - leave for now
-    MainMode_B04ID == 11 ~ '6', # Surface rail
-    MainMode_B04ID == 12 ~ '3', # Taxi/minicab ie. a car
-    MainMode_B04ID == 13 ~ '5', # Other public transport ie. small bus or light rail.
-    TRUE ~ as.character(MainMode_B04ID)
-  ))
+  left_join(
+    read_csv('lookup/lookup_MainMod.csv'), by = 'MainMode_B04ID') %>%
+  mutate(main_mode = replace_na(main_mode,  as.character(MainMode_B04ID)))
 
 # Set time period params
 am_peak <- c(8,9,10)
