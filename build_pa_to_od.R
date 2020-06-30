@@ -30,7 +30,8 @@ join_lookup <- function(tibble, lookupDir,  key, columns,  fillNA = NA){
 
 # Code purpose: Build mode specific PA to OD factors
 
-# Import ntem_build - NTEM segmented dataset 
+# Import ntem_build - NTEM segmented dataset
+# TODO: Update import
 nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^5) #Why 10^9, its just checking the column type
 
 # Add trip weighting
