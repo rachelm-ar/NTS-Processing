@@ -586,8 +586,8 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
   } else if (post_model == TRUE){
     # Questions to ask Chris:
     
-    1. "FTE for commute and business only?"
-    2. "no nhb trips for commute and we setle with 0.08 for business?"
+    #1. "FTE for commute and business only?"
+    #2. "no nhb trips for commute and we setle with 0.08 for business?"
     
     
     # Tfn Trip rates
@@ -864,7 +864,6 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
                  "cars", 
                  "soc_cat", 
                  "ns_sec",
-                 "SurveyYear",
                  "tfn_area_type")
   
   hb_df <- hb_df %>%
@@ -1152,16 +1151,20 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
 }
 
 # Path for trip rates input from trip_rate_pre_processing.R
-hb_csv <- "Y:/NTS/TfN_Trip_Rates/trip_rate_model_input.csv"
+hb_csv <- "C:/Users/Pluto/Documents/Trip_rate_testing/trip_rate_model_input_test.csv"
 
-# Path for ntem trip rates
-ntem_csv <- "Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv"
+#hb_trip_rates(hb_csv = hb_csv,
+#              tfn_vs_ntem_tr = FALSE,
+#              soc_sec_weight = FALSE)
 
-# Path to tfn_trip_rates csv for post model procesing
-tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv"
-
-# Path to production csv from production model
-production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_tp.csv"
+## Path for ntem trip rates
+#ntem_csv <- "Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv"
+#
+## Path to tfn_trip_rates csv for post model procesing
+#tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv"
+#
+## Path to production csv from production model
+#production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_tp.csv"
 
 # Triggers for post model processing
 tfn_vs_ntem_tr = FALSE

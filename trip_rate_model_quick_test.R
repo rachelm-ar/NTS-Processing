@@ -203,7 +203,6 @@ Post_processing <- function(trip_rates_df){
   
 }
 
-
 hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv, 
                           tfn_vs_ntem_tr = FALSE, soc_sec_weight = FALSE) {
   
