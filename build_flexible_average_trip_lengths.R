@@ -2,6 +2,9 @@ require(tidyverse)
 
 # Code purpose: Build mode specific PA to OD factors
 
+# Def mile to km const
+M_TO_KM = 1.60934
+
 # Import ntem_build - NTEM segmented dataset 
 nts_ntem_df <- read_csv('Y:/NTS/classified_nts_walk_infill.csv', guess_max = 10^9)
 
@@ -14,41 +17,11 @@ miles_test <- miles_test %>%
   group_by(TripDisIncSW) %>%
   count()
 
-export <- 'Y:/NTS/trip_lengths/'
+export <- 'Y:/NTS/trip_lengths/new_highway_run/'
 
 # Add trip weighting
 nts_ntem_df <- nts_ntem_df %>%
   mutate(weighted_trip = W1 * W5xHh * W2)
-
-# Distribute the whole numbers of miles around the average
-whole_trips <- nts_ntem_df %>%
-  filter(TripDisIncSW %% 1 == 0 & TripDisIncSW >=1) %>%
-  arrange(TripDisIncSW) %>%
-  mutate(dis_first_miles = TripDisIncSW-1,
-         row_number = row_number(),
-         mod_1 = case_when(
-           row_number %% 3 == 0 ~ 3,
-           row_number %% 2 == 0 ~ 2,
-           TRUE ~ 1
-         )) %>%
-  mutate(TripDisIncSW_spread = case_when(
-    mod_1 == 1 ~ (TripDisIncSW-1) + 0.75,
-    mod_1 == 2 ~ (TripDisIncSW-1) + 1,
-    mod_1 == 3 ~ (TripDisIncSW-1) + 1.25
-  )) %>%
-  select(-dis_first_miles, row_number, mod_1)
-
-# test_mods <- whole_trips %>%
-#  select(mod_1) %>%
-#  group_by(mod_1) %>%
-#  count()
-
-partial_trips <- nts_ntem_df %>%
-  filter(TripDisIncSW %% 1 != 0 | TripDisIncSW <1) %>%
-  mutate(TripDisIncSW_spread = TripDisIncSW)
-
-nts_ntem_df <- bind_rows(whole_trips, partial_trips) %>%
-  arrange(TripDisIncSW_spread)
 
 # Fill in null SOC cats with 0, for zero segments
 nts_ntem_df <- nts_ntem_df %>%
@@ -61,11 +34,6 @@ nts_ntem_df <- nts_ntem_df %>%
 
 # Subset down
 # Not spread just now
-trip_length_subset <- nts_ntem_df %>%
-  select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
-         trip_origin, TripDisIncSW, TripDisIncSW_spread, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
-  filter(!is.na(weighted_trip)) %>%
-  mutate(trip_dist_km = TripDisIncSW_spread*1.60934)
 
 # North only
 north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', 'E06000006',
@@ -110,374 +78,199 @@ weekdays <- c(1,2,3,4,5)
 years <- c(2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
            2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017)
 
-trip_length_subset <- trip_length_subset %>%
-  filter(HHoldOSLAUA_B01ID %in% north_la) %>%
-  filter(TripOrigGOR_B02ID %in% north_east_region) %>%
-  filter(TripDestGOR_B02ID %in% north_east_region) %>%
-  filter(trip_origin == target_trip_origin)
 # Removed years & weekdays for fullest possible sample
 
-# Define band shares to give rough lognormal
-# TODO: Can be done with lognorm fucntion based on mean & sd - just not sure how to get that into quartiles.
-# standard_quarts <- c(0.3, 0.45, 0.6, 0.75, 0.85, 0.92, 0.96, 0.98, 0.99, 1)
-standard_quarts <- c(.05, .3, .5, .6, .7, .75, .8, .85, .9, .95, 1)
-fallback_quarts <- c(0.5, .75, .85, 1)
+# Bin for atl (average trip length)
 
-# Highway single bands
-# TODO: Smart breaks
+build_atl <- function(nts_ntem_df,
+                      target_trip_origin,
+                      target_params,
+                      target_bins
+                      ) {
+
+  # Filter down nts NTEM df
+  trip_length_subset <- nts_ntem_df %>%
+    select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
+           trip_origin, TripDisIncSW, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
+    filter(!is.na(weighted_trip)) %>%
+    filter(HHoldOSLAUA_B01ID %in% north_la) %>%
+    filter(TripOrigGOR_B02ID %in% north_region) %>%
+    filter(TripDestGOR_B02ID %in% north_region) %>%
+    filter(trip_origin == target_trip_origin)
+  
+  # Match purpose to target purpose
+  if(target_trip_origin == 'hb') {
+    trip_length_subset <- trip_length_subset %>%
+      rename(purpose = hb_purpose)
+  } else if(target_trip_origin == 'nhb') {
+    trip_length_subset <- trip_length_subset %>%
+      rename(purpose = nhb_purpose)
+  }
+
+  atl_bin <- c(param_name=NULL, atl=NULL)
+  sz_bin <- c(param_name=NULL, sample=NULL)
+
+  for(i in 1:nrow(target_params)){
+  
+    # Get params from row
+    purpose_sub <- as.character(target_params$purpose[[i]])
+    mode_sub <- target_params$mode[[i]]
+    soc_cat_sub <- target_params$soc_cat[[i]]
+    ns_sec_cat_sub <- target_params$ns_sec[[i]]
+
+    # Give segment a name
+    if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
+      # Null Segment
+      segment <- paste0('')
+    } else if(is.na(ns_sec_cat_sub)){
+      segment <- paste0('_soc', soc_cat_sub)
+    } else{
+      segment <- paste0('_ns', ns_sec_cat_sub)
+    }
+
+    # Define param name
+    param_name <- paste0('p', purpose_sub,
+                         '_m', mode_sub,
+                         segment)
+    print(param_name)
+
+    # Subset to target distribution
+    if(target_trip_origin == 'hb') {
+      trip_lengths <- trip_length_subset %>%
+        filter(purpose == purpose_sub &
+                 main_mode==mode_sub)
+    } else if(target_trip_origin == 'nhb') {
+      trip_lengths <- trip_length_subset %>%
+        filter(purpose == purpose_sub &
+                 main_mode==mode_sub)
+    }
+
+    # Filter soc or sec
+    if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
+      # Do nothing
+      print('This must be education')
+    } else if(is.na(ns_sec_cat_sub)){
+      # Filter on soc cat sub
+      trip_lengths <- trip_lengths %>%
+        filter(soc_cat == soc_cat_sub)
+    } else{
+      # Filter on ns_sec cat sub
+      trip_lengths <- trip_lengths %>%
+        filter(ns_sec == ns_sec_cat_sub)
+    }
+
+    # get set length for sample size oversight
+    sample_size = nrow(trip_lengths)
+    print(paste("Number of records:", sample_size))
+
+    # Append to sample bin
+    sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
+
+    # Get trip lengths only
+    tlo <- trip_lengths$TripDisIncSW
+    tlo_mean <- mean(tlo)*M_TO_KM
+    tlo_sd <- sd(tlo)*M_TO_KM
+  
+    atl_bin <- bind_rows(atl_bin, c(param_name = param_name, atl=tlo_mean))
+
+    breaks <- target_bins$min
+    names(breaks) <- NULL
+  
+    # Name breaks
+    tags <- NULL
+    for (b in 1:nrow(target_bins)){
+      target_bins$min[b]
+      tags <- c(tags, paste0("(", target_bins$min[[b]], "-", target_bins$max[[b]], "]"))
+    }
+    
+    breaks <- c(breaks, target_bins$max[length(target_bins$max)])
+
+    # Build placeholders for join
+    tlb_desc <- tags %>%
+      as.tibble() %>%
+      rename(tlb_desc = value) %>%
+      mutate(ph=1)
+    
+    purpose_frame <- purpose_sub %>%
+      as.tibble() %>%
+      rename(purpose = value) %>%
+      mutate(ph=1)
+
+    placeholder_frame <- tlb_desc %>%
+      left_join(purpose_frame) %>%
+      select(-ph) %>%
+      distinct() %>%
+      group_by(purpose) %>%
+      mutate(tlb_index = row_number(),
+             main_mode = mode_sub) %>%
+      ungroup() %>%
+      select(tlb_index, tlb_desc, purpose, main_mode) %>%
+      mutate(purpose = as.integer(purpose))
+
+    # bucketing values into bins
+    trip_lengths <- trip_lengths %>%
+      mutate(tlb_index = cut(TripDisIncSW, 
+                             breaks=breaks, 
+                             include.lowest=TRUE, 
+                             right=TRUE, 
+                             labels=FALSE)) %>%
+      filter(purpose != 99 & !is.na(tlb_index)) %>%
+      group_by(tlb_index, main_mode, purpose) %>%
+      summarise(trips = sum(weighted_trip, na.rm=TRUE),
+                atl = weighted.mean(TripDisIncSW, weighted_trip, na.rm=TRUE)) %>%
+      ungroup() %>%
+      select(tlb_index, main_mode, purpose, trips, atl)
+
+    trip_lengths <- hb_placeholder %>%
+      full_join(trip_lengths) %>%
+      mutate(trips = replace_na(trips, 0))
+  
+    # Get % share for each number of trips
+    totals <- trip_lengths %>%
+      select(tlb_desc, purpose, trips) %>%
+      group_by(purpose) %>%
+      summarise(total_trips = sum(trips,na.rm=TRUE))
+
+    # Reattach - derive total
+    trip_lengths <- trip_lengths %>%
+      left_join(totals) %>%
+      mutate(band_share = round(trips/total_trips, 3)) %>%
+      select(-total_trips)
+
+    # Adjust to km
+    for (b in 1:nrow(target_bins)){
+        km_tag <- paste0("(", target_bins$min[[b]]*M_TO_KM, "-", target_bins$max[[b]]*M_TO_KM, "]")
+        trip_lengths$tlb_desc[b] <- km_tag
+      }
+      trip_lengths$atl <- trip_lengths$atl*M_TO_KM
+
+      hist(trip_lengths$band_share)
+      
+      trip_lengths %>% write_csv(paste0(export, target_trip_origin, "_tlb_", param_name, ".csv"))
+  }
+
+  # Write atl bin
+  atl_bin %>% write_csv(paste0(export, target_trip_origin, "_ave_distance.csv"))
+  sz_bin %>% write_csv(paste0(export, target_trip_origin, "_tld_sample_sizes.csv"))
+}
+
+# Run it
 
 # Import target combos for parameters - loops will give segments that we don't want
 target_params <- read_csv(paste0(export, "/target_output_params.csv")) %>%
   filter(purpose %in% c(1,2,3,4,5,6,7,8))
 
-# Bin for atl (average trip length)
-atl_bin <- c(param_name=NULL, atl=NULL)
-sz_bin <- c(param_name=NULL, sample=NULL)
+target_bins <- read_csv(paste0(export, "/target_bins.csv"))
 
-for(i in 1:nrow(target_params)){
-  
-  # Get params from row
-  purpose_sub <- as.character(target_params$purpose[[i]])
-  mode_sub <- target_params$mode[[i]]
-  soc_cat_sub <- target_params$soc_cat[[i]]
-  ns_sec_cat_sub <- target_params$ns_sec[[i]]
+build_atl(nts_ntem_df,
+          'hb',
+          target_params,
+          target_bins)
 
-  # Give segment a name
-  if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
-    # Null Segment
-    segment <- paste0('')
-  } else if(is.na(ns_sec_cat_sub)){
-    segment <- paste0('_soc', soc_cat_sub)
-  } else{
-    segment <- paste0('_ns', ns_sec_cat_sub)
-  }
-
-  # Define param name
-  param_name <- paste0('p', purpose_sub,
-                       '_m', mode_sub,
-                       segment)
-  print(param_name)
-
-  # Subset to target distribution
-  trip_lengths <- trip_length_subset %>%
-    filter(hb_purpose == purpose_sub &
-             main_mode==mode_sub)
-
-  # Filter soc or sec
-  if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
-    # Do nothing
-    print('This must be education')
-  } else if(is.na(ns_sec_cat_sub)){
-    # Filter on soc cat sub
-    trip_lengths <- trip_lengths %>%
-      filter(soc_cat == soc_cat_sub)
-  } else{
-    # Filter on ns_sec cat sub
-    trip_lengths <- trip_lengths %>%
-      filter(ns_sec == ns_sec_cat_sub)
-  }
-
-  # get set length for sample size oversight
-  sample_size = nrow(trip_lengths)
-  print(paste("Number of records:", sample_size))
-
-  # Append to sample bin
-  sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
-
-  # If this is less than 20, reduce the number of quarts
-  if(sample_size < 30){
-    quarts <- fallback_quarts
-  } else{
-    quarts <- standard_quarts
-  }
-
-  # Get trip lengths only
-  tlo <- trip_lengths$trip_dist_km
-  tlo_mean <- mean(tlo)
-  tlo_sd <- sd(tlo)
-  
-  atl_bin <- bind_rows(atl_bin, c(param_name = param_name, atl=tlo_mean))
-
-  breaks <- c(0, quantile(tlo, probs=quarts))
-  names(breaks) <- NULL
-  
-  # Name breaks
-  tags <- NULL
-  for (b in 1:length(breaks)){
-    tags <- c(tags, paste0("(", ifelse(b-1==0,0,breaks[[b-1]]), "-", breaks[[b]], "]"))
-  }
-  tags <- tags[2:length(tags)]
-  
-  # Build placeholders for join
-  tlb_desc <- tags %>%
-    as.tibble() %>%
-    rename(tlb_desc = value) %>%
-    mutate(ph=1)
-  
-  hb_purpose <- purpose_sub %>%
-    as.tibble() %>%
-    rename(hb_purpose = value) %>%
-    mutate(ph=1)
-  
-  hb_placeholder <- tlb_desc %>%
-    left_join(hb_purpose) %>%
-    select(-ph) %>%
-    distinct() %>%
-    group_by(hb_purpose) %>%
-    mutate(tlb_index = row_number(),
-           main_mode = mode_sub) %>%
-    ungroup() %>%
-    select(tlb_index, tlb_desc, hb_purpose, main_mode) %>%
-    mutate(hb_purpose = as.integer(hb_purpose))
-
-  # bucketing values into bins
-  trip_lengths <- trip_lengths %>%
-    select(-nhb_purpose) %>%
-    mutate(tlb_index = cut(trip_dist_km, 
-                           breaks=breaks, 
-                           include.lowest=TRUE, 
-                           right=TRUE, 
-                           labels=FALSE)) %>%
-    filter(hb_purpose != 99 & !is.na(tlb_index)) %>%
-    group_by(tlb_index, main_mode, hb_purpose) %>%
-    summarise(trips = sum(weighted_trip, na.rm=TRUE),
-              atl = weighted.mean(trip_dist_km, weighted_trip, na.rm=TRUE)) %>%
-    ungroup() %>%
-    select(tlb_index, main_mode, hb_purpose, trips, atl)
-
-  trip_lengths <- hb_placeholder %>%
-    full_join(trip_lengths) %>%
-    mutate(trips = replace_na(trips, 0))
-  
-  # Get % share for each number of trips
-  totals <- trip_lengths %>%
-    select(tlb_desc, hb_purpose, trips) %>%
-    group_by(hb_purpose) %>%
-    summarise(total_trips = sum(trips,na.rm=TRUE))
-  
-  # Reattach - derive total
-  trip_lengths <- trip_lengths %>%
-    left_join(totals) %>%
-    mutate(band_share = round(trips/total_trips, 3)) %>%
-    select(-total_trips)
-
-  hist(trip_lengths$band_share, breaks=breaks)
-
-  trip_lengths %>% write_csv(paste0(export, "teesside_hb_tlb_", param_name, ".csv"))
-}
-
-# Write atl bin
-atl_bin %>% write_csv(paste0(export, "teesside_hb_ave_distance.csv"))
-sz_bin %>% write_csv(paste0(export, "teesside_hb_tld_sample_sizes.csv"))
-
-
-
-
-###### Start of NHB
-
-trip_length_subset <- nts_ntem_df %>%
-  select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
-         trip_origin, TripDisIncSW, TripDisIncSW_spread, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
-  filter(!is.na(weighted_trip)) %>%
-  mutate(trip_dist_km = TripDisIncSW_spread*1.60934)
-
-# North only
-north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', 'E06000006',
-              'E06000007', 'E06000008', 'E06000009', 'E06000010', 'E06000011', 'E06000012',
-              'E06000013', 'E06000014', 'E06000021', 'E06000047', 'E06000049', 'E06000050',
-              'E06000057', 'E07000026', 'E07000027', 'E07000028', 'E07000029', 'E07000030',
-              'E07000031', 'E07000033', 'E07000034', 'E07000035', 'E07000037', 'E07000038',
-              'E07000117', 'E07000118', 'E07000119', 'E07000120', 'E07000121', 'E07000122',
-              'E07000123', 'E07000124', 'E07000125', 'E07000126', 'E07000127', 'E07000128',
-              'E07000137', 'E07000142', 'E07000163', 'E07000164', 'E07000165', 'E07000166',
-              'E07000167', 'E07000168', 'E07000169', 'E07000170', 'E07000171', 'E07000174',
-              'E07000175', 'E07000198', 'E08000001', 'E08000002', 'E08000003', 'E08000004',
-              'E08000005', 'E08000006', 'E08000007', 'E08000008', 'E08000009', 'E08000010',
-              'E08000011', 'E08000012', 'E08000013', 'E08000014', 'E08000015', 'E08000016',
-              'E08000017', 'E08000018', 'E08000019', 'E08000021', 'E08000022', 'E08000023',
-              'E08000024', 'E08000032', 'E08000033', 'E08000034', 'E08000035', 'E08000036',
-              'E08000037', 'W06000001', 'W06000002', 'W06000003', 'W06000004', 'W06000005',
-              'W06000006')
-
-teesside_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005')
-
-# 1 = North East
-# 2 = North West
-# 3 = Yorkshire and the Humber
-# 4 = East Midlands - yes please
-north_region <- c(1,2,3,4)
-
-# Region count
-region_count <- nts_ntem_df %>%
-  select(TripOrigGOR_B02ID, TripDestGOR_B02ID) %>%
-  group_by(TripOrigGOR_B02ID, TripDestGOR_B02ID) %>%
-  count()
-# Looks quite okay
-
-# Fix target trip origin hb/nhb
-target_trip_origin <- 'nhb'
-
-# Weekdays only
-weekdays <- c(1,2,3,4,5)
-# Last 3 years only
-years <- c(2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
-           2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017)
-
-trip_length_subset <- trip_length_subset %>%
-  filter(HHoldOSLAUA_B01ID %in% north_la) %>%
-  filter(TripOrigGOR_B02ID %in% north_region) %>%
-  filter(TripDestGOR_B02ID %in% north_region) %>%
-  filter(trip_origin == target_trip_origin)
-# Removed years & weekdays for fullest possible sample
-
-# Define band shares to give rough lognormal
-# TODO: Can be done with lognorm fucntion based on mean & sd - just not sure how to get that into quartiles.
-# standard_quarts <- c(0.3, 0.45, 0.6, 0.75, 0.85, 0.92, 0.96, 0.98, 0.99, 1)
-standard_quarts <- c(.05, .3, .5, .6, .67, .74, .85, .9, .95, 1)
-fallback_quarts <- c(0.5, .75, .85, 1)
-
-# Highway single bands
-# TODO: Smart breaks
-
-# Import target combos for parameters - loops will give segments that we don't want
 target_params <- read_csv(paste0(export, "/target_output_params.csv")) %>%
-  filter(purpose %in% c(12,13,14,15,16,18))
+  filter(purpose %in% c(12, 13, 14, 15, 16, 18))
 
-# Bin for atl (average trip length)
-atl_bin <- c(param_name=NULL, atl=NULL)
-sz_bin <- c(param_name=NULL, sample=NULL)
-
-for(i in 1:nrow(target_params)){
-  
-  # Get params from row
-  purpose_sub <- as.character(target_params$purpose[[i]])
-  mode_sub <- target_params$mode[[i]]
-  soc_cat_sub <- target_params$soc_cat[[i]]
-  ns_sec_cat_sub <- target_params$ns_sec[[i]]
-  
-  # Give segment a name
-  if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
-    # Null Segment
-    segment <- paste0('')
-  } else if(is.na(ns_sec_cat_sub)){
-    segment <- paste0('_soc', soc_cat_sub)
-  } else{
-    segment <- paste0('_ns', ns_sec_cat_sub)
-  }
-  
-  # Define param name
-  param_name <- paste0('p', purpose_sub,
-                       '_m', mode_sub,
-                       segment)
-  print(param_name)
-  
-  # Subset to target distribution
-  trip_lengths <- trip_length_subset %>%
-    filter(nhb_purpose == purpose_sub &
-             main_mode==mode_sub)
-  
-  # Filter soc or sec
-  if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
-    # Do nothing
-    print('This must be education')
-  } else if(is.na(ns_sec_cat_sub)){
-    # Filter on soc cat sub
-    trip_lengths <- trip_lengths %>%
-      filter(soc_cat == soc_cat_sub)
-  } else{
-    # Filter on ns_sec cat sub
-    trip_lengths <- trip_lengths %>%
-      filter(ns_sec == ns_sec_cat_sub)
-  }
-  
-  # get set length for sample size oversight
-  sample_size = nrow(trip_lengths)
-  print(paste("Number of records:", sample_size))
-  
-  # Append to sample bin
-  sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
-  
-  # If this is less than 20, reduce the number of quarts
-  if(sample_size < 30){
-    quarts <- fallback_quarts
-  } else{
-    quarts <- standard_quarts
-  }
-  
-  # Get trip lengths only
-  tlo <- trip_lengths$trip_dist_km
-  tlo_mean <- mean(tlo)
-  tlo_sd <- sd(tlo)
-  
-  atl_bin <- bind_rows(atl_bin, c(param_name = param_name, atl=tlo_mean))
-  
-  breaks <- c(0, quantile(tlo, probs=quarts))
-  names(breaks) <- NULL
-  
-  # Name breaks
-  tags <- NULL
-  for (b in 1:length(breaks)){
-    tags <- c(tags, paste0("(", ifelse(b-1==0,0,breaks[[b-1]]), "-", breaks[[b]], "]"))
-  }
-  tags <- tags[2:length(tags)]
-  
-  # Build placeholders for join
-  tlb_desc <- tags %>%
-    as.tibble() %>%
-    rename(tlb_desc = value) %>%
-    mutate(ph=1)
-  
-  nhb_purpose <- purpose_sub %>%
-    as.tibble() %>%
-    rename(nhb_purpose = value) %>%
-    mutate(ph=1)
-  
-  nhb_placeholder <- tlb_desc %>%
-    left_join(nhb_purpose) %>%
-    select(-ph) %>%
-    distinct() %>%
-    group_by(nhb_purpose) %>%
-    mutate(tlb_index = row_number(),
-           main_mode = mode_sub) %>%
-    ungroup() %>%
-    select(tlb_index, tlb_desc, nhb_purpose, main_mode)
-  
-  # bucketing values into bins
-  trip_lengths <- trip_lengths %>%
-    select(-hb_purpose) %>%
-    mutate(tlb_index = cut(trip_dist_km, 
-                           breaks=breaks, 
-                           include.lowest=TRUE, 
-                           right=TRUE, 
-                           labels=FALSE)) %>%
-    filter(nhb_purpose != 99 & !is.na(tlb_index)) %>%
-    group_by(tlb_index, main_mode, nhb_purpose) %>%
-    summarise(trips = sum(weighted_trip, na.rm=TRUE),
-              atl = weighted.mean(trip_dist_km, weighted_trip, na.rm=TRUE)) %>%
-    ungroup() %>%
-    select(tlb_index, main_mode, nhb_purpose, trips, atl)
-  
-  trip_lengths <- nhb_placeholder %>%
-    full_join(trip_lengths) %>%
-    mutate(trips = replace_na(trips, 0))
-  
-  # Get % share for each number of trips
-  totals <- trip_lengths %>%
-    select(tlb_desc, nhb_purpose, trips) %>%
-    group_by(nhb_purpose) %>%
-    summarise(total_trips = sum(trips,na.rm=TRUE))
-  
-  # Reattach - derive total
-  trip_lengths <- trip_lengths %>%
-    left_join(totals) %>%
-    mutate(band_share = round(trips/total_trips, 3)) %>%
-    select(-total_trips)
-  
-  hist(trip_lengths$band_share, breaks=breaks)
-  
-  trip_lengths %>% write_csv(paste0(export, "nhb_tlb_", param_name, ".csv"))
-}
-
-# TODO: Write atl bin
-atl_bin %>% write_csv(paste0(export, "nhb_ave_distance.csv"))
-sz_bin %>% write_csv(paste0(export, "nhb_tld_sample_sizes.csv"))
+build_atl(nts_ntem_df,
+          'nhb',
+          target_params,
+          target_bins)
