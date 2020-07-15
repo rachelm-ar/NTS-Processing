@@ -89,6 +89,7 @@ build_atl <- function(nts_ntem_df,
                       ) {
 
   # Filter down nts NTEM df
+  # TODO: trav day filter
   trip_length_subset <- nts_ntem_df %>%
     select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
            trip_origin, TripDisIncSW, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
@@ -96,7 +97,8 @@ build_atl <- function(nts_ntem_df,
     filter(HHoldOSLAUA_B01ID %in% north_la) %>%
     filter(TripOrigGOR_B02ID %in% north_region) %>%
     filter(TripDestGOR_B02ID %in% north_region) %>%
-    filter(trip_origin == target_trip_origin)
+    filter(trip_origin == target_trip_origin) %>%
+    filter(TravDay %in% weekdays)
   
   # Match purpose to target purpose
   if(target_trip_origin == 'hb') {
@@ -158,6 +160,19 @@ build_atl <- function(nts_ntem_df,
       trip_lengths <- trip_lengths %>%
         filter(ns_sec == ns_sec_cat_sub)
     }
+  
+    # Print unique values of mode and purpose, eyeball if the filter worked
+    mode_bin <- trip_lengths %>%
+      select(main_mode) %>%
+      distinct()
+    print('Unique mode:')
+    print(mode_bin)
+
+    purpose_bin <- trip_lengths %>%
+      select(purpose) %>%
+      distinct()
+    print('Unique purpose:')
+    print(purpose_bin)
 
     # get set length for sample size oversight
     sample_size = nrow(trip_lengths)
@@ -168,6 +183,8 @@ build_atl <- function(nts_ntem_df,
 
     # Get trip lengths only
     tlo <- trip_lengths$TripDisIncSW
+    hist(tlo, breaks = c(25))
+    
     tlo_mean <- mean(tlo)*M_TO_KM
     tlo_sd <- sd(tlo)*M_TO_KM
   
@@ -212,16 +229,17 @@ build_atl <- function(nts_ntem_df,
       mutate(tlb_index = cut(TripDisIncSW, 
                              breaks=breaks, 
                              include.lowest=TRUE, 
-                             right=TRUE, 
+                             right=FALSE, 
                              labels=FALSE)) %>%
       filter(purpose != 99 & !is.na(tlb_index)) %>%
       group_by(tlb_index, main_mode, purpose) %>%
       summarise(trips = sum(weighted_trip, na.rm=TRUE),
+                count = n(),
                 atl = weighted.mean(TripDisIncSW, weighted_trip, na.rm=TRUE)) %>%
       ungroup() %>%
-      select(tlb_index, main_mode, purpose, trips, atl)
+      select(tlb_index, main_mode, purpose, trips, atl, count)
 
-    trip_lengths <- hb_placeholder %>%
+    trip_lengths <- placeholder_frame %>%
       full_join(trip_lengths) %>%
       mutate(trips = replace_na(trips, 0))
   
@@ -274,3 +292,13 @@ build_atl(nts_ntem_df,
           'nhb',
           target_params,
           target_bins)
+
+test <- trip_length_subset %>%
+  filter(main_mode == 3) %>%
+  filter(purpose == 3) %>%
+  filter(trip_origin == 'hb')
+
+test %>% select(weighted_trip) %>% count()
+test %>% select(weighted_trip) %>% sum()
+
+lm(test$weighted_trip ~ test$TripDisIncSW)
