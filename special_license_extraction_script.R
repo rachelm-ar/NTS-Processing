@@ -73,6 +73,12 @@ trip_cols = c('PSUID',
               'TripDestCounty_B01ID',
               'TripOrigGOR_B02ID',
               'TripDestGOR_B02ID',
+              'TripDestUA2009_B01ID',
+              'TripOrigUA2009_B01ID',
+              'TripOrigAreaType1_B01ID',
+              'TripOrigAreaType2_B01ID',
+              'TripDestAreaType1_B01ID',
+              'TripDestAreaType2_B01ID',
               'W5',
               'W5xHh')
 
