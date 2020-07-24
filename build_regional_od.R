@@ -4,13 +4,16 @@ require(tidyverse)
 export_path <- "Y:/NTS/i_e_factors/"
 
 
-nts_ntem_df <- read_csv("Y:/NTS/classified_nts_walk_infill.csv",
-                        guess_max = 10^9)
+nts_ntem_df <- read_csv("Y:/NTS/import/classified_nts_pre-weighting.csv",
+                        guess_max = 10^7)
+
+trip_origin = 'hb'
 
 internal_external <- nts_ntem_df %>%
   mutate(trip_weights = W1 * W5xHh * W2) %>%
-  group_by(hb_purpose, main_mode, TripOrigCounty_B01ID,
-           TripOrigGOR_B02ID, TripDestCounty_B01ID, TripDestGOR_B02ID) %>%
+  filter(trip_origin == trip_origin) %>%
+  group_by(hb_purpose, main_mode, TripOrigUA2009_B01ID,
+           TripDestUA2009_B01ID, TripOrigGOR_B02ID, TripDestGOR_B02ID) %>%
   summarise(trips = sum(trip_weights, na.rm = TRUE))
 
 remove_null <- TRUE
