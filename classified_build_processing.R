@@ -56,6 +56,7 @@ unclassified_build <- unclassified_build %>%
   lu_start_time() %>% 
   lu_end_time() %>%
   lu_tfn_area_type() %>%
+  lu_ca() %>%
   rename(ns_sec = NSSec_B03ID)
 
 # Reweight short walk trips by a factor of 7 ------------------------------

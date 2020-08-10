@@ -6,7 +6,7 @@ require(tidyverse)
 M_TO_KM = 1.60934
 
 # Import ntem_build - NTEM segmented dataset 
-nts_ntem_df <- read_csv('Y:/NTS/classified_nts_walk_infill.csv', guess_max = 10^9)
+nts_ntem_df <- read_csv('Y:/NTS/import/classified_nts_pre-weighting.csv', guess_max = 10^9)
 
 # Trip length in miles
 miles_test <- nts_ntem_df %>%
@@ -17,7 +17,7 @@ miles_test <- miles_test %>%
   group_by(TripDisIncSW) %>%
   count()
 
-export <- 'Y:/NTS/trip_lengths/new_highway_run/'
+export <- 'Y:/NTS/trip_lengths/new_gb_test/'
 
 # Add trip weighting
 nts_ntem_df <- nts_ntem_df %>%
@@ -89,14 +89,13 @@ build_atl <- function(nts_ntem_df,
                       ) {
 
   # Filter down nts NTEM df
-  # TODO: trav day filter
   trip_length_subset <- nts_ntem_df %>%
     select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
            trip_origin, TripDisIncSW, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
     filter(!is.na(weighted_trip)) %>%
-    filter(HHoldOSLAUA_B01ID %in% north_la) %>%
-    filter(TripOrigGOR_B02ID %in% north_region) %>%
-    filter(TripDestGOR_B02ID %in% north_region) %>%
+    # filter(HHoldOSLAUA_B01ID %in% north_la) %>%
+    # filter(TripOrigGOR_B02ID %in% north_region) %>%
+    # filter(TripDestGOR_B02ID %in% north_region) %>%
     filter(trip_origin == target_trip_origin) %>%
     filter(TravDay %in% weekdays)
   
@@ -292,13 +291,3 @@ build_atl(nts_ntem_df,
           'nhb',
           target_params,
           target_bins)
-
-test <- trip_length_subset %>%
-  filter(main_mode == 3) %>%
-  filter(purpose == 3) %>%
-  filter(trip_origin == 'hb')
-
-test %>% select(weighted_trip) %>% count()
-test %>% select(weighted_trip) %>% sum()
-
-lm(test$weighted_trip ~ test$TripDisIncSW)

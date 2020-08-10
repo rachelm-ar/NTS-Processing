@@ -1,59 +1,120 @@
 library(tidyverse)
 
-# Read in nhb weekly trip rates
-nhb_trip_rates <- read_csv("C:/Users/Pluto/Documents/nhb_trip_rates.csv")
+nts_dir <- "Y:/NTS/"
+lookup_dir <- str_c(nts_dir, "lookups/")
 
-nhb_trip_rates <- nhb_trip_rates %>% filter(soc_cat != -8, main_mode != 99)
+# Read in classified output
+classified_build <- read_csv('Y:/NTS/import/classified_nts_pre-weighting.csv')
 
-## Add in missing NTEM classifications - Mode = 4 and TP = 11 --------
-#
-# First we need to split main_mode 3 into both 3 and 4
-main_mode4 <- nhb_trip_rates %>% 
-  filter(main_mode == 3) %>%
-  mutate(main_mode = 4)
+# Lookup functions
+source(str_c(lookup_dir,"lookups.r"))
 
-## Add this to original df
-#nhb_trip_rates <- nhb_trip_rates %>% bind_rows(main_mode4)
-#
-## Now we need to split purpose 11 into both 11 and 12
-#purp11 <- nhb_trip_rates %>%
-#  filter(trip_purpose == 12) %>%
-#  mutate(trip_purpose = 11)
-#
-## Add this to original df
-#nhb_trip_rates <- bind_rows(nhb_trip_rates, purp11)
+classified_build <- classified_build %>%
+  mutate(trip_weights = W1 * W5xHh * W2) %>%
+  lu_ca()
 
-# Purpose 12 SOC and NS SEC for all others --------------------------------
-purp12 <- nhb_trip_rates %>%
-  filter(trip_purpose == 12) %>%
-  mutate(soc_cat = case_when(
-    soc_cat == -9 ~ 0,
-    TRUE ~ as.double(soc_cat)
-  )) %>%
-  group_by(trip_purpose, nhb_purpose_hb_leg, main_mode, soc_cat) %>%
-  summarise(trip_rate = mean(trip_weights))
+hb_trips <- classified_build %>%
+  filter(trip_origin == 'hb') %>%
+  filter(TravDay %in% c(1,2,3,4,5)) %>%
+  select(tfn_area_type,
+         ca,
+         trip_origin,
+         hb_purpose,
+         trip_weights) %>%
+  group_by(tfn_area_type,
+           ca,
+           trip_origin,
+           hb_purpose) %>%
+  summarise(hb_trips = sum(trip_weights)) %>%
+  ungroup() %>%
+  select(-trip_origin)
 
-# Purpose for rest
-purprest <- nhb_trip_rates %>%
-  filter(trip_purpose != 12, ns_sec != -9) %>%
-  group_by(trip_purpose, nhb_purpose_hb_leg, main_mode, ns_sec) %>%
-  summarise(trip_rate = mean(trip_weights))
+nhb_trips <- classified_build %>%
+  filter(trip_origin == 'nhb') %>%
+  filter(TravDay %in% c(1,2,3,4,5)) %>%
+  select(tfn_area_type,
+         ca,
+         trip_origin,
+         nhb_purpose_hb_leg,
+         nhb_purpose,
+         trip_weights) %>%
+  group_by(tfn_area_type,
+           ca,
+           trip_origin,
+           nhb_purpose_hb_leg,
+           nhb_purpose) %>%
+  summarise(nhb_trips = sum(trip_weights)) %>%
+  ungroup() %>%
+  rename(hb_purpose = nhb_purpose_hb_leg) %>%
+  select(-trip_origin)
 
-purpall <- bind_rows(purprest, purp12)
+trip_rates <- hb_trips %>%
+  left_join(nhb_trips, by=c('tfn_area_type','ca', 'hb_purpose')) %>%
+  mutate(trip_rate = (nhb_trips/hb_trips)) %>%
+  filter(hb_purpose != 99) %>%
+  filter(nhb_purpose != 99) %>%
+  rename(p = hb_purpose) %>%
+  rename(nhb_p = nhb_purpose) %>%
+  rename(area_type = tfn_area_type) %>%
+  select(-hb_trips, -nhb_trips)
 
-mode <- tibble(mode = 1:6, ph = 1)
+trip_rates %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_trip_rates.csv'))
 
-purpall <- purpall %>% 
-  mutate(ph = 1) %>% 
-  left_join(mode) %>%
-  ungroup()
+nhb_mode_split <- classified_build %>%
+  filter(trip_origin == 'nhb') %>%
+  filter(nhb_purpose_hb_leg != 99) %>%
+  filter(nhb_purpose != 99) %>%
+  filter(TravDay %in% c(1,2,3,4,5)) %>%
+  select(tfn_area_type,
+         ca,
+         nhb_purpose_hb_leg,
+         nhb_purpose,
+         main_mode,
+         trip_weights) %>%
+  group_by(tfn_area_type,
+           ca,
+           nhb_purpose_hb_leg,
+           nhb_purpose,
+           main_mode) %>%
+  summarise(mode_trips = sum(trip_weights)) %>%
+  ungroup() %>%
+  group_by(tfn_area_type,
+           ca,
+           nhb_purpose_hb_leg,
+           nhb_purpose) %>%
+  mutate(total_trips = sum(mode_trips)) %>%
+  ungroup() %>%
+  mutate(mode_share = mode_trips/total_trips) %>%
+  select(-mode_trips, -total_trips)
+           
+nhb_mode_split %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_mode_split.csv'))
 
-purpall <- purpall %>% 
-  select(trip_purpose, nhb_purpose_hb_leg, main_mode, soc_cat, ns_sec, mode, trip_rate) %>%
-  rename(nhb_purpose = trip_purpose,
-         purpose = nhb_purpose_hb_leg,
-         nhb_mode = main_mode,
-         nhb_trip_rate = trip_rate) %>%
-  arrange(nhb_purpose, purpose, nhb_mode, soc_cat, ns_sec, mode)
+nhb_time_split <- classified_build %>%
+  filter(trip_origin == 'nhb') %>%
+  filter(nhb_purpose_hb_leg != 99) %>%
+  filter(nhb_purpose != 99) %>%
+  filter(TravDay %in% c(1,2,3,4,5)) %>%
+  filter(!is.na(start_time)) %>%
+  select(tfn_area_type,
+         ca,
+         nhb_purpose,
+         main_mode,
+         start_time,
+         trip_weights) %>%
+  group_by(tfn_area_type,
+           ca,
+           nhb_purpose,
+           main_mode,
+           start_time) %>%
+  summarise(time_trips = sum(trip_weights)) %>%
+  ungroup() %>%
+  group_by(tfn_area_type,
+           ca,
+           nhb_purpose,
+           main_mode) %>%
+  mutate(total_trips = sum(time_trips)) %>%
+  ungroup() %>%
+  mutate(time_share = time_trips/total_trips) %>%
+  select(-time_trips, -total_trips)
 
-write_csv(purpall, "Y:/NTS/nhb_factor_tr.csv")
+nhb_time_split %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_time_split.csv'))
