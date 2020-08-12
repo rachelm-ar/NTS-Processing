@@ -88,90 +88,89 @@ build_atl <- function(nts_ntem_df,
                       target_bins
                       ) {
 
-  # Filter down nts NTEM df
-  trip_length_subset <- nts_ntem_df %>%
-    select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
-           trip_origin, TripDisIncSW, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
-    filter(!is.na(weighted_trip)) %>%
-    # filter(HHoldOSLAUA_B01ID %in% north_la) %>%
-    # filter(TripOrigGOR_B02ID %in% north_region) %>%
-    # filter(TripDestGOR_B02ID %in% north_region) %>%
-    filter(trip_origin == target_trip_origin) %>%
-    filter(TravDay %in% weekdays)
-  
-  # Match purpose to target purpose
-  if(target_trip_origin == 'hb') {
-    trip_length_subset <- trip_length_subset %>%
-      rename(purpose = hb_purpose)
-  } else if(target_trip_origin == 'nhb') {
-    trip_length_subset <- trip_length_subset %>%
-      rename(purpose = nhb_purpose)
-  }
-
-  atl_bin <- c(param_name=NULL, atl=NULL)
-  sz_bin <- c(param_name=NULL, sample=NULL)
-
   for(i in 1:nrow(target_params)){
-  
-    # Get params from row
-    purpose_sub <- as.character(target_params$purpose[[i]])
-    mode_sub <- target_params$mode[[i]]
-    soc_cat_sub <- target_params$soc_cat[[i]]
-    ns_sec_cat_sub <- target_params$ns_sec[[i]]
+    
+    # Filter down nts NTEM df
+    trip_lengths <- nts_ntem_df %>%
+      select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
+             trip_origin, start_time, TripDisIncSW, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
+      filter(!is.na(weighted_trip)) %>%
+      # filter(HHoldOSLAUA_B01ID %in% north_la) %>%
+      # filter(TripOrigGOR_B02ID %in% north_region) %>%
+      # filter(TripDestGOR_B02ID %in% north_region) %>%
+      filter(trip_origin == target_trip_origin) %>%
+      filter(TravDay %in% weekdays)
 
-    # Give segment a name
-    if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
-      # Null Segment
-      segment <- paste0('')
-    } else if(is.na(ns_sec_cat_sub)){
-      segment <- paste0('_soc', soc_cat_sub)
-    } else{
-      segment <- paste0('_ns', ns_sec_cat_sub)
+    # Match purpose to target purpose
+    if(target_trip_origin == 'hb') {
+      trip_lengths <- trip_lengths %>%
+        rename(purpose = hb_purpose)
+    } else if(target_trip_origin == 'nhb') {
+      trip_lengths <- trip_lengths %>%
+        rename(purpose = nhb_purpose)
     }
+
+    atl_bin <- c(param_name=NULL, atl=NULL)
+    sz_bin <- c(param_name=NULL, sample=NULL)
 
     # Define param name
-    param_name <- paste0('p', purpose_sub,
-                         '_m', mode_sub,
-                         segment)
+    param_name <- ''
     print(param_name)
 
-    # Subset to target distribution
-    if(target_trip_origin == 'hb') {
-      trip_lengths <- trip_length_subset %>%
-        filter(purpose == purpose_sub &
-                 main_mode==mode_sub)
-    } else if(target_trip_origin == 'nhb') {
-      trip_lengths <- trip_length_subset %>%
-        filter(purpose == purpose_sub &
-                 main_mode==mode_sub)
+    # Get params from row
+    if("purpose" %in% colnames(target_params)){
+      purpose_sub <- as.character(target_params$purpose[[i]])
+      param_name <- paste0(param_name, "p", purpose_sub)
+      trip_lengths <- trip_lengths %>%
+        filter(purpose == purpose_sub)
     }
-
-    # Filter soc or sec
-    if(is.null(ns_sec_cat_sub) & is.null(soc_cat_sub)) {
-      # Do nothing
-      print('This must be education')
-    } else if(is.na(ns_sec_cat_sub)){
-      # Filter on soc cat sub
+    if("mode" %in% colnames(target_params)){
+      mode_sub <- target_params$mode[[i]]
+      param_name <- paste0(param_name, "_m", mode_sub)
+      trip_lengths <- trip_lengths %>%
+        filter(main_mode == mode_sub)
+    }
+    if("start_time" %in% colnames(target_params)){
+      time_sub <- target_params$start_time[[i]]
+      param_name <- paste0(param_name, "_tp", time_sub)
+      trip_lengths <- trip_lengths %>%
+        filter(start_time == time_sub)
+    }
+    if("soc_cat" %in% colnames(target_params)){
+      soc_cat_sub <- target_params$soc_cat[[i]]
+      param_name <- paste0(param_name, "_soc", soc_cat_sub)
       trip_lengths <- trip_lengths %>%
         filter(soc_cat == soc_cat_sub)
-    } else{
-      # Filter on ns_sec cat sub
+    }
+    if("ns_sec" %in% colnames(target_params)){
+      ns_sec_cat_sub <- target_params$ns_sec[[i]]
+      param_name <- paste0(param_name, "_ns", ns_sec_cat_sub)
       trip_lengths <- trip_lengths %>%
         filter(ns_sec == ns_sec_cat_sub)
     }
-  
-    # Print unique values of mode and purpose, eyeball if the filter worked
-    mode_bin <- trip_lengths %>%
-      select(main_mode) %>%
-      distinct()
-    print('Unique mode:')
-    print(mode_bin)
 
-    purpose_bin <- trip_lengths %>%
-      select(purpose) %>%
-      distinct()
-    print('Unique purpose:')
-    print(purpose_bin)
+    # Print unique values of mode and purpose, eyeball if the filter worked
+    if(exists("mode_sub")){
+      mode_bin <- trip_lengths %>%
+        select(main_mode) %>%
+        distinct()
+      print('Unique mode:')
+      print(mode_bin)
+    }
+    if(exists("purpose_sub")){
+      purpose_bin <- trip_lengths %>%
+        select(purpose) %>%
+        distinct()
+      print('Unique purpose:')
+      print(purpose_bin)
+    }
+    if(exists("time_sub")){
+      time_bin <- trip_lengths %>%
+        select(start_time) %>%
+        distinct()
+      print('Unique time')
+      print(time_bin)
+    }
 
     # get set length for sample size oversight
     sample_size = nrow(trip_lengths)
@@ -274,7 +273,7 @@ build_atl <- function(nts_ntem_df,
 # Run it
 
 # Import target combos for parameters - loops will give segments that we don't want
-target_params <- read_csv(paste0(export, "/target_output_params.csv")) %>%
+target_params <- read_csv(paste0(export, "/target_output_params_hb.csv")) %>%
   filter(purpose %in% c(1,2,3,4,5,6,7,8))
 
 target_bins <- read_csv(paste0(export, "/target_bins.csv"))
@@ -284,7 +283,7 @@ build_atl(nts_ntem_df,
           target_params,
           target_bins)
 
-target_params <- read_csv(paste0(export, "/target_output_params.csv")) %>%
+target_params <- read_csv(paste0(export, "/target_output_params_nhb.csv")) %>%
   filter(purpose %in% c(12, 13, 14, 15, 16, 18))
 
 build_atl(nts_ntem_df,
