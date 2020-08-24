@@ -17,7 +17,7 @@ miles_test <- miles_test %>%
   group_by(TripDisIncSW) %>%
   count()
 
-export <- 'Y:/NTS/trip_lengths/new_gb_test/'
+export <- 'Y:/NTS/trip_lengths/at_hb/'
 
 # Add trip weighting
 nts_ntem_df <- nts_ntem_df %>%
@@ -93,9 +93,9 @@ build_atl <- function(nts_ntem_df,
     # Filter down nts NTEM df
     trip_lengths <- nts_ntem_df %>%
       select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
-             trip_origin, start_time, TripDisIncSW, TripOrigGOR_B02ID, TripDestGOR_B02ID, weighted_trip) %>%
+             trip_origin, start_time, TripDisIncSW, TripOrigGOR_B02ID, TripDestGOR_B02ID, tfn_area_type, weighted_trip) %>%
       filter(!is.na(weighted_trip)) %>%
-      # filter(HHoldOSLAUA_B01ID %in% north_la) %>%
+      filter(HHoldOSLAUA_B01ID %in% north_la) %>%
       # filter(TripOrigGOR_B02ID %in% north_region) %>%
       # filter(TripDestGOR_B02ID %in% north_region) %>%
       filter(trip_origin == target_trip_origin) %>%
@@ -148,6 +148,12 @@ build_atl <- function(nts_ntem_df,
       trip_lengths <- trip_lengths %>%
         filter(ns_sec == ns_sec_cat_sub)
     }
+    if("tfn_area_type" %in% colnames(target_params)){
+      at_sub <- target_params$tfn_area_type[[i]]
+      param_name <- paste0(param_name, "_area_type", at_sub)
+      trip_lengths <- trip_lengths %>%
+        filter(tfn_area_type == at_sub)
+    }
 
     # Print unique values of mode and purpose, eyeball if the filter worked
     if(exists("mode_sub")){
@@ -171,99 +177,109 @@ build_atl <- function(nts_ntem_df,
       print('Unique time')
       print(time_bin)
     }
+    if(exists("at_sub")){
+      at_bin <- trip_lengths %>%
+        select(tfn_area_type) %>%
+        distinct()
+      print('Unique area type')
+      print(at_bin)
+    }
 
     # get set length for sample size oversight
     sample_size = nrow(trip_lengths)
     print(paste("Number of records:", sample_size))
 
-    # Append to sample bin
-    sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
-
-    # Get trip lengths only
-    tlo <- trip_lengths$TripDisIncSW
-    hist(tlo, breaks = c(25))
+    if(sample_size>0){
     
-    tlo_mean <- mean(tlo)*M_TO_KM
-    tlo_sd <- sd(tlo)*M_TO_KM
-  
-    atl_bin <- bind_rows(atl_bin, c(param_name = param_name, atl=tlo_mean))
+      # Append to sample bin
+      sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
 
-    breaks <- target_bins$min
-    names(breaks) <- NULL
-  
-    # Name breaks
-    tags <- NULL
-    for (b in 1:nrow(target_bins)){
-      target_bins$min[b]
-      tags <- c(tags, paste0("(", target_bins$min[[b]], "-", target_bins$max[[b]], "]"))
-    }
+      # Get trip lengths only
+      tlo <- trip_lengths$TripDisIncSW
+      hist(tlo, breaks = c(25))
     
-    breaks <- c(breaks, target_bins$max[length(target_bins$max)])
-
-    # Build placeholders for join
-    tlb_desc <- tags %>%
-      as.tibble() %>%
-      rename(tlb_desc = value) %>%
-      mutate(ph=1)
-    
-    purpose_frame <- purpose_sub %>%
-      as.tibble() %>%
-      rename(purpose = value) %>%
-      mutate(ph=1)
-
-    placeholder_frame <- tlb_desc %>%
-      left_join(purpose_frame) %>%
-      select(-ph) %>%
-      distinct() %>%
-      group_by(purpose) %>%
-      mutate(tlb_index = row_number(),
-             main_mode = mode_sub) %>%
-      ungroup() %>%
-      select(tlb_index, tlb_desc, purpose, main_mode) %>%
-      mutate(purpose = as.integer(purpose))
-
-    # bucketing values into bins
-    trip_lengths <- trip_lengths %>%
-      mutate(tlb_index = cut(TripDisIncSW, 
-                             breaks=breaks, 
-                             include.lowest=TRUE, 
-                             right=FALSE, 
-                             labels=FALSE)) %>%
-      filter(purpose != 99 & !is.na(tlb_index)) %>%
-      group_by(tlb_index, main_mode, purpose) %>%
-      summarise(trips = sum(weighted_trip, na.rm=TRUE),
-                count = n(),
-                atl = weighted.mean(TripDisIncSW, weighted_trip, na.rm=TRUE)) %>%
-      ungroup() %>%
-      select(tlb_index, main_mode, purpose, trips, atl, count)
-
-    trip_lengths <- placeholder_frame %>%
-      full_join(trip_lengths) %>%
-      mutate(trips = replace_na(trips, 0))
+      tlo_mean <- mean(tlo)*M_TO_KM
+      tlo_sd <- sd(tlo)*M_TO_KM
   
-    # Get % share for each number of trips
-    totals <- trip_lengths %>%
-      select(tlb_desc, purpose, trips) %>%
-      group_by(purpose) %>%
-      summarise(total_trips = sum(trips,na.rm=TRUE))
+      atl_bin <- bind_rows(atl_bin, c(param_name = param_name, atl=tlo_mean))
 
-    # Reattach - derive total
-    trip_lengths <- trip_lengths %>%
-      left_join(totals) %>%
-      mutate(band_share = round(trips/total_trips, 3)) %>%
-      select(-total_trips)
-
-    # Adjust to km
-    for (b in 1:nrow(target_bins)){
-        km_tag <- paste0("(", target_bins$min[[b]]*M_TO_KM, "-", target_bins$max[[b]]*M_TO_KM, "]")
-        trip_lengths$tlb_desc[b] <- km_tag
+      breaks <- target_bins$min
+      names(breaks) <- NULL
+  
+      # Name breaks
+      tags <- NULL
+      for (b in 1:nrow(target_bins)){
+        target_bins$min[b]
+        tags <- c(tags, paste0("(", target_bins$min[[b]], "-", target_bins$max[[b]], "]"))
       }
+    
+      breaks <- c(breaks, target_bins$max[length(target_bins$max)])
+
+      # Build placeholders for join
+      tlb_desc <- tags %>%
+        as.tibble() %>%
+        rename(tlb_desc = value) %>%
+        mutate(ph=1)
+    
+      purpose_frame <- purpose_sub %>%
+        as.tibble() %>%
+        rename(purpose = value) %>%
+        mutate(ph=1)
+
+      placeholder_frame <- tlb_desc %>%
+        left_join(purpose_frame) %>%
+        select(-ph) %>%
+        distinct() %>%
+        group_by(purpose) %>%
+        mutate(tlb_index = row_number(),
+               main_mode = mode_sub) %>%
+        ungroup() %>%
+        select(tlb_index, tlb_desc, purpose, main_mode) %>%
+        mutate(purpose = as.integer(purpose))
+
+      # bucketing values into bins
+      trip_lengths <- trip_lengths %>%
+        mutate(tlb_index = cut(TripDisIncSW, 
+                               breaks=breaks, 
+                               include.lowest=TRUE, 
+                               right=FALSE, 
+                               labels=FALSE)) %>%
+        filter(purpose != 99 & !is.na(tlb_index)) %>%
+        group_by(tlb_index, main_mode, purpose) %>%
+        summarise(trips = sum(weighted_trip, na.rm=TRUE),
+                  count = n(),
+                  atl = weighted.mean(TripDisIncSW, weighted_trip, na.rm=TRUE)) %>%
+        ungroup() %>%
+        select(tlb_index, main_mode, purpose, trips, atl, count)
+
+      trip_lengths <- placeholder_frame %>%
+        full_join(trip_lengths) %>%
+        mutate(trips = replace_na(trips, 0))
+  
+      # Get % share for each number of trips
+      totals <- trip_lengths %>%
+        select(tlb_desc, purpose, trips) %>%
+        group_by(purpose) %>%
+        summarise(total_trips = sum(trips,na.rm=TRUE))
+
+      # Reattach - derive total
+      trip_lengths <- trip_lengths %>%
+        left_join(totals) %>%
+        mutate(band_share = round(trips/total_trips, 3)) %>%
+        select(-total_trips)
+
+      # Adjust to km
+      for (b in 1:nrow(target_bins)){
+          km_tag <- paste0("(", target_bins$min[[b]]*M_TO_KM, "-", target_bins$max[[b]]*M_TO_KM, "]")
+          trip_lengths$tlb_desc[b] <- km_tag
+        }
       trip_lengths$atl <- trip_lengths$atl*M_TO_KM
 
       hist(trip_lengths$band_share)
       
       trip_lengths %>% write_csv(paste0(export, target_trip_origin, "_tlb_", param_name, ".csv"))
-  }
+      }
+    }
 
   # Write atl bin
   atl_bin %>% write_csv(paste0(export, target_trip_origin, "_ave_distance.csv"))
