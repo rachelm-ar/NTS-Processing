@@ -1,6 +1,7 @@
 require(tidyverse)
 
 # Code purpose: Build mode specific PA to OD factors
+# Also build tour proportions by mode and purpose
 
 # Import ntem_build - NTEM segmented dataset
 # TODO: Update import
@@ -80,7 +81,7 @@ from_home_trips <- trips %>%
          from_home_trip_weight = weighted_trip)
 
 # Get to home
-to_home_trips <- test %>%
+to_home_trips <- trips %>%
   group_by(IndividualID, TravDay) %>%
   filter(TripPurpTo_B01ID == 23) %>%
   mutate(in_out_count = row_number()) %>%
@@ -159,7 +160,10 @@ pa_to_od <- pa_to_od %>%
 # TODO: Should be a function that does every mode (for mode in target_modes)
 
 
-target_mode <- 3
+target_mode <- 5
+
+acm <- pa_to_od
+classification_type <- ''
 
 # Purpose and time constrained pa to od
 mode_pa_to_od <- pa_to_od %>%
@@ -175,16 +179,16 @@ mode_pa_to_od %>% write_csv('Y:/NTS/agg_phi_car_gb.csv')
 # Set totals
 # Doing this on from trips only, should probably consolidate both sides first
 from_home_trips <- mode_pa_to_od %>%
-  group_by(purpose_from_home, time_from_home) %>%
+  group_by(ntem_purpose_from_home, ntem_time_from_home) %>%
   summarise(from_total = sum(from_home_trip_weight,na.rm=TRUE)) %>%
   ungroup()
 
 mode_pa_to_od <- mode_pa_to_od %>%
-  left_join(from_home_trips, by=c('purpose_from_home', 'time_from_home')) %>%
+  left_join(from_home_trips, by=c('ntem_purpose_from_home', 'ntem_time_from_home')) %>%
   mutate(direction_factor = from_home_trip_weight/from_total)
 
 mode_pa_to_od <- mode_pa_to_od %>%
-   select(purpose_from_home, time_from_home, purpose_to_home, time_to_home, direction_factor)
+   select(ntem_purpose_from_home, ntem_time_from_home, purpose_to_home, ntem_time_to_home, direction_factor)
 
 mode_pa_to_od <- acm %>%
   left_join(mode_pa_to_od, by = c(
@@ -201,38 +205,38 @@ mode_pa_to_od %>% write_csv(paste0('Y:/NTS/', export_string))
 mode_pa_to_od <- pa_to_od %>%
   filter(mode_from_home == target_mode) %>%
   filter(mode_to_home == target_mode) %>%
-  group_by(purpose_from_home, time_from_home,
-           time_to_home) %>%
+  group_by(ntem_purpose_from_home, ntem_time_from_home,
+           ntem_time_to_home) %>%
   summarise(from_home_trip_weight = sum(from_home_trip_weight,na.rm=TRUE)) %>%
   ungroup()
 
 # Set totals
 # Doing this on from trips only, should probably consolodate both sides first
 p_acm <- acm %>%
-  select(purpose_from_home, time_from_home, time_to_home) %>%
+  select(ntem_purpose_from_home, ntem_time_from_home, ntem_time_to_home) %>%
   distinct()
 
 from_home_trips <- mode_pa_to_od %>%
-  group_by(purpose_from_home, time_from_home) %>%
+  group_by(ntem_purpose_from_home, ntem_time_from_home) %>%
   summarise(from_total = sum(from_home_trip_weight,na.rm=TRUE)) %>%
   ungroup()
 
 mode_pa_to_od <- mode_pa_to_od %>%
-  left_join(from_home_trips, by=c('purpose_from_home', 'time_from_home')) %>%
+  left_join(from_home_trips, by=c('ntem_purpose_from_home', 'ntem_time_from_home')) %>%
   mutate(direction_factor = from_home_trip_weight/from_total)
 
 mode_pa_to_od <- mode_pa_to_od %>%
-  select(purpose_from_home, time_from_home,
-         time_to_home, direction_factor)
+  select(ntem_purpose_from_home, ntem_time_from_home,
+         ntem_time_to_home, direction_factor)
 
 mode_pa_to_od <- p_acm %>%
   left_join(mode_pa_to_od, by = c(
-    'purpose_from_home',
-    'time_from_home',
-    'time_to_home')) %>%
+    'ntem_purpose_from_home',
+    'ntem_time_from_home',
+    'ntem_time_to_home')) %>%
   mutate(direction_factor = replace_na(direction_factor,0)) %>%
   mutate(direction_factor = round(direction_factor,5))
 
-export_string <- paste0('mode_', target_mode, '_', classification_type, '_fhp_pa_to_od.csv')
+export_string <- paste0('mode_', target_mode, classification_type, '_fhp_pa_to_od.csv')
 
 mode_pa_to_od %>% write_csv(paste0('Y:/NTS/', export_string))
