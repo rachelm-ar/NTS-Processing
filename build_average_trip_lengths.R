@@ -3,7 +3,9 @@ require(tidyverse)
 # Code purpose: Build mode specific PA to OD factors
 
 # Import ntem_build - NTEM segmented dataset 
-nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
+# nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
+nts_ntem_df <- read_csv("Y:/NTS/classified_nts_walk_infill.csv",
+                        guess_max = 10^9)
 
 # Trip length in miles
 miles_test <- nts_ntem_df %>%
@@ -57,6 +59,47 @@ trip_length_subset <- nts_ntem_df %>%
          trip_origin, TripDisIncSW, TripDisIncSW_spread, weighted_trip) %>%
   filter(!is.na(weighted_trip)) %>%
   mutate(trip_dist_km = TripDisIncSW_spread*1.60934)
+
+## Bit to get segmented all mode trip lengths
+commute_purpose <- c(1)
+business_purpose <- c(2)
+other_purpose <- c(3,4,5,6,7,8)
+
+purpose_vector <- list(commute_purpose, business_purpose)
+soc_vector <- c(1,2,3)
+ns_vector <- c(1,2,3,4,5)
+
+# Commute and business
+for(i in 1:length(purpose_vector)){
+
+  purpose_sub <- trip_length_subset %>%
+    filter(hb_purpose %in% purpose_vector[[i]])
+  
+  for(j in 1:length(soc_vector)){
+    soc_sub <- purpose_sub %>%
+      filter(soc_cat == soc_vector[[j]])
+    
+    name <- paste0(c(purpose_vector[[i]],soc_vector[[j]]), collapse='')
+    
+    mean <- soc_sub$trip_dist_km %>%
+      mean(na.rm = TRUE)
+    print(paste(name, mean))
+  }
+}
+
+purpose_sub <- trip_length_subset %>%
+  filter(hb_purpose %in% other_purpose)
+
+for(i in 1:length(ns_vector)){
+  ns_sub <- purpose_sub %>%
+    filter(ns_sec == ns_vector[[i]])
+
+  name <- ns_vector[[i]]
+  mean <- ns_sub$trip_dist_km %>%
+    mean(na.rm=TRUE)
+  print(paste(name, mean))
+}
+## End of bit to get all mode trip lengths
 
 # TODO: Implement different modes etc as loop
 # TODO: Should do 'trips in North' filter as LA OD
@@ -293,6 +336,9 @@ north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', '
               'E08000024', 'E08000032', 'E08000033', 'E08000034', 'E08000035', 'E08000036',
               'E08000037', 'W06000001', 'W06000002', 'W06000003', 'W06000004', 'W06000005',
               'W06000006')
+
+teesside_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005')
+
 # Weekdays only
 weekdays <- c(1,2,3,4,5)
 # Last 3 years only
@@ -300,7 +346,7 @@ years <- c(2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
            2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017)
 
 trip_length_subset <- trip_length_subset %>%
-  filter(HHoldOSLAUA_B01ID %in% north_la) %>%
+  filter(HHoldOSLAUA_B01ID %in% teesside_la) %>%
   filter(TravDay %in% weekdays) %>%
   filter(SurveyYear %in% years)
 
@@ -337,7 +383,8 @@ hb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup() %>%
-  select(tlb_index, tlb_desc, hb_purpose, main_mode)
+  select(tlb_index, tlb_desc, hb_purpose, main_mode) %>%
+  mutate(hb_purpose = as.integer(hb_purpose))
 
 nhb_placeholder <- tlb_desc %>%
   left_join(nhb_purpose) %>%
@@ -347,7 +394,8 @@ nhb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup %>%
-  select(tlb_index, tlb_desc, nhb_purpose, main_mode)
+  select(tlb_index, tlb_desc, nhb_purpose, main_mode) %>%
+  mutate(nhb_purpose = as.integer(nhb_purpose))
 
 # Get HB trip lengths
 
@@ -566,7 +614,8 @@ hb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup() %>%
-  select(tlb_index, tlb_desc, hb_purpose, main_mode)
+  select(tlb_index, tlb_desc, hb_purpose, main_mode) %>%
+  mutate(hb_purpose = as.integer(hb_purpose))
 
 nhb_placeholder <- tlb_desc %>%
   left_join(nhb_purpose) %>%
@@ -576,7 +625,8 @@ nhb_placeholder <- tlb_desc %>%
   mutate(tlb_index = row_number(),
          main_mode = 3) %>%
   ungroup %>%
-  select(tlb_index, tlb_desc, nhb_purpose, main_mode)
+  select(tlb_index, tlb_desc, nhb_purpose, main_mode) %>%
+  mutate(nhb_purpose = as.integer(nhb_purpose))
 
 # Get HB trip lengths
 

@@ -3,7 +3,7 @@ require(tidyverse)
 # Code purpose: Build mode specific PA to OD factors
 
 # Import ntem_build - NTEM segmented dataset 
-nts_ntem_df <- read_csv('Y:/NTS/tfn_ntem_build.csv', guess_max = 10^9)
+nts_ntem_df <- read_csv('Y:/NTS/classified_nts_walk_infill.csv', guess_max = 10^9)
 
 # Trip length in miles
 miles_test <- nts_ntem_df %>%
@@ -85,11 +85,14 @@ north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', '
               'E08000037', 'W06000001', 'W06000002', 'W06000003', 'W06000004', 'W06000005',
               'W06000006')
 
+teesside_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005')
+
 # 1 = North East
 # 2 = North West
 # 3 = Yorkshire and the Humber
 # 4 = East Midlands - yes please
 north_region <- c(1,2,3,4)
+north_east_region <- c(1)
 
 # Region count
 region_count <- nts_ntem_df %>%
@@ -109,8 +112,8 @@ years <- c(2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,
 
 trip_length_subset <- trip_length_subset %>%
   filter(HHoldOSLAUA_B01ID %in% north_la) %>%
-  filter(TripOrigGOR_B02ID %in% north_region) %>%
-  filter(TripDestGOR_B02ID %in% north_region) %>%
+  filter(TripOrigGOR_B02ID %in% north_east_region) %>%
+  filter(TripDestGOR_B02ID %in% north_east_region) %>%
   filter(trip_origin == target_trip_origin)
 # Removed years & weekdays for fullest possible sample
 
@@ -224,7 +227,8 @@ for(i in 1:nrow(target_params)){
     mutate(tlb_index = row_number(),
            main_mode = mode_sub) %>%
     ungroup() %>%
-    select(tlb_index, tlb_desc, hb_purpose, main_mode)
+    select(tlb_index, tlb_desc, hb_purpose, main_mode) %>%
+    mutate(hb_purpose = as.integer(hb_purpose))
 
   # bucketing values into bins
   trip_lengths <- trip_lengths %>%
@@ -259,12 +263,12 @@ for(i in 1:nrow(target_params)){
 
   hist(trip_lengths$band_share, breaks=breaks)
 
-  trip_lengths %>% write_csv(paste0(export, "hb_tlb_", param_name, ".csv"))
+  trip_lengths %>% write_csv(paste0(export, "teesside_hb_tlb_", param_name, ".csv"))
 }
 
 # Write atl bin
-atl_bin %>% write_csv(paste0(export, "hb_ave_distance.csv"))
-sz_bin %>% write_csv(paste0(export, "hb_tld_sample_sizes.csv"))
+atl_bin %>% write_csv(paste0(export, "teesside_hb_ave_distance.csv"))
+sz_bin %>% write_csv(paste0(export, "teesside_hb_tld_sample_sizes.csv"))
 
 
 
@@ -294,6 +298,8 @@ north_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005', '
               'E08000024', 'E08000032', 'E08000033', 'E08000034', 'E08000035', 'E08000036',
               'E08000037', 'W06000001', 'W06000002', 'W06000003', 'W06000004', 'W06000005',
               'W06000006')
+
+teesside_la <- c('E06000001', 'E06000002', 'E06000003', 'E06000004', 'E06000005')
 
 # 1 = North East
 # 2 = North West

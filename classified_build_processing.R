@@ -25,7 +25,7 @@ unclassified_build <- read_csv(unclassified_build_dir)
 
 # Recode purposes ---------------------------------------------------------
 
-# Adjust classifications to exclude walking trips in day trips
+# Adjust classifications to exclude walking trips in day trips 
 unclassified_build <- unclassified_build %>%
   filter(TripPurpTo_B01ID %in% 1:14 |
            (TripPurpTo_B01ID == 15 & MainMode_B04ID != 1) |
@@ -56,16 +56,19 @@ unclassified_build <- unclassified_build %>%
   lu_start_time() %>% 
   lu_end_time() %>%
   lu_tfn_area_type() %>%
-  rename(ns_sec = NSSec_B03ID)
+  mutate(ns_sec = ifelse(NSSec_B03ID == -9, 99, NSSec_B03ID))
+#gender = ifelse(age_work_status == 1, 2, gender) --- add to mutate if children are genderless
 
 # Reweight short walk trips by a factor of 7 ------------------------------
 classified_build_pre_weight <- unclassified_build %>%
   mutate(W5xHh = ifelse(TripDisIncSW < 1 & main_mode == 1, 7, W5xHh)) %>%
   filter(!is.na(W5xHh))
 
-classified_build_pre_weight %>% write_csv(str_c(import_dir,"classified_nts_pre-weighting.csv"))
+classified_build_pre_weight %>% write_csv("C:/Users/Pluto/Documents/classified_nts_pre-weighting_child_gender.csv")
 
-# Weighting Methodology -------------------------------------
+#classified_build_pre_weight %>% write_csv(str_c(import_dir,"classified_nts_pre-weighting.csv"))
+
+# Weighting Methodology for hb trips -------------------------------------
 weighted_trip_rates <- classified_build_pre_weight %>%
   filter(trip_purpose %in% 1:8) %>%
   mutate(trip_weights = W1 * W5xHh * W2) %>%
@@ -82,4 +85,16 @@ classified_build_weight <- weighted_trip_rates %>%
            trip_purpose = 1:8,
            fill = list(weekly_trips = 0, trip_rate = 0))
 
-classified_build_weight %>% write_csv(str_c(output_dir,"classified_nts_trip_rates.csv"))
+#classified_build_weight %>% write_csv(str_c(output_dir,"classified_nts_trip_rates.csv"))
+classified_build_weight %>% write_csv("C:/Users/Pluto/Documents/classified_nts_child_genderless.csv")
+
+
+# Weighting Methodology for nhb trips -------------------------------------
+classified_build_pre_weight %>% 
+  filter(trip_purpose %in% c(12,13,14,15,16,18)) %>% 
+  mutate(trip_weights = W1 * W5xHh * W2) %>% 
+  group_by(IndividualID, trip_purpose, main_mode, W2)
+
+classified_build_pre_weight %>% 
+  select(nhb_purpose, trip_purpose)
+  

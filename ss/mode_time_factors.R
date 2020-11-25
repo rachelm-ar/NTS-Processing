@@ -183,7 +183,6 @@ unclassified_build <- unclassified_build %>%
 # Drop area_type = -8
 unclassified_build <- subset(unclassified_build, area_type != -8)
 
-
 # Convert SOC Types(XSOC2000_B02ID) as soc_stat
 unclassified_build <- unclassified_build %>%
   mutate(soc_cat = case_when(

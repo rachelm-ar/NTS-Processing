@@ -14,19 +14,15 @@
 
 library(tidyverse)
 
-# NTS folder
-nts_dir <- "Y:/NTS/"
+# Importing Directories
+github_dir <- "C:/Users/Pluto/Documents/GitHub/NTS-Processing/"
+nts_dir <- "Y:/NTS/" # NTS folder
+import_dir <- str_c(nts_dir, "import/") # Imports folder
+output_dir <- str_c(nts_dir, "outputs/hb_trip_rates/") # Outputs folder
+lookup_dir <- str_c(nts_dir, "lookups/") # Lookups
 
-# Imports folder
-import_dir <- str_c(nts_dir, "import/")
-
-# Outputs folder
-output_dir <- str_c(nts_dir, "outputs/hb_trip_rates/")
-
-# Lookups
-lookup_dir <- str_c(nts_dir, "lookups/")
-
-# Lookup functions
+# Reading external files
+source(str_c(github_dir,"hb_trip_rates/trip_rate_model.r"))
 source(str_c(lookup_dir,"lookups.r"))
 
 # Classified_nts_trip_rates
