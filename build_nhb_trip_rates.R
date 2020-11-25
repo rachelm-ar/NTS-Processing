@@ -167,7 +167,7 @@ soc_zero_trip_rates <- hb_trips %>%
   rename(area_type = tfn_area_type) %>%
   select(-hb_trips, -nhb_trips) %>%
   mutate(ns_sec = 99, soc_cat = 0)
-
+s
 trip_rates <- bind_rows(soc_zero_trip_rates, soc_trip_rates, ns_trip_rates)
 
 # Benchmarking
