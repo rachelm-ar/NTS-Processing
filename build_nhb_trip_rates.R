@@ -170,7 +170,24 @@ soc_zero_trip_rates <- hb_trips %>%
 
 trip_rates <- bind_rows(soc_zero_trip_rates, soc_trip_rates, ns_trip_rates)
 
+# Benchmarking
+# Should be:
+# SOC - 8 area type * 2 ca * 8 hb purpose * 1 * nhb purpose * 4 soc cat
+# NS - 8 area type * 2 ca * 8 hb purpose * 5 nhb purpose * 5 ns cat
+(8*2*8*1*4) + (8*2*8*5*5)
+
+group_count <- trip_rates %>%
+  group_by(area_type, ca, p, nhb_p) %>%
+  count()
+
+# TODO: Build all combos - look for missing values, infill with lowest value from next highest level
+# Outputs 1 - filled in all combo nhb tr vector length = total above = 3712
+#         2 - Infill values only - just for sense check - biggest risk is infill value is too high
+
 trip_rates %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_enh_trip_rates.csv'))
+
+# Post processing - replace 99 with 'none' - rename soc_cat = soc, ns_sec to ns
+# TODO: if you can do that in R is saves a job but might be awkwartd with data types
 
 nhb_mode_split <- classified_build %>%
   filter(trip_origin == 'nhb') %>%
