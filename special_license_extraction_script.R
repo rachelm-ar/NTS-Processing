@@ -79,7 +79,7 @@ trip_cols = c('PSUID',
               'TripDestAreaType1_B01ID',
               'TripDestAreaType2_B01ID',
               'W5',
-              'W5xHh')
+              'W5xHH')
 
 ldj_cols <- c('PSUID',
               'IndividualID',
