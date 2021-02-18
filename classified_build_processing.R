@@ -23,6 +23,8 @@ source(str_c(lookup_dir,"lookups.r"))
 # Read in unclassified_build
 unclassified_build <- read_csv(unclassified_build_dir)
 
+unclassified_build1 <- unclassified_build
+
 # Recode purposes ---------------------------------------------------------
 
 # Adjust classifications to exclude walking trips in day trips 
