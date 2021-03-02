@@ -37,7 +37,8 @@ household_cols <- c('PSUID',
                     'HHoldNumAdults',
                     'NumCarVan_B02ID',
                     'W1',
-                    'W2')
+                    'W2',
+                    'W3')
 
 # For the purposes of NTEM replication, we the following will do:
 individual_cols <- c('PSUID',
