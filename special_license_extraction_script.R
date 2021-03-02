@@ -8,17 +8,17 @@
 require(tidyverse)
 
 # Path to tab files - should be SPSS equivalent?
-file <- 'D:/UKDA-7553-tab/tab'
-export <- 'D:/NTS/'
+file <- 'C:/Users/ChristopherStorey/Documents/UKDA-7553-tab/tab'
+export <- 'C:/Users/ChristopherStorey/Documents'
 
-attitudes_file_path = paste0(file, '/attitudesspecial2017_protect.tab')
-days_file_path = paste0('/dayspecial2017_protect.tab')
-individual_file_path <- paste0(file, '/individualspecial2017_protect.tab')
-psu_id_file_path <- paste0(file, '/psuspecial2017_protect.tab')
-household_file_path <- paste0(file, '/householdspecial2017_protect.tab')
-ldj_file_path <- paste0(file, '/ldjspecial2017_protect.tab')
-trip_file_path <- paste0(file, '/tripspecial2017_protect.tab')
-stage_file_path <- paste0(file, '/stagesecure2017_protect.tab')
+attitudes_file_path = paste0(file, '/attitudes_special_2002-2019_protect.tab')
+days_file_path = paste0('/day_special_2002-2019_protect.tab')
+individual_file_path <- paste0(file, '/individual_special_2002-2019_protect.tab')
+psu_id_file_path <- paste0(file, '/psu_special_2002-2019_protect.tab')
+household_file_path <- paste0(file, '/household_special_2002-2019_protect.tab')
+ldj_file_path <- paste0(file, '/ldj_special_2002-2019_protect.tab')
+trip_file_path <- paste0(file, '/trip_special_2002-2019_protect.tab')
+stage_file_path <- paste0(file, '/stage_special_2002-2019_protect.tab')
 
 # TODO: Separate join to put trip and stage together for occupancy factors
 
@@ -33,12 +33,12 @@ household_cols <- c('PSUID',
                     'HouseholdID',
                     'HHoldOSWard_B01ID',
                     'HHoldOSLAUA_B01ID',
-                    'OutCom_B02ID',
                     'HHoldAreaType1_B01ID',
                     'HHoldNumAdults',
                     'NumCarVan_B02ID',
                     'W1',
-                    'W2')
+                    'W2',
+                    'W3')
 
 # For the purposes of NTEM replication, we the following will do:
 individual_cols <- c('PSUID',
@@ -80,7 +80,7 @@ trip_cols = c('PSUID',
               'TripDestAreaType1_B01ID',
               'TripDestAreaType2_B01ID',
               'W5',
-              'W5xHh')
+              'W5xHH')
 
 ldj_cols <- c('PSUID',
               'IndividualID',
@@ -116,7 +116,7 @@ household_df <- read_delim(household_file_path, delim = "\t", guess_max = 400000
   select(household_cols)
 
 year_com_count <- household_df %>%
-  select(SurveyYear, OutCom_B02ID) %>%
+  select(SurveyYear) %>%
   group_by(SurveyYear, OutCom_B02ID) %>%
   count()
 
@@ -161,4 +161,4 @@ ldj_purp_count <- nts_df %>%
 nts_df <- nts_df %>%
   left_join(stage_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
 
-nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build.csv'))
+nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build19.csv'))
