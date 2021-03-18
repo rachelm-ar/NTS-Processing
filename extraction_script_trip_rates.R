@@ -9,7 +9,7 @@ require(tidyverse)
 
 # Path to tab files - should be SPSS equivalent?
 file <- 'C:/Users/ChristopherStorey/Documents/UKDA-7553-tab/tab'
-export <- 'C:/Users/ChristopherStorey/Documents'
+export <- 'Y:/NTS/import'
 
 attitudes_file_path = paste0(file, '/attitudes_special_2002-2019_protect.tab')
 days_file_path = paste0(file, '/day_special_2002-2019_protect.tab')
@@ -78,18 +78,10 @@ trip_cols = c('PSUID',
               'TripEnd_B01ID',
               'TripDisIncSW',
               'TripTravTime',
-              'TripOrigUrbCd_B01ID',
-              'TripDestUrbCd_B01ID',
               'TripOrigCounty_B01ID',
               'TripDestCounty_B01ID',
-              'TripOrigGOR_B02ID',
-              'TripDestGOR_B02ID',
               'TripDestUA2009_B01ID',
               'TripOrigUA2009_B01ID',
-              'TripOrigAreaType1_B01ID',
-              'TripOrigAreaType2_B01ID',
-              'TripDestAreaType1_B01ID',
-              'TripDestAreaType2_B01ID',
               'W5',
               'W5xHH')
 
@@ -138,13 +130,6 @@ days_df <- read_delim(days_file_path, delim = "\t", guess_max = 1000) %>%
 trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 1000) %>%
   select(trip_cols)
 
-# import ldj
-ldj_df <- read_delim(ldj_file_path, delim='\t', guess_max = 1000) %>%
-  select(ldj_cols)
-
-stage_df <- read_delim(stage_file_path, delim='\t', guess_max = 1000) %>%
-  select(stage_cols)
-
 # Table Joins ####
 # We now join these tables together using the Heirarchical variables
 
@@ -170,20 +155,4 @@ nts_df <- nts_df %>%
 rm(trip_df)
 gc()
 
-nts_df <- nts_df %>%
-  left_join(ldj_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
-rm(ldj_df)
-gc()
-
-# LDJ TEST
-ldj_purp_count <- nts_df %>%
-  select(LDJID) %>%
-  group_by(LDJID) %>%
-  count()
-
-nts_df <- nts_df %>%
-  left_join(stage_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
-rm(stage_df)
-gc()
-
-nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build19.csv'))
+nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build_no_stage19.csv'))
