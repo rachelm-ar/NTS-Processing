@@ -8,8 +8,8 @@
 require(tidyverse)
 
 # Path to tab files - should be SPSS equivalent?
-file <- 'C:/Users/ChristopherStorey/Documents/UKDA-7553-tab/tab'
-export <- 'C:/Users/ChristopherStorey/Documents'
+file <- 'C:/Users/genie/Documents/UKDA-7553-tab/tab'
+export <- 'C:/Users/genie/Documents'
 
 attitudes_file_path = paste0(file, '/attitudes_special_2002-2019_protect.tab')
 days_file_path = paste0(file, '/day_special_2002-2019_protect.tab')
@@ -48,7 +48,7 @@ individual_cols <- c('PSUID',
                      'Sex_B01ID',
                      'XSOC2000_B02ID', # Standard occupational classification
                      'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
-                     'SIC1992_B02ID',
+                     'SIC2007_B02ID',
                      'CarAccess_B01ID',
                      'DrivLic_B02ID',
                      'EcoStat_B01ID')
@@ -66,11 +66,9 @@ days_cols = c('PSUID',
 trip_cols = c('PSUID',
               'HouseholdID',
               'IndividualID',
+              'DayID',
               'TripID',
-              'JJXSC',
-              'JOTXSC',
-              'JTTXSC',
-              'JD',
+              'TravDay',
               'MainMode_B04ID',
               'TripPurpFrom_B01ID',
               'TripPurpTo_B01ID',
@@ -78,18 +76,10 @@ trip_cols = c('PSUID',
               'TripEnd_B01ID',
               'TripDisIncSW',
               'TripTravTime',
-              'TripOrigUrbCd_B01ID',
-              'TripDestUrbCd_B01ID',
               'TripOrigCounty_B01ID',
               'TripDestCounty_B01ID',
-              'TripOrigGOR_B02ID',
-              'TripDestGOR_B02ID',
               'TripDestUA2009_B01ID',
               'TripOrigUA2009_B01ID',
-              'TripOrigAreaType1_B01ID',
-              'TripOrigAreaType2_B01ID',
-              'TripDestAreaType1_B01ID',
-              'TripDestAreaType2_B01ID',
               'W5',
               'W5xHH')
 
@@ -114,7 +104,7 @@ stage_cols <- c('PSUID',
 # NTS is organised in a hierarchical structure. This starts with PSUs:
 # The column we will need is:
 
-psu_df <- read_delim(psu_id_file_path, delim = "\t", guess_max = 400000) %>%
+psu_df <- read_delim(psu_id_file_path, delim = "\t", guess_max = 1000) %>%
   select(psu_cols)
 
 # The fully completed measure is not available for the older survey data.
@@ -142,11 +132,11 @@ trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 1000) %>%
 ldj_df <- read_delim(ldj_file_path, delim='\t', guess_max = 1000) %>%
   select(ldj_cols)
 
-stage_df <- read_delim(stage_file_path, delim='\t', guess_max = 1000) %>%
-  select(stage_cols)
-
 # Table Joins ####
 # We now join these tables together using the Heirarchical variables
+
+# Work out len
+
 
 nts_df <- psu_df %>%
   left_join(household_df, by = 'PSUID') %>%
@@ -166,7 +156,7 @@ rm(days_df)
 gc()
 
 nts_df <- nts_df %>%
-  left_join(trip_df, by=c('PSUID', 'HouseholdID', 'IndividualID'))
+  left_join(trip_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'DayID'))
 rm(trip_df)
 gc()
 
@@ -175,15 +165,8 @@ nts_df <- nts_df %>%
 rm(ldj_df)
 gc()
 
-# LDJ TEST
-ldj_purp_count <- nts_df %>%
-  select(LDJID) %>%
-  group_by(LDJID) %>%
-  count()
-
+# Filter SurveyYear
 nts_df <- nts_df %>%
-  left_join(stage_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
-rm(stage_df)
-gc()
+  filter(SurveyYear == 2019)
 
-nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build19.csv'))
+nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build_19only.csv'))
