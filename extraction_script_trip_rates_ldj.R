@@ -26,7 +26,7 @@ column_method <- 'ntem'
 
 # Col definitions ####
 
-psu_cols <- c('PSUID', 'PSUPSect', 'PSUPopDensity', 'PSUAreaType1_B01ID', 'PSUAreaType2_B01ID')
+psu_cols <- c('PSUID', 'PSUPopDensity')
 
 household_cols <- c('PSUID',
                     'SurveyYear',
@@ -68,10 +68,7 @@ trip_cols = c('PSUID',
               'IndividualID',
               'DayID',
               'TripID',
-              'JJXSC',
-              'JOTXSC',
-              'JTTXSC',
-              'JD',
+              'TravDay',
               'MainMode_B04ID',
               'TripPurpFrom_B01ID',
               'TripPurpTo_B01ID',
@@ -131,6 +128,10 @@ days_df <- read_delim(days_file_path, delim = "\t", guess_max = 1000) %>%
 trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 1000) %>%
   select(trip_cols)
 
+# import ldj
+ldj_df <- read_delim(ldj_file_path, delim='\t', guess_max = 1000) %>%
+  select(ldj_cols)
+
 # Table Joins ####
 # We now join these tables together using the Heirarchical variables
 
@@ -159,4 +160,13 @@ nts_df <- nts_df %>%
 rm(trip_df)
 gc()
 
-nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build_no_stage19.csv'))
+nts_df <- nts_df %>%
+  left_join(ldj_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
+rm(ldj_df)
+gc()
+
+# Filter SurveyYear
+nts_df <- nts_df %>%
+  filter(SurveyYear == 2019)
+
+nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build_19only.csv'))

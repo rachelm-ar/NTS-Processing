@@ -26,16 +26,18 @@ column_method <- 'ntem'
 
 # Col definitions ####
 
-psu_cols <- c('PSUID', 'PSUPSect', 'PSUPopDensity', 'PSUAreaType1_B01ID', 'PSUAreaType2_B01ID')
+psu_cols <- c('PSUID', 'PSUPopDensity')
 
 household_cols <- c('PSUID',
                     'SurveyYear',
                     'HouseholdID',
-                    'HHoldOSWard_B01ID',
+                    'HHoldGOR_B02ID',
                     'HHoldOSLAUA_B01ID',
-                    'HHoldAreaType1_B01ID',
-                    'HHoldNumAdults',
-                    'NumCarVan_B02ID',
+                    'HHoldCountry_B01ID',
+                    'HHIncome2002_B01ID',
+                    'HHIncQISEngTS_B01ID',
+                    'HHIncQDS2005_B01ID',
+                    'HHoldCVAvail_B01ID',
                     'W1',
                     'W2',
                     'W3')
@@ -43,23 +45,7 @@ household_cols <- c('PSUID',
 # For the purposes of NTEM replication, we the following will do:
 individual_cols <- c('PSUID',
                      'HouseholdID',
-                     'IndividualID',
-                     'Age_B01ID',
-                     'Sex_B01ID',
-                     'XSOC2000_B02ID', # Standard occupational classification
-                     'NSSec_B03ID', # National Statistics Socio-Economic Classification of individual - high level
-                     'SIC2007_B02ID',
-                     'CarAccess_B01ID',
-                     'DrivLic_B02ID',
-                     'EcoStat_B01ID')
-
-days_cols = c('PSUID',
-              'IndividualID',
-              'HouseholdID',
-              'DayID',
-              'TravDay',
-              'TravelWeekDay_B01ID',
-              'TravelWeekDay_B02ID')
+                     'IndividualID') # National Statistics Socio-Economic Classification of individual - high level
 
 # TODO: NTM purpose banding could be instructive: TripPurpose_B07ID
 
@@ -68,21 +54,18 @@ trip_cols = c('PSUID',
               'IndividualID',
               'DayID',
               'TripID',
-              'JJXSC',
-              'JOTXSC',
-              'JTTXSC',
-              'JD',
-              'MainMode_B04ID',
-              'TripPurpFrom_B01ID',
-              'TripPurpTo_B01ID',
-              'TripStart_B01ID', # 51 bands of trip start time
-              'TripEnd_B01ID',
-              'TripDisIncSW',
-              'TripTravTime',
-              'TripOrigCounty_B01ID',
               'TripDestCounty_B01ID',
               'TripDestUA2009_B01ID',
+              'TripOrigGOR_B02ID',
               'TripOrigUA2009_B01ID',
+              'MainMode_B04ID',
+              'TripDisExSW',
+              'TripPurpFrom_B01ID',
+              'TripPurpose_B01ID',
+              'TripPurpTo_B01ID',
+              'TravDay',
+              'TripStart',
+              'TripTotalTime',
               'W5',
               'W5xHH')
 
@@ -91,17 +74,38 @@ ldj_cols <- c('PSUID',
               'HouseholdID',
               'TripID',
               'LDJID',
-              'W4',
-              'LDJPurpFrom_B01ID')
+              'LDJDestGOR_B02ID',
+              'LDJDestCounty_B01ID',
+              'LDJDestUA2009_B01ID',
+              'LDJOrigCounty_B01ID',
+              'LDJOrigGOR_B02ID',
+              'LDJOrigUA2009_B01ID',
+              'LDJDistance',
+              'LDJMode_B02ID',
+              'LDJMode_B03ID',
+              'LDJPurpFrom_B01ID',
+              'LDJPurpose_B01ID',
+              'LDJPurpose_B02ID',
+              'LDJPurpTo_B01ID',
+              'LDJMonth',
+              'LDJMonth_B01ID',
+              'LDJWeekDay_B01ID',
+              'W4')
 
-stage_cols <- c('PSUID',
-                'IndividualID',
-                'HouseholdID',
-                'TripID',
-                'StageID',
-                'NumParty_B01ID',
-                'StageMode_B04ID',
-                'StageDistance_B01ID')
+# Target survey years
+tsy <- c(2015, 2016, 2017, 2018, 2019)
+
+days_cols = c('PSUID',
+              'IndividualID',
+              'HouseholdID',
+              'DayID',
+              'TravDay',
+              'TravelMonth_B01ID',
+              'TravelDayType_B01ID',
+              'TravelWeekDay_B01ID',
+              'TravelWeekDay_B02ID')
+
+# TODO: NTM purpose banding could be instructive: TripPurpose_B07ID
 
 # Imports ####
 # NTS is organised in a hierarchical structure. This starts with PSUs:
@@ -131,6 +135,10 @@ days_df <- read_delim(days_file_path, delim = "\t", guess_max = 1000) %>%
 trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 1000) %>%
   select(trip_cols)
 
+# import ldj
+ldj_df <- read_delim(ldj_file_path, delim='\t', guess_max = 1000) %>%
+  select(ldj_cols)
+
 # Table Joins ####
 # We now join these tables together using the Heirarchical variables
 
@@ -159,4 +167,13 @@ nts_df <- nts_df %>%
 rm(trip_df)
 gc()
 
-nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build_no_stage19.csv'))
+nts_df <- nts_df %>%
+  left_join(ldj_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
+rm(ldj_df)
+gc()
+
+# Filter SurveyYear
+nts_df <- nts_df %>%
+  filter(SurveyYear %in% tsy)
+
+nts_df %>% write_csv(paste0(export, '/tfn_rand_ve_analytical_build_15-19.csv'))

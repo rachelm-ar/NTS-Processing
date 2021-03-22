@@ -33,14 +33,10 @@ hb_trips <- classified_build %>%
   select(trip_origin,
          hb_purpose,
          hb_mode,
-         soc_cat,
-         ns_sec,
          trip_weights) %>%
   group_by(trip_origin,
            hb_purpose,
-           hb_mode,
-           soc_cat,
-           ns_sec) %>%
+           hb_mode) %>%
   summarise(hb_trips = sum(trip_weights)) %>%
   ungroup() %>%
   select(-trip_origin)
@@ -69,7 +65,7 @@ nhb_trips <- classified_build %>%
 
 
 # Separate out and retain soc somehow 
-
+"""
 soc_hb <- hb_trips %>%
   select(-ns_sec) %>%
   filter(hb_purpose %in% c(1,2)) %>%
@@ -83,6 +79,7 @@ ns_sec_hb <- hb_trips %>%
   group_by(hb_purpose, hb_mode, ns_sec) %>%
   summarise(hb_trips=sum(hb_trips, na.rm = TRUE)) %>%
   ungroup()
+"""
 
 soc_nhb <- nhb_trips %>%
   select(-ns_sec) %>%
@@ -100,12 +97,14 @@ ns_sec_nhb <- nhb_trips %>%
 
 # Bind drop null segs, infill NA
 # 99 == SOC 0, need join value for NA so using 999
+"""
 hb_trips <- bind_rows(soc_hb, ns_sec_hb) %>%
   mutate(soc_cat = case_when(soc_cat == 99 ~ 0,
                              is.na(soc_cat) ~ 999,
                              TRUE ~ soc_cat)) %>%
   mutate(ns_sec = case_when(is.na(ns_sec) ~ 999,
                             TRUE ~ ns_sec))
+"""
 
 nhb_trips <- bind_rows(soc_nhb, ns_sec_nhb) %>%
   mutate(soc_cat = case_when(soc_cat == 99 ~ 0,
@@ -116,7 +115,7 @@ nhb_trips <- bind_rows(soc_nhb, ns_sec_nhb) %>%
 
 # Get trip rate
 trip_rates <- hb_trips %>%
-  left_join(nhb_trips, by=c('hb_purpose','soc_cat','ns_sec')) %>%
+  left_join(nhb_trips, by=c('hb_purpose')) %>%
   mutate(trip_rate = (nhb_trips/hb_trips)) %>%
   filter(ns_sec != -9,
          hb_purpose != 99,
