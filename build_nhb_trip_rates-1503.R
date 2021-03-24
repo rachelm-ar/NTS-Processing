@@ -12,8 +12,13 @@ classified_build <- read_csv('Y:/NTS/import/classified_nts_pre-weighting.csv')
 source(str_c(lookup_dir,"lookups.r"))
 
 classified_build <- classified_build %>%
-  mutate(trip_weights = W1 * W5 * W2) %>%
-  lu_ca()
+  mutate(trip_weights = W1 * W5 * W2)
+
+### Proof of concept for NHB method ###
+# Get 1 travel diary
+td <- classified_build %>%
+  filter(SurveyYear == 2019, IndividualID == 2019016037) %>%
+  unique()
 
 # Set up hb and nhb mode
 classified_build <- classified_build %>%
@@ -32,7 +37,6 @@ classified_build %>%
 hb_trips <- classified_build %>%
   filter(trip_origin == 'hb') %>%
   filter(TravelWeekDay_B01ID %in% c(1,2,3,4,5)) %>%
-  mutate(hb_mode = main_mode) %>%
   select(trip_origin,
          hb_purpose,
          hb_mode,
@@ -52,7 +56,6 @@ nhb_trips <- classified_build %>%
   filter(trip_origin == 'nhb') %>%
   filter(nhb_purpose != 99) %>%
   filter(TravelWeekDay_B01ID %in% c(1,2,3,4,5)) %>%
-  mutate(nhb_mode = main_mode) %>%
   select(trip_origin,
          nhb_mode,
          nhb_purpose,
