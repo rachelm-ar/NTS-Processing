@@ -56,12 +56,10 @@ hb_leg_info <- hb_trips %>%
 nhb_w_hb <- nhb_trips %>%
   left_join(hb_leg_info, by=c("IndividualID", "trip_group"))
 
-# Set up hb and nhb mode
-classified_build <- classified_build %>%
-  mutate(hb_mode = main_mode,
-         nhb_mode = main_mode,
-         )
-
+# TODO: Group and sum out the identifiers and the people
+# TODO: Turn into trip rate (nhb by p/m/nhbp/nhbm divided by hb by p/m)
+# TODO: Check against NTEM rates (IgammaNHBH)
+# TODO: Look at getting in SIC & SOC (can be in time split, not here)
 
 trip_rates %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_enh_trip_rates.csv'))
 
