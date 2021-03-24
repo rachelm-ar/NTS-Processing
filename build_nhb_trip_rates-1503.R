@@ -4,7 +4,9 @@ nts_dir <- "Y:/NTS/"
 lookup_dir <- str_c(nts_dir, "lookups/")
 
 # Read in classified output
+# Is this updated to the 19 data?
 classified_build <- read_csv('Y:/NTS/import/classified_nts_pre-weighting.csv')
+# Check trip records are unique
 
 # Lookup functions
 source(str_c(lookup_dir,"lookups.r"))
@@ -29,7 +31,8 @@ classified_build %>%
 # SOC CATS
 hb_trips <- classified_build %>%
   filter(trip_origin == 'hb') %>%
-  filter(TravDay %in% c(1,2,3,4,5)) %>%
+  filter(TravelWeekDay_B01ID %in% c(1,2,3,4,5)) %>%
+  mutate(hb_mode = main_mode) %>%
   select(trip_origin,
          hb_purpose,
          hb_mode,
@@ -37,30 +40,28 @@ hb_trips <- classified_build %>%
   group_by(trip_origin,
            hb_purpose,
            hb_mode) %>%
-  summarise(hb_trips = sum(trip_weights)) %>%
+  summarise(hb_trips = sum(trip_weights, na.rm=TRUE)) %>%
   ungroup() %>%
   select(-trip_origin)
 
+
+# TODO: Find a way to get SIC SOC in??
+# TODO: Find a way to retain hb mode and purpose
+# TODO: How do you group trip chains to retain hb m/p (soc/ns)??
 nhb_trips <- classified_build %>%
   filter(trip_origin == 'nhb') %>%
   filter(nhb_purpose != 99) %>%
-  filter(TravDay %in% c(1,2,3,4,5)) %>%
+  filter(TravelWeekDay_B01ID %in% c(1,2,3,4,5)) %>%
+  mutate(nhb_mode = main_mode) %>%
   select(trip_origin,
          nhb_mode,
-         nhb_purpose_hb_leg,
          nhb_purpose,
-         soc_cat,
-         ns_sec,
          trip_weights) %>%
   group_by(trip_origin,
            nhb_mode,
-           nhb_purpose_hb_leg,
-           nhb_purpose,
-           soc_cat,
-           ns_sec) %>%
-  summarise(nhb_trips = sum(trip_weights)) %>%
+           nhb_purpose) %>%
+  summarise(nhb_trips = sum(trip_weights, na.rm=TRUE)) %>%
   ungroup() %>%
-  rename(hb_purpose = nhb_purpose_hb_leg) %>%
   select(-trip_origin)
 
 
