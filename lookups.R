@@ -1,8 +1,20 @@
 join_lookup <- function(df, lookup_csv, keys, id,
-                        filter_id = FALSE, filter_na = FALSE) {
+                        filter_id = FALSE, 
+                        filter_na = FALSE,
+                        variable_expansion = FALSE) {
+  
+  lookup_dir <- "Y:/NTS/lookups/"
   
   # Read in lookup csv
   lookup <- read_csv(str_c(lookup_dir, lookup_csv, ".csv"))
+  
+  # Expand variable if reqired
+  
+  if(variable_expansion != FALSE) {
+    
+    lookup <- expand_variable(lookup, keys, id, variable_expansion)
+    
+  }
   
   # Merge df with lookup by keys
   df <- df %>%
@@ -22,8 +34,27 @@ join_lookup <- function(df, lookup_csv, keys, id,
     
   }
   
-  
   return(df)
+  
+}
+
+expand_variable <- function(lookup, keys, id, variable_expansion) {
+  
+  new_cols <- lookup %>% 
+    pull(variable_expansion) %>%
+    str_split(., "_") %>% 
+    map(length) %>% 
+    unlist() %>% 
+    max()
+  
+  lookup %>%
+    separate(!!sym(variable_expansion), into = str_c("x",seq(1:new_cols))) %>% 
+    pivot_longer(-c(keys[1], id)) %>% 
+    na.omit() %>% 
+    select(-name) %>%
+    rename(!!sym(variable_expansion) := value) %>% 
+    mutate(!!sym(variable_expansion) := as.integer(!!sym(variable_expansion)))
+  
   
 }
 
@@ -39,9 +70,10 @@ lu_trip_origin <- function(df){
 lu_hb_purpose <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "hb_purpose---TripPurpTo_B01ID",
-              keys = "TripPurpTo_B01ID",
-              id = "hb_purpose")
+                lookup_csv = "hb_purpose---TripPurpTo_B01ID",
+                keys = c("TripPurpTo_B01ID", "MainMode_B04ID"),
+                id = "hb_purpose",
+                variable_expansion = "MainMode_B04ID")
   
 }
 
@@ -49,8 +81,9 @@ lu_nhb_purpose_hb_leg <- function(df){
   
   join_lookup(df = df,
               lookup_csv = "nhb_purpose_hb_leg---TripPurpFrom_B01ID",
-              keys = "TripPurpFrom_B01ID",
-              id = "nhb_purpose_hb_leg")
+              keys = c("TripPurpFrom_B01ID", "MainMode_B04ID"),
+              id = "nhb_purpose_hb_leg",
+              variable_expansion = "MainMode_B04ID")
   
 }
 
@@ -125,8 +158,8 @@ lu_soc_cat<- function(df){
 lu_start_time <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "start_time---TravDay--TripStart_B01ID",
-              keys = c("TravDay", "TripStart_B01ID"),
+              lookup_csv = "start_time---TravelWeekDay_B01ID--TripStart_B01ID",
+              keys = c("TravelWeekDay_B01ID", "TripStart_B01ID"),
               id = "start_time")
   
 }
@@ -134,8 +167,8 @@ lu_start_time <- function(df){
 lu_end_time<- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "end_time---TravDay--TripEnd_B01ID",
-              keys = c("TravDay","TripEnd_B01ID"),
+              lookup_csv = "end_time---TravelWeekDay_B01ID--TripEnd_B01ID",
+              keys = c("TravelWeekDay_B01ID","TripEnd_B01ID"),
               id = "end_time")
   
 }
@@ -153,8 +186,8 @@ lu_area_type <- function(df){
 lu_tfn_area_type <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "tfn_area_type---HHoldOSWard_B01ID",
-              keys = "HHoldOSWard_B01ID",
+              lookup_csv = "tfn_area_type---PSUPSect",
+              keys = "PSUPSect",
               id = "tfn_area_type",
               filter_na = TRUE)
   

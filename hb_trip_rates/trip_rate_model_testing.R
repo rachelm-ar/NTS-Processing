@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 # NTS folder
 nts_dir <- "Y:/NTS/"
 
