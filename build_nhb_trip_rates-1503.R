@@ -7,9 +7,10 @@ lookup_dir <- str_c(nts_dir, "lookups/")
 source(str_c(lookup_dir,"lookups.r"))
 
 # Read in classified output
-classified_build <- read_csv('Y:/NTS/import/classified builds/classified_build.csv', guess_max=1000) %>%
+classified_build <- read_csv('Y:/NTS/import/unclassified_builds/unclassified_build_tfn.csv', guess_max=1000) %>%
   # Apply standard trip weighting
   mutate(trip_weights = W1 * W5 * W2)
+
 classified_build %>% select(SurveyYear) %>% distinct()
 
 retain_cols <- c("IndividualID", "soc_cat", "ns_sec", "TripID", "TravelWeekDay_B01ID", "main_mode", "TripPurpFrom_B01ID",
