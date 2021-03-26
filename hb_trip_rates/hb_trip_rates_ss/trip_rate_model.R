@@ -11,16 +11,28 @@
 #' 2. soc_sec_compare - trigger: soc_sec_weight = TRUE
 #'
 #' To run these functions, edit the arguments at the bottom of the script
-#' 
-#' TODO:
-#' 1. Weighting for 75+ people does not seem to be working correctly
-#' 2. Education trip rates are still down
-#' 3. Holiday trip rates are massively over predicting - I suspect the data inputted requires changing (maybe day trips should exclude walking trips)
-#' 4. Add Differentiation within year as a variable (SurveyYear)
-#' 5. Fix file path system
-#' 
 
-Read_packages <- function(packages_list){
+library(tidyverse)
+
+# NTS folder
+nts_dir <- "Y:/NTS/"
+
+# Imports folder
+import_dir <- str_c(nts_dir, "import/")
+
+# Outputs folder
+output_dir <- str_c(nts_dir, "outputs/hb_trip_rates/")
+
+# Lookups
+lookup_dir <- str_c(nts_dir, "lookups/")
+
+# Lookup functions
+source(str_c(lookup_dir,"lookups.r"))
+
+# Classified_nts_trip_rates
+hb_csv <- str_c(import_dir, "classified_nts_trip_rates.csv")
+
+read_packages <- function(packages_list){
   
   "
   Description
@@ -46,11 +58,11 @@ Read_packages <- function(packages_list){
   if(length(packages_new)) install.packages(packages_new)
   
   # Load packages
-  lapply(packages_list, require, character.only = TRUE)
+  #lapply(packages_list, require, character.only = TRUE)
   
 }
 
-Variable_status <- function(df, variables, nbr_formula){
+variable_status <- function(df, variables, nbr_formula){
   
   "
       Description
@@ -73,9 +85,8 @@ Variable_status <- function(df, variables, nbr_formula){
       "
   
   # Build an initial NBR model
-  int_model <- glm.nb(formula = nbr_formula,
-                      data = df,
-                      subset = train_ind)
+  int_model <- MASS::glm.nb(formula = nbr_formula,
+                      data = df)
   
   int_model_summ <- summary(int_model)
   
@@ -136,7 +147,7 @@ remove_combinations <- function(combs, vars){
   
 }
 
-Build_models <- function(combs, purpose_data, variables, j, nbr_formula){
+build_models <- function(combs, purpose_data, variables, j, nbr_formula){
   
   "
       Description
@@ -170,9 +181,8 @@ Build_models <- function(combs, purpose_data, variables, j, nbr_formula){
     ))
   
   # Build a Negative-bionomial regression model
-  nb_mod <- glm.nb(formula = nbr_formula,
-                   data = updated_df,
-                   subset = train_ind)
+  nb_mod <- MASS::glm.nb(formula = nbr_formula,
+                   data = updated_df)
   
   # Extract p-values and obtain number of segments, significant segments and aic
   p_val_summ <- nb_mod %>% summary()
@@ -263,7 +273,7 @@ Convert_travellertypes <- function(tt_unlist, k, new_data, i){
   
 }
 
-Post_processing <- function(trip_rates_df){
+post_processing <- function(trip_rates_df){
   
   "
       Description
@@ -289,45 +299,40 @@ Post_processing <- function(trip_rates_df){
       
       "
   
-  # Rename and filter
-  recoded_trip_rates <- trip_rates_df %>% 
+  # Rename columns
+  renamed_df <- trip_rates_df %>%
     rename(p = purpose,
+           area_type = tfn_area_type,
            soc = soc_cat,
            ns = ns_sec,
-           area_type = tfn_area_type, 
-           trip_rate = tfn_predictions) %>%
-    filter(ns != -9) %>%
-    mutate(soc = case_when(
-      soc == -9 ~ 0,
-      soc == 1 ~ 1,
-      soc == 2 ~ 2,
-      soc == 3 ~ 3,
-      soc == 99 ~ 99))
+           trip_rate = tfn_predictions)
   
-  # Recode Childrens
-  children_sorted <- recoded_trip_rates %>%
-    filter(traveller_type %in% c(1,2,3,4,5,6,7,8)) %>%
-    mutate(soc = 0) %>%
-    group_by(p, traveller_type, ns, area_type) %>%
-    summarise(trip_rate = mean(trip_rate)) %>%
-    ungroup() %>%
-    mutate(soc = 0) %>% 
+  # Purposes 1 and 2 transformations
+  purposes1_to_2 <- renamed_df %>%
+    filter(p %in% 1:2) %>%
+    filter((traveller_type %in% 1:8 & soc == 99) | traveller_type %in% 9:88) %>%
+    mutate(soc = ifelse(soc == 99, 0, soc),
+           ns = "none")
+  
+  # Purposes 3 to 8 transformations
+  purposes3_to_8 <- renamed_df %>%
+    filter(p %in% 3:8, ns != 99) %>%
+    mutate(soc = "none")
+  
+  # Bind together
+  df_out <- bind_rows(purposes1_to_2, purposes3_to_8) %>%
     select(p, traveller_type, soc, ns, area_type, trip_rate) %>%
-    arrange(p, traveller_type, soc, area_type, ns)
+    arrange(p, traveller_type, soc, ns, area_type)
   
-  # Remove children from trip rates
-  children_removed <- recoded_trip_rates %>% filter(!traveller_type %in% c(1,2,3,4,5,6,7,8))
-  
-  # Add children back with updated recoding
-  trip_rates_out <- bind_rows(children_sorted, children_removed)
-  
+  return(df_out)
+
 }
 
 #' TODO:
 #' 1. X and Y axis scale need to be identical
 #' 2. Fit titles in plots
 #' 3. There may be no need for overall_comparison function if I can get both purposes comparison and overall to function similarily
-purposes_comparison <- function(df){
+purposes_comparison <- function(df, purp_names){
   
   "
       Description
@@ -348,14 +353,28 @@ purposes_comparison <- function(df){
         
       "
   
+  axis_max <- df %>%
+    select(ntem, tfn) %>% 
+    max() %>%
+    ceiling()
+  
+  purposes_names <- c("Commute",
+                      "Business",
+                      "Education",
+                      "Shopping",
+                      "Personal Business",
+                      "Entertainment",
+                      "Visiting Friends",
+                      "Holiday/Trips")
+  
   purp_plots <- ggplot(data = df, aes(x = ntem, y = tfn)) +
     geom_point() + 
     geom_smooth(method = "lm", se=FALSE, color="red", formula=y~x) +
-    #labs(x = "NTEM trip rate", y = "TfN trip rate", title = paste0("NTEM vs TfN Trip Rates for purpose ", parent.frame()$i[])) + 
     theme(plot.title = element_text(hjust = 0.5)) + 
+    labs(x = "NTEM", y = "TfN", title = purp_names) +
     stat_poly_eq(formula = y ~ x, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE) + 
-    scale_x_continuous(expand = c(0, 0), limits = c(0, NA)) + 
-    scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+    scale_x_continuous(limits = c(0,axis_max)) +
+    scale_y_continuous(limits = c(0,axis_max))
   
 }
 
@@ -380,10 +399,17 @@ overall_comparison <- function(df){
         
       "
   
-  ggplot(data = df, aes(x = ntem, y = tfn)) +
+  axis_max <- df %>%
+    select(ntem, tfn) %>% 
+    max() %>%
+    ceiling()
+
+  ggplot(data = df, aes(x = ntem, y = tfn)) + 
     geom_point() + 
     geom_smooth(method = "lm", se=FALSE, color="red", formula = y ~ x) +
-    labs(x = "NTEM trip rate", y = "TfN trip rate", title = "NTEM vs TfN Trip Rates") +
+    labs(x = "NTEM trip rate", y = "TfN trip rate", title = "TfN vs NTEM Trip Rates") +
+    scale_x_continuous(limits = c(0,axis_max)) +
+    scale_y_continuous(limits = c(0,axis_max)) +
     theme(plot.title = element_text(hjust = 0.5)) + 
     stat_poly_eq(formula = y ~ x, aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), parse = TRUE)
   
@@ -467,29 +493,28 @@ tfn_vs_ntem <- function(tfn_df, tfn_trip_rates_csv, ntem_csv, post_model = FALSE
   
   # Plot of Ntem trip rates against TfN trip rates with regression line
   overall_plot <- overall_comparison(trip_rates)
-  
+    
   # Plot of traveller types Ntem trip rates against TfN trip rates with regression line
   tt_comparison_plot <- overall_comparison(tt_comparison_df)
   
   # Plots of Ntem trip rates against TfN trip rates split by purpose
   purposes_split <- trip_rates %>% group_split(purpose)
   
-  purposes_plot <- do.call(grid.arrange, c(lapply(purposes_split, purposes_comparison), nrow=4, ncol=2))
+  purposes_plot <- do.call(grid.arrange, c(mapply(purposes_comparison, purposes_split, purposes_names, SIMPLIFY = FALSE), nrow=4, ncol=2))
   
   # Save all plots and dataframes
+  purposes_comparison_df %>% write_csv("Y:/NTS/outputs/hb_trip_rates/Comparisons/ntem_vs_tfn_purposes.csv")
   
-  purposes_comparison_df %>% write_csv("Y:/NTS/TfN_Trip_Rates/Plots/ntem_vs_tfn_purposes.csv")
+  tt_comparison_df %>% write_csv("Y:/NTS/outputs/hb_trip_rates/ntem_vs_tfn_tt.csv")
   
-  tt_comparison_df %>% write_csv("Y:/NTS/TfN_Trip_Rates/Plots/ntem_vs_tfn_tt.csv")
-  
-  ggsave(filename = "Y:/NTS/TfN_Trip_Rates/Plots/ntem_vs_tfn.jpg",
+  ggsave(filename = "Y:/NTS/outputs/hb_trip_rates/Plots/ntem_vs_tfn.jpg",
          plot = overall_plot)
   
-  ggsave(filename = "Y:/NTS/TfN_Trip_Rates/Plots/ntem_vs_tfn_tt.jpg",
+  ggsave(filename = "Y:/NTS/outputs/hb_trip_rates/Plots/ntem_vs_tfn_tt.jpg",
          plot = tt_comparison_plot)
   
-  ggsave(filename = "Y:/NTS/TfN_Trip_Rates/Plots/ntem_vs_tfn_purposes.jpg",
-         plot = purposes_plot)
+  ggsave(filename = "Y:/NTS/outputs/hb_trip_rates/Plots/ntem_vs_tfn_purposes.jpg",
+         plot = purposes_plot, width = 25, height = 35, units = "cm")
   
 }
 
@@ -732,8 +757,6 @@ soc_sec_compare <- function(tfn_df, tfn_trip_rates_csv, production_csv, post_mod
       group_by(p) %>%
       summarise(trip_rate = mean(trip_rate)/5)
     
-    
-    
     tfn_trip_rates %>%
       filter(p %in% c(1,2)) %>%
       group_by(p, soc) %>%
@@ -803,7 +826,6 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
                      "tidyverse",
                      "sjstats",
                      "pscl",
-                     "survey",
                      "combinat",
                      "magrittr",
                      "rlang",
@@ -814,11 +836,14 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
                      "openxlsx",
                      "reshape2")
   
-  # Install (if not already) and load libraries
-  Read_packages(packages_list)
+  # Install (if not already)
+  read_packages(packages_list)
   
-  # Redefine select if masked by MASS
-  select <- dplyr::select
+  library(tidyverse)
+  library(openxlsx)
+  library(rlist)
+  library(ggpmisc)
+  library(gridExtra)
   
   # Optional Function 1 - tfn_vs_ntem comparison:
   if (tfn_vs_ntem_tr == TRUE){
@@ -850,14 +875,14 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
     
   } else {
     
-    print(paste("No Post Model options select - Running main"))
+    print(paste("No Post Model options selected - Running trip rates function"))
     
   }
   
   # Read in Weekly trip rates
   hb_df <- read_csv(hb_csv)
 
-  # Extract variable levels
+  # Exploratory variables
   variables <- c("age_work_status",
                  "gender", 
                  "hh_adults", 
@@ -866,8 +891,8 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
                  "ns_sec",
                  "tfn_area_type")
   
+  # Convert explanatory variables to factors
   hb_df <- hb_df %>%
-    filter(soc_cat != -8) %>%
     mutate_at(variables, .funs = factor, ordered = is.ordered(variables))
   
   # Classifications of each variable
@@ -876,7 +901,7 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
     sapply(levels)
 
   # Split data by purpose
-  purpose_df <- hb_df %>% group_split(trip_purpose)
+  purpose_df <- group_split(hb_df, trip_purpose)
   
   tfn_trip_rates <- list()
   final_df <- list()
@@ -884,9 +909,8 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
   
   for(i in 1:length(purpose_df)){
     
-    # Split data into 75% train and 25% test
-    smp_size <- floor(0.75*nrow(purpose_df[[i]]))
-    train_ind <<- sample(seq_len(nrow(purpose_df[[i]])), size = smp_size)
+    # Add a row indicator
+    p_df <- purpose_df[[i]]
     
     # SOC_CAT for commuting and business, NS-SEC for all others
     if(i %in% c(1,2)){
@@ -907,7 +931,7 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
     nbr_formula <- as.formula(paste("trip_rate", paste(vars, collapse = " + "), sep = " ~ "))
     
     # Run an initial model to detect which variables do not require further aggregation
-    var_status <- Variable_status(df = purpose_df[[i]], 
+    var_status <- variable_status(df = p_df, 
                                   variables = vars, 
                                   nbr_formula = nbr_formula)
     
@@ -985,10 +1009,19 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
         combinations <- lapply(combinations, remove_combinations, sig_vars)
         
         # This sets the first combination to default where no aggregation is taken place
-        combinations <- c("",compact(combinations))
+        combinations <- c("", compact(combinations))
+        
+        # Remove any combinations which combine with 99
+        remove99 <- which(sapply(combinations, function(x) any(str_detect(x, '99'))))
+        
+        if(!is_empty(remove99)){
+          
+          combinations <- combinations[-remove99]
+          
+        }
         
         # Build models and extract data frames and selection criteria results
-        mod_results <- lapply(combinations, Build_models, purpose_data = purpose_data, variables = vars, j = j, nbr_formula = nbr_formula)
+        mod_results <- lapply(combinations, build_models, purpose_data = purpose_data, variables = vars, j = j, nbr_formula = nbr_formula)
         
         # Extract dataframes of aggregated segments
         results_df <- sapply(mod_results, function(x) x[1])
@@ -1009,7 +1042,7 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
           pull(n)
         
         # Update purpose_data with winning combination
-        purpose_data <- results_df %>% extract2(combination_winner)
+        purpose_data <- results_df %>% magrittr::extract2(combination_winner)
         
         if (j == length(vars)){
           
@@ -1030,9 +1063,8 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
     }
   
     # Build final model
-    final_model[[i]] <- glm.nb(formula = nbr_formula,
-                               data = final_df[[i]],
-                               subset = train_ind)
+    final_model[[i]] <- MASS::glm.nb(formula = nbr_formula,
+                               data = final_df[[i]])
     
     # Extract new variable levels
     new_levels <- final_df[[i]] %>%
@@ -1043,71 +1075,57 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
     # Calculate combinations of all variables
     new_data <- do.call("crossing", new_levels)
     
-    # Predict new trip rates
-    tfn_predictions <- predict(final_model[[i]], newdata = new_data, type = "response") %>% as.vector()
-    
-    # Fill in non-differential missing values for SEC (purpose 1 and 2) and SOC (all others)
-    if(i %in% c(1:2)){
+    if(i %in% 1:2) {
       
       new_data <- new_data %>%
-        mutate(tfn_predictions = tfn_predictions, ns_sec = "99")
+        group_by(age_work_status, gender, hh_adults, cars, soc_cat, tfn_area_type) %>%
+        summarise() %>%
+        mutate(ns_sec = '99') %>%
+        ungroup()
+      
+      # Predict new trip rates
+      tfn_predictions <- predict(final_model[[i]], newdata = new_data, type = "response") %>% as.vector()
+      
+      new_data <- mutate(new_data, tfn_predictions = tfn_predictions)
       
     } else {
       
       new_data <- new_data %>%
-        mutate(tfn_predictions = tfn_predictions, soc_cat = "99")
+        group_by(age_work_status, gender, hh_adults, cars, ns_sec, tfn_area_type) %>%
+        summarise() %>%
+        mutate(soc_cat = '99') %>%
+        ungroup()
+      
+      # Predict new trip rates
+      tfn_predictions <- predict(final_model[[i]], newdata = new_data, type = "response") %>% as.vector()
+      
+      new_data <- mutate(new_data, tfn_predictions = tfn_predictions)
       
     }
     
     # Convert to factors and unjoin any rows with the same trip rate
+    #new_data <- new_data %>%
+    #  mutate_at(variables, .funs = factor, ordered = is.ordered(variables)) %>% # Convert to factors
+    #  separate_rows(all_of(variables), sep = " Join ")
+    
     new_data <- new_data %>%
-      mutate_at(variables, .funs = factor, ordered = is.ordered(variables)) %>% # Convert to factors
-      separate_rows(all_of(variables), sep = " Join ")
+      separate_rows(age_work_status, sep = " Join ") %>%
+      separate_rows(hh_adults, sep = " Join ") %>%
+      separate_rows(cars, sep = " Join ") %>%
+      separate_rows(tfn_area_type, sep = " Join ") %>%
+      separate_rows(soc_cat, sep = " Join ") %>%
+      separate_rows(ns_sec, sep = " Join ")
+      
+    # Add traveller types by combining underlying variables and joining a lookup
+    new_data <- new_data %>%
+      unite("traveller_type_char", "age_work_status", "gender", "hh_adults", "cars", remove=FALSE, sep="_") %>%
+      lu_traveller_type() %>%
+      na.omit()
     
-    # Build traveller type list:
-    aws <- c(
-      rep("0-16_child"    , 8),
-      rep("16-74_fte"     , 8),
-      rep("16-74_pte"     , 8),
-      rep("16-74_stu"     , 8),
-      rep("16-74_unm"     , 8),
-      rep("75\\+_retired" , 8),
-      rep("16-74_fte"     , 8),
-      rep("16-74_pte"     , 8),
-      rep("16-74_stu"     , 8),
-      rep("16-74_unm"     , 8),
-      rep("75\\+_retired" , 8)
-    )
-    
-    gndr <- c(
-      rep("Male|Female"  , 8),
-      rep("Male"         , 40),
-      rep("Female"       , 40)
-    )
-    
-    crs <- rep(c("0", "1+", "0", "1", "2+", "0", "1", "2+"), 11)
-    
-    hha <- rep(c("1","1","2","2","2","3+","3+","3+"), 11)
-    
-    traveller_type_list <- list(age_work_status = aws,
-                                hh_adults = hha,
-                                cars = crs,
-                                gender = gndr)
-    
-    traveller_types_unlist <- traveller_type_list %>%
-      purrr::transpose() %>%
-      map(flatten_chr) %>%
-      lapply(as.list)
-    
-    # Convert Individual and Household characteristics to traveller types
-    tt_df <- mapply(Convert_travellertypes, 
-                    tt_unlist = traveller_types_unlist, 
-                    k = seq_along(traveller_types_unlist), 
-                    MoreArgs = list(new_data = new_data, i=i),
-                    SIMPLIFY = FALSE)
-    
-    # Collect all traveller types into a data frame
-    tfn_trip_rates[[i]] <- tt_df %>% bind_rows()
+    # Keep only the combinations in NTEM traveller types
+    tfn_trip_rates[[i]] <- new_data %>%
+      mutate(purpose = i) %>%
+      select(purpose, traveller_type, tfn_area_type, soc_cat, ns_sec, tfn_predictions)
     
     print(paste0("Completed Purpose ", i, ": ", Sys.time()))
     
@@ -1118,47 +1136,34 @@ hb_trip_rates <- function(hb_csv, tfn_trip_rates_csv, ntem_csv, production_csv,
     bind_rows() %>%
     arrange(purpose, traveller_type, tfn_area_type, soc_cat, ns_sec)
   
-  trip_rates_out <- Post_processing(tfn_trip_rates_result)
-  
-  # %>% mutate(soc = as.integer(soc)) - do this if using 99
-  trip_rates_out <- trip_rates_out %>% 
-    mutate(soc = case_when(
-      soc == "99" ~ "none",
-      soc == 0 & p %in% c(3:8) ~ "none",
-      TRUE ~ as.character(soc)))
-    
-  trip_rates_out <- trip_rates_out %>%
-    mutate(ns = case_when(
-      ns == "99" ~ "none",
-      TRUE ~ as.character(ns)))
+  trip_rates_out <- post_processing(tfn_trip_rates_result)
   
   print(paste0("Finished Post Processing"))
   
-  trip_rates_out %>% write_csv('Y:/NTS/TfN_Trip_Rates/hb_trip_rates_NBR_none_algo.csv')
+  trip_rates_out %>% write_csv("Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates_HA.csv")
   
-  print(paste0("Finished saving trip rates csv"))
+  #print(paste0("Finished saving trip rates csv"))
   
   # Comparison of tfn and ntem
-  tfn_vs_ntem(tfn_df = trip_rates_out, ntem_csv = ntem_csv_input)
+  #tfn_vs_ntem(tfn_df = trip_rates_out, ntem_csv = ntem_csv_input)
   
-  print(paste0("Finished tfn vs ntem comparison"))
+  #print(paste0("Finished tfn vs ntem comparison"))
   
   # Comparison of SOC and SEC
-  soc_sec_compare(tfn_df = trip_rates_out)
+ #soc_sec_compare(tfn_df = trip_rates_out)
   
-  print(paste0("Finished SOC and SEC comparison"))
+  #print(paste0("Finished SOC and SEC comparison"))
   
 }
 
-# Path for trip rates input from trip_rate_pre_processing.R
-hb_csv <- "C:/Users/Pluto/Documents/Trip_rate_testing/trip_rate_model_input_test.csv"
+# Triggers for post model processing
+tfn_vs_ntem_tr = FALSE
+soc_sec_weight = FALSE
 
-#hb_trip_rates(hb_csv = hb_csv,
-#              tfn_vs_ntem_tr = FALSE,
-#              soc_sec_weight = FALSE)
+#hb_trip_rates(hb_csv = hb_csv)
 
 ## Path for ntem trip rates
-#ntem_csv <- "Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv"
+ntem_csv <- "Y:/NorMITs Synthesiser/import/ntem_trip_rates_2016.csv"
 #
 ## Path to tfn_trip_rates csv for post model procesing
 #tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv"
@@ -1166,14 +1171,13 @@ hb_csv <- "C:/Users/Pluto/Documents/Trip_rate_testing/trip_rate_model_input_test
 ## Path to production csv from production model
 #production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_tp.csv"
 
-# Triggers for post model processing
-tfn_vs_ntem_tr = FALSE
-soc_sec_weight = FALSE
 
-#hb_trip_rates(hb_csv = hb_csv,
-#              tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv",
-#              ntem_csv = ntem_csv,
-#              production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_ns.csv",
-#              tfn_vs_ntem_tr = FALSE,
-#              soc_sec_weight = TRUE)
-#
+
+hb_trip_rates(hb_csv = hb_csv,
+              tfn_trip_rates_csv = "Y:/NorMITs Synthesiser/import/tfn_segment_production_params/hb_trip_rates.csv",
+              ntem_csv = ntem_csv,
+              production_csv = "Y:/NTS/TfN_Trip_Rates/trip_productions_ns.csv",
+              tfn_vs_ntem_tr = TRUE,
+              soc_sec_weight = TRUE)
+
+

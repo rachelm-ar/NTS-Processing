@@ -1,0 +1,387 @@
+---
+title: "TfN HB Trip Rates Data Assurance"
+author: "Humza Ali"
+date: "15/03/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.height = 4, fig.width = 7)
+```
+
+## Summary
+
+This documents walks through the methodology implemented to produce a processed data set ready for trip rates model building. This is a minimum reproducible example, where the aim is to reproduce Figure 3-1 in the [AECOM/ICL/ATKINS trip rates report](https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/662798/trip-rates.pdf)^[1. Provision of Travel Trends Analysis and Forecasting Model Research (page 17)]. This will be referred to as the 2016 trips rates report in this document.
+
+```{r aecom reproducing plot, echo = FALSE, warning = FALSE, message = FALSE}
+
+library(tidyverse)
+
+aecom_plot <- tibble(trip_purpose = c(rep("Commute", 11),
+                      rep("Employer's Business", 11),
+                      rep("Education", 11),
+                      rep("Shopping", 11),
+                      rep("Personal Business", 11),
+                      rep("Recreational", 11),
+                      rep("Visit Friends", 11),
+                      rep("Holiday", 11)),
+       year = c(rep(2002:2012, 8)),
+       trip_rate = c(2.25, 2.25, 2.28, 2.18, 2.17, 2.15, 2.08, 1.98, 2.00, 1.97, 1.97,
+                     0.24, 0.24, 0.28, 0.27, 0.26, 0.25, 0.24, 0.24, 0.23, 0.24, 0.25,
+                     0.57, 0.60, 0.58, 0.59, 0.56, 0.55, 0.56, 0.57, 0.60, 0.59, 0.62,
+                     2.23, 2.17, 2.16, 2.15, 2.26, 1.97, 2.09, 2.05, 2.02, 2.01, 1.96,
+                     0.95, 0.90, 0.90, 0.92, 0.88, 0.85, 0.87, 0.85, 0.84, 0.84, 0.82,
+                     0.99, 0.96, 0.97, 0.99, 0.98, 0.99, 0.95, 0.95, 0.94, 0.98, 0.98,
+                     0.99, 0.96, 0.97, 0.99, 0.95, 0.86, 0.88, 0.87, 0.85, 0.85, 0.84,
+                     0.24, 0.23, 0.28, 0.30, 0.30, 0.31, 0.35, 0.32, 0.31, 0.30, 0.29)) %>%
+  mutate(year = factor(year),
+         trip_purpose = factor(trip_purpose, levels = c("Commute", 
+                                                        "Employer's Business", 
+                                                        "Education", 
+                                                        "Shopping", 
+                                                        "Personal Business",
+                                                        "Recreational",
+                                                        "Visit Friends",
+                                                        "Holiday")))
+    
+aecom_plot %>% 
+  ggplot(aes(x = year, 
+             y = trip_rate,
+             group = trip_purpose,
+             colour = trip_purpose)) +
+  geom_line() +
+  geom_point() +
+  expand_limits(y = c(0,2.5)) +
+  scale_y_continuous(expand = c(0,0)) +
+  ylab("Trip Rate") +
+  xlab("Year") +
+  scale_color_manual(values = c("darkblue","pink","purple","darkred","darkorange","lightblue","green","grey")) +
+  theme(panel.background = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "solid" ,colour = "grey50"),
+        panel.grid.minor.y = element_blank())
+  
+  
+
+```
+
+By reproducing the data and Figure from the report above, TfN can ascertain any discrepencies found from TfN's trip rate model to NTEM outputs is due to TfN's trip rates model and not the underlying data inserted into the model. This issue has been a cause for concern as outputs for education and recreational purposes do not align well with control outputs from NTEM, such as trip productions for the UK population etc. 
+
+Potential causes for any discrepencies have been identified as incorrect classifications from the NTS variable 'TripPurpTo_B01ID' to trip purpose or incorrect weighting method.
+
+The output at the end of this document is the closest we have been able to obtain by following the methodology in the above report and another report by the [DfT in 2009 by Ian Williams et all](https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/193908/trip-rates-report.pdf)^[2. Research into Changing Trip Rates over Time and Implications for the National Trip End Model: Final Report - Department for Transport]. This will be referred to as the 2009 trip rates report in this document.
+
+The first section details simple procesing of the data to replicate the number of individual records stated in the 2016 trip rates report. This is followed by defining the classifications of trip purpose.
+
+## Loading Dependencies and Processing data
+
+The code below is self-explanatory. Packages are loaded and the csv file containing an unclassified build of NTS Raw data is read.
+
+Variables of interest are selected and filtered to contain only data from 2002 to and including 2012. The diary sample is also selected.
+
+NOTE: You will need to install the packages if not already installed to run the source code.
+
+```{r cars, message = FALSE}
+library(dplyr)
+library(readr)
+library(stringr)
+library(tidyr)
+library(ggplot2)
+library(kableExtra)
+library(magrittr)
+library(htmltools)
+
+# Read in unclassified Build
+df <- read_csv("Y:/NTS/import/tfn_unclassified_build19.csv")
+
+# Select necessary columns to reproduce plot
+df <- df %>%
+  select(IndividualID, TripPurpFrom_B01ID, TripPurpTo_B01ID, MainMode_B04ID, TripDisIncSW, 
+         SurveyYear, W1, W2, W5, W5xHH)
+
+# Filter for same number of years as report and select the diary sample
+df <- df %>% 
+  filter(between(SurveyYear, 2002, 2012), 
+         W1 == 1)
+
+head(df)
+
+```
+
+The number of Individuals recorded is:
+
+```{r individual records, echo = FALSE}
+
+# Sanity check:
+n_distinct(df$IndividualID)
+
+```
+
+which matches the figure stated in the 2016 report. Therefore, up until now, the data extracted is correct. The sample sizes of individuals, households and trips by year has been confirmed by cross-checking with NTS reports and table 6.2 in the 2009 report.
+
+## Classifications of Trip Purpose
+
+The definition of trip purpose is based on Table 7.1 from the 2009 report. To match NTEM purpose's like for like, Purposes 4 & 5 are switched and Purposes 7 & 8 are switched. Thererfore, the correct classifications of trip purposes are defined as:
+
+```{r trip purpose classifications, echo=FALSE, results = "asis"}
+tibble(No = c(1, "",
+              2, "",
+              3, "",
+              4, "", "",
+              5, "", "",
+              6, "", "", "", "", "", "",
+              7, "",
+              8, ""),
+       `NTEM Purpose` = c("Commute", "",
+                        "EB", "",
+                        "Education", "",
+                        "Shopping", "", "",
+                        "PB", "", "", 
+                        "Recreation", rep("", 6),
+                        "Visit Friend", "",
+                        "Holiday", ""),
+       Composition = c("Work", 
+                       "Escort to Work",
+                       "In course of work", 
+                       "Escort in course of work",
+                       "Education", 
+                       "Escort Education",
+                       "Food Shopping",
+                       "Non-Food Shopping",
+                       "Escort PB/Shopping",
+                       "PB Medical",
+                       "PB eat/drink",
+                       "PB Other",
+                       "Eat/drink W friends",
+                       "Other Social",
+                       "Entertainment",
+                       "Sport", 
+                       "Day trip (just walk trips)",
+                       "Other non-escort", 
+                       "Other escort",
+                       "Visit friends",
+                       "Escort Home",
+                       "Holiday",
+                       "Day Trip (Excluding Just Walk Trips)"),
+       `NTS Classification` = c("TripPurpTo_B01ID == 1",
+                              "TripPurpTo_B01ID == 18",
+                              "TripPurpTo_B01ID == 2",
+                              "TripPurpTo_B01ID == 19",
+                              "TripPurpTo_B01ID == 3",
+                              "TripPurpTo_B01ID == 20",
+                              "TripPurpTo_B01ID == 4",
+                              "TripPurpTo_B01ID == 5",
+                              "TripPurpTo_B01ID == 21",
+                              "TripPurpTo_B01ID == 6",
+                              "TripPurpTo_B01ID == 7",
+                              "TripPurpTo_B01ID == 8",
+                              "TripPurpTo_B01ID == 9",
+                              "TripPurpTo_B01ID == 11",
+                              "TripPurpTo_B01ID == 12",
+                              "TripPurpTo_B01ID == 13",
+                              "TripPurpTo_B01ID == 15 & MainMode_B04ID == 1",
+                              "TripPurpTo_B01ID == 16",
+                              "TripPurpTo_B01ID == 22",
+                              "TripPurpTo_B01ID == 10",
+                              "TripPurpTo_B01ID == 17",
+                              "TripPurpTo_B01ID == 14",
+                              "TripPurpTo_B01ID == 15 & MainMode_B04ID != 1")) %>% 
+  kable(format = "markdown") %>% 
+  print(n = 23)
+```
+
+Classify trip purposes based on the above table:
+
+```{r classifcations}
+
+# Classify hb trip purposes for outbound only based on above:
+df <- df %>% 
+  filter(TripPurpFrom_B01ID == 23) %>% # Trips from Home only
+  mutate(trip_purpose = case_when(
+    TripPurpTo_B01ID == 1 ~ 1,
+    TripPurpTo_B01ID == 2 ~ 2,
+    TripPurpTo_B01ID == 3 ~ 3,
+    TripPurpTo_B01ID == 4 ~ 4, 
+    TripPurpTo_B01ID == 5 ~ 4, 
+    TripPurpTo_B01ID == 6 ~ 5,
+    TripPurpTo_B01ID == 7 ~ 5, 
+    TripPurpTo_B01ID == 8 ~ 5, 
+    TripPurpTo_B01ID == 9 ~ 6,
+    TripPurpTo_B01ID == 10 ~ 7, 
+    TripPurpTo_B01ID == 11 ~ 6, 
+    TripPurpTo_B01ID == 12 ~ 6,
+    TripPurpTo_B01ID == 13 ~ 6, 
+    TripPurpTo_B01ID == 14 ~ 8, 
+    TripPurpTo_B01ID == 15 & MainMode_B04ID == 1 ~ 6, 
+    TripPurpTo_B01ID == 15 & MainMode_B04ID != 1 ~ 8,
+    TripPurpTo_B01ID == 16 ~ 6, 
+    TripPurpTo_B01ID == 17 ~ 7, 
+    TripPurpTo_B01ID == 18 ~ 1,
+    TripPurpTo_B01ID == 19 ~ 2, 
+    TripPurpTo_B01ID == 20 ~ 3, 
+    TripPurpTo_B01ID == 21 ~ 4,
+    TripPurpTo_B01ID == 22 ~ 6))
+
+```
+
+## Short Walk weighting
+
+Although it is best practice to use the specified weights in the NTS for short walking trips, for this minimum reproducible example, we have simply put an if else function to calculate weights. The logic is, if a trip is under 1 mile and is a walking trip then we assign a short walk weight of 7, otherwise assign a default 1.
+
+```{r short walk trips}
+
+df <- mutate(df, sw_weight = ifelse(TripDisIncSW < 1 & MainMode_B04ID == 1, 7, 1))
+
+```
+
+
+## Apply trip weighting and prepare data set for model building
+
+The dataset has been filtered and trip purposes classified for home-based outbound trips only. The next step is to calculate weekly weighted trip rates. Two attempts are shown in this document to calculate a correct weighting for trips.
+
+1) Trip weights calculation - 2 attempts
+
+a. Ian Williams 2009 methodology: $W5xHH \times W2$
+
+There is a concern this weighting methodology is incorrect. The rationale behind this is as follows:
+
+$W5xHH = \frac{W5}{W2}$, therefore $W5 = W5xHH \times W2$. Thus, it is unclear why $W5$ cannot be substituted on behalf of this multiplication. If this is indeed correct, then we can simply use W5.
+
+b. NTS recommended methodology: $W5 \times W2$
+
+Therefore, this report will output 2 plots. One for each of the above scenarios.
+
+```{r weights}
+
+df <- df %>% 
+  mutate(IW_weight = W5xHH * W2 * sw_weight,
+         nts_weight = W5 * W2 * sw_weight)
+
+```
+
+where $sw\_weight$ is the short walk weight.
+
+2) Aggregate to obtain weekly trip rates for an individual by trip purpose
+
+```{r aggregate week, message = FALSE}
+
+df <- df %>% 
+  group_by(IndividualID, trip_purpose, SurveyYear, W2) %>% 
+  summarise(IW_weight = sum(IW_weight),
+            nts_weight = sum(nts_weight)) %>% 
+  ungroup()
+
+head(df)
+```
+
+3) Each indivdual must have a record for the total number of trips by trip purpose. If an individual has not recorded a trip for a certain trip purpose, we infill this trip purpose with 0 trips. Therefore, the total number of weekly trip records is: The number of Individuals * 8
+
+```{r individual weekly trips infill}
+df <- df %>% 
+  complete(nesting(IndividualID, SurveyYear, W2),
+           trip_purpose = 1:8,
+           fill = list(IW_weight = 0,
+                       nts_weight = 0))
+
+head(df)
+
+```
+
+4) To reproduce Figure 3-1, aggregate by year and trip purpose, and calculate the average trip rate = sum of trips/sum of indivduals weighted by household weight.
+
+```{r aggregate year and purpose, message = FALSE}
+df <- df %>% 
+  group_by(trip_purpose, SurveyYear) %>% 
+  summarise(IW_trip_rate = sum(IW_weight)/sum(W2),
+            nts_trip_rate = sum(nts_weight)/sum(W2)) %>% 
+  ungroup()
+
+```
+
+## Output
+
+```{r plot with IW weighting methodology, echo = FALSE, warning = FALSE}
+
+df <- df %>% 
+  mutate(trip_purpose = case_when(
+    trip_purpose == 1 ~ "Commute",
+    trip_purpose == 2 ~ "Employer's Business",
+    trip_purpose == 3 ~ "Education",
+    trip_purpose == 4 ~ "Shopping",
+    trip_purpose == 5 ~ "Personal Business",
+    trip_purpose == 6 ~ "Recreational",
+    trip_purpose == 7 ~ "Visit Friends",
+    trip_purpose == 8 ~ "Holiday/Day trip (Excl Walk)"
+  )) %>% 
+  mutate(SurveyYear = factor(SurveyYear),
+         trip_purpose = factor(trip_purpose, levels = c("Commute", 
+                                                        "Employer's Business", 
+                                                        "Education", 
+                                                        "Shopping", 
+                                                        "Personal Business",
+                                                        "Recreational",
+                                                        "Visit Friends",
+                                                        "Holiday/Day trip (Excl Walk)")))
+```
+
+A: 2009 report methodology - Weighted trips = $W5xHH \times W2$
+
+```{r IW method, echo = FALSE}
+  
+df %>% 
+  ggplot(aes(x = SurveyYear, 
+             y = IW_trip_rate,
+             group = trip_purpose,
+             colour = trip_purpose)) +
+  geom_line() +
+  geom_point() +
+  expand_limits(y = c(0,2.5)) +
+  scale_y_continuous(expand = c(0,0)) +
+  ylab("Trip Rate") +
+  xlab("Year") +
+  scale_color_manual(values = c("darkblue","pink","purple","darkred","darkorange","lightblue","green","grey")) +
+  theme(panel.background = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "solid" ,colour = "grey50"),
+        panel.grid.minor.y = element_blank())
+
+```
+
+B: NTS recommendation - Weighted trips = $W5 \times W2$
+
+```{r plot with nts weighting methodology tfn attempt, echo = FALSE, warning = FALSE}
+
+df %>% 
+  ggplot(aes(x = SurveyYear, 
+             y = nts_trip_rate,
+             group = trip_purpose,
+             colour = trip_purpose)) +
+  geom_line() +
+  geom_point() +
+  expand_limits(y = c(0,2.5)) +
+  scale_y_continuous(expand = c(0,0)) +
+  ylab("Trip Rate") +
+  xlab("Year") +
+  scale_color_manual(values = c("darkblue","pink","purple","darkred","darkorange","lightblue","green","grey")) +
+  theme(panel.background = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(linetype = "solid" ,colour = "grey50"),
+        panel.grid.minor.y = element_blank())
+
+```
+
+## Discussion
+
+Both outputs clearly do not match Figure 3-1 in the 2016 AECOM/ICL/ATKINS report. Output B seems to be the worst, whereas A exhibits signs of some association with the control figure. The control plot presents lower trip rates for recreational, visiting friends and education purposes. This is evident as the control figure has no purpose completely lie in the range of 1-2 trip rates, whereas the 2 outputs above have the suspected purposes within this range. 
+
+It is not clear where the discrepencies arise from. The NTS raw data has proven to be from the same extract as the 2016 and 2009 report. Therefore there needs to be further assurance on the procedure above to process the raw dataset to a dataset ready for hb trip rates model building.
+
+There are many talking points to go through, which would be more beneficial to discuss formally, however there are clear signs the data loosely follows the control but educational, recreational and visiting friends purposes are both far off from the control. These three purposes do not align well with TfN's trip rate model outputs to NTEM, therefore we hope to obtain some guidance on what is causing the discrepency which in turn will converge our model outputs to NTEM outputs. We suspect the trip purpose classifications and weighting methodology requires revisiting. Therefore our questions are:
+
+1) Are the classifications for trip purposes correct? Although some purposes in the 3 outputs above match the control figure well, they still do not match like-for-like which is expected as the same data is used.
+
+2) What is the correct weighting methdology?
+
+3) What is required to be adjusted or added in the process above to replicate the figure?

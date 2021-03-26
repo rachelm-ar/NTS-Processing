@@ -21,8 +21,6 @@ classified_build_dir <- str_c(import_dir, "classified_nts_pre-weighting.csv")
 # Read classified_pre_weighted trip rates
 classified_build <- read_csv(classified_build_dir)
 
-classified_build %>% count(main_mode)
-
 # Filter for hb purposes, remove london underground, redefine area types and define car availability
 classified_build1 <- classified_build %>%
   filter(trip_purpose %in% 1:8) %>%
@@ -33,8 +31,6 @@ classified_build1 <- classified_build %>%
 merge_temp <- classified_build1 %>% filter(tfn_area_type == '1') %>% mutate(tfn_area_type = '2')
 classified_build1 <- rbind(classified_build1, merge_temp)
 
-classified_build1 %>%
-  count(tfn_area_type)
 
 # Weight and summarise to mode splits
 mode_df <- classified_build %>%
