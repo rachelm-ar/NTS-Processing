@@ -3,21 +3,16 @@ library(tidyverse)
 nts_dir <- "Y:/NTS/"
 lookup_dir <- str_c(nts_dir, "lookups/")
 
-# Read in classified output
-# Is this updated to the 19 data?
-unclassified_build <- read_csv('Y:/NTS/import/tfn_unclassified_build_test.csv')
-# Check trip records are unique
-
 # Lookup functions
 source(str_c(lookup_dir,"lookups.r"))
 
-classified_build <- unclassified_build %>%
-  mutate(trip_weights = W1 * W5 * W2) %>%
-  lu_hb_purpose() %>%
-  lu_nhb_purpose() %>%
-  lu_trip_origin()
-  
-retain_cols <- c("IndividualID", "XSOC2000_B02ID", "NSSec_B03ID", "TripID", "TravDay", "MainMode_B04ID", "TripPurpFrom_B01ID",
+# Read in classified output
+classified_build <- read_csv('Y:/NTS/import/classified builds/classified_build.csv', guess_max=1000) %>%
+  # Apply standard trip weighting
+  mutate(trip_weights = W1 * W5 * W2)
+classified_build %>% select(SurveyYear) %>% distinct()
+
+retain_cols <- c("IndividualID", "soc_cat", "ns_sec", "TripID", "TravelWeekDay_B01ID", "main_mode", "TripPurpFrom_B01ID",
                  "TripPurpTo_B01ID", "TripStart_B01ID", "TripEnd_B01ID", "hb_purpose", "nhb_purpose", "trip_weights")
 
 cb_sub <- classified_build %>%
@@ -38,6 +33,11 @@ tour_groups <- cb_sub %>%
                               TRUE ~ 0)) %>%
   mutate(trip_group = cumsum(start_flag)) %>%
   ungroup()
+
+### Spotcheck some individuals
+individuals <- tour_groups %>% select(IndividualID) %>% distinct()
+i_test1 <- tour_groups %>%
+  filter(IndividualID == 2017016037)
 
 # Note - trip ID has to go
 hb_trips <- tour_groups %>%
