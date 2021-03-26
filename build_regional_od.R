@@ -29,7 +29,7 @@ target_names <- list("Teesside")
 if(length(target_counties) == length(target_names)){
 
   for(i in 1:length(target_counties)){
-    
+
     target_dat <- internal_external %>%
       mutate(agg_origin = case_when(
         TripOrigCounty_B01ID %in% target_counties ~ 'internal',
@@ -51,14 +51,14 @@ if(length(target_counties) == length(target_names)){
              agg_d_internal, agg_d_external) %>%
       rename(p = hb_purpose,
              m = main_mode)
-    
+
     if(remove_null){
       target_dat <- target_dat %>%
         filter(p != 99) %>%
         filter(m != 99)
     }
     # TODO: Check total length is 80 (8*5*2) or something dropped out
-    
+
     if(write){
       write_path <- paste0(export_path, target_names[[i]], '_i_e_factors.csv')
       target_dat %>% write_csv(write_path)

@@ -8,17 +8,17 @@
 require(tidyverse)
 
 # Path to tab files - should be SPSS equivalent?
-file <- 'C:/Users/ChristopherStorey/Documents/UKDA-7553-tab/tab'
-export <- 'C:/Users/ChristopherStorey/Documents'
+file <- 'D:/UKDA-7553-tab/tab'
+export <- 'D:/NTS/'
 
-attitudes_file_path = paste0(file, '/attitudes_special_2002-2019_protect.tab')
-days_file_path = paste0(file, '/day_special_2002-2019_protect.tab')
-individual_file_path <- paste0(file, '/individual_special_2002-2019_protect.tab')
-psu_id_file_path <- paste0(file, '/psu_special_2002-2019_protect.tab')
-household_file_path <- paste0(file, '/household_special_2002-2019_protect.tab')
-ldj_file_path <- paste0(file, '/ldj_special_2002-2019_protect.tab')
-trip_file_path <- paste0(file, '/trip_special_2002-2019_protect.tab')
-stage_file_path <- paste0(file, '/stage_special_2002-2019_protect.tab')
+attitudes_file_path = paste0(file, '/attitudesspecial2017_protect.tab')
+days_file_path = paste0('/dayspecial2017_protect.tab')
+individual_file_path <- paste0(file, '/individualspecial2017_protect.tab')
+psu_id_file_path <- paste0(file, '/psuspecial2017_protect.tab')
+household_file_path <- paste0(file, '/householdspecial2017_protect.tab')
+ldj_file_path <- paste0(file, '/ldjspecial2017_protect.tab')
+trip_file_path <- paste0(file, '/tripspecial2017_protect.tab')
+stage_file_path <- paste0(file, '/stagesecure2017_protect.tab')
 
 # TODO: Separate join to put trip and stage together for occupancy factors
 
@@ -33,12 +33,12 @@ household_cols <- c('PSUID',
                     'HouseholdID',
                     'HHoldOSWard_B01ID',
                     'HHoldOSLAUA_B01ID',
+                    'OutCom_B02ID',
                     'HHoldAreaType1_B01ID',
                     'HHoldNumAdults',
                     'NumCarVan_B02ID',
                     'W1',
-                    'W2',
-                    'W3')
+                    'W2')
 
 # For the purposes of NTEM replication, we the following will do:
 individual_cols <- c('PSUID',
@@ -53,24 +53,13 @@ individual_cols <- c('PSUID',
                      'DrivLic_B02ID',
                      'EcoStat_B01ID')
 
-days_cols = c('PSUID',
-              'IndividualID',
-              'HouseholdID',
-              'DayID',
-              'TravDay',
-              'TravelWeekDay_B01ID',
-              'TravelWeekDay_B02ID')
-
 # TODO: NTM purpose banding could be instructive: TripPurpose_B07ID
 
 trip_cols = c('PSUID',
               'HouseholdID',
               'IndividualID',
               'TripID',
-              'JJXSC',
-              'JOTXSC',
-              'JTTXSC',
-              'JD',
+              'TravDay',
               'MainMode_B04ID',
               'TripPurpFrom_B01ID',
               'TripPurpTo_B01ID',
@@ -84,14 +73,8 @@ trip_cols = c('PSUID',
               'TripDestCounty_B01ID',
               'TripOrigGOR_B02ID',
               'TripDestGOR_B02ID',
-              'TripDestUA2009_B01ID',
-              'TripOrigUA2009_B01ID',
-              'TripOrigAreaType1_B01ID',
-              'TripOrigAreaType2_B01ID',
-              'TripDestAreaType1_B01ID',
-              'TripDestAreaType2_B01ID',
               'W5',
-              'W5xHH')
+              'W5xHh')
 
 ldj_cols <- c('PSUID',
               'IndividualID',
@@ -123,26 +106,28 @@ psu_df <- read_delim(psu_id_file_path, delim = "\t", guess_max = 400000) %>%
 # older surveys that look uncompleted
 
 # Import household
-household_df <- read_delim(household_file_path, delim = "\t", guess_max = 1000) %>%
+household_df <- read_delim(household_file_path, delim = "\t", guess_max = 400000) %>%
   select(household_cols)
 
-# import individuals. 
-individual_df <- read_delim(individual_file_path, delim = "\t", guess_max = 1000) %>%
-  select(individual_cols)
+year_com_count <- household_df %>%
+  select(SurveyYear, OutCom_B02ID) %>%
+  group_by(SurveyYear, OutCom_B02ID) %>%
+  count()
 
-days_df <- read_delim(days_file_path, delim = "\t", guess_max = 1000) %>%
-  select(days_cols)
+# import individuals. 
+individual_df <- read_delim(individual_file_path, delim = "\t", guess_max = 400000) %>%
+  select(individual_cols)
 
 #  Import trips
 # Columns of interest:
-trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 1000) %>%
+trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 4000000) %>%
   select(trip_cols)
 
 # import ldj
-ldj_df <- read_delim(ldj_file_path, delim='\t', guess_max = 1000) %>%
+ldj_df <- read_delim(ldj_file_path, delim='\t', guess_max = 400000) %>%
   select(ldj_cols)
 
-stage_df <- read_delim(stage_file_path, delim='\t', guess_max = 1000) %>%
+stage_df <- read_delim(stage_file_path, delim='\t', guess_max = 5000000) %>%
   select(stage_cols)
 
 # Table Joins ####
@@ -151,29 +136,15 @@ stage_df <- read_delim(stage_file_path, delim='\t', guess_max = 1000) %>%
 nts_df <- psu_df %>%
   left_join(household_df, by = 'PSUID') %>%
   filter(!is.na(HouseholdID)) # Lots of NULL due to the household competitiveness - remove.
-rm(psu_df)
-rm(household_df)
-gc()
 
 nts_df <- nts_df %>%
   left_join(individual_df, by = c('PSUID', 'HouseholdID'))
-rm(individual_df)
-gc()
-
-nts_df <- nts_df %>%
-  left_join(days_df, by=c('PSUID', 'HouseholdID', 'IndividualID'))
-rm(days_df)
-gc()
 
 nts_df <- nts_df %>%
   left_join(trip_df, by=c('PSUID', 'HouseholdID', 'IndividualID'))
-rm(trip_df)
-gc()
 
 nts_df <- nts_df %>%
   left_join(ldj_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
-rm(ldj_df)
-gc()
 
 # LDJ TEST
 ldj_purp_count <- nts_df %>%
@@ -183,7 +154,5 @@ ldj_purp_count <- nts_df %>%
 
 nts_df <- nts_df %>%
   left_join(stage_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
-rm(stage_df)
-gc()
 
-nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build19.csv'))
+nts_df %>% write_csv(paste0(export, '/tfn_unclassified_build.csv'))

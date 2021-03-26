@@ -22,21 +22,20 @@ classified_build_dir <- str_c(import_dir, "classified_nts_pre-weighting.csv")
 classified_build <- read_csv(classified_build_dir)
 
 # Filter for hb purposes, remove london underground, redefine area types and gender for children
-classified_build1 <- classified_build %>%
+classified_build <- classified_build %>%
   filter(trip_purpose %in% 1:8) %>%
-  mutate(tfn_area_type = ifelse(tfn_area_type %in% c(1,2), 1, tfn_area_type),
-         gender = ifelse(age_work_status == 1, 2, gender))
+  mutate(tfn_area_type = ifelse(tfn_area_type %in% c(1,2), 1, tfn_area_type))
 
 # Redefine area type with both 1 and 2 as the same
-merge_temp <- classified_build1 %>% filter(tfn_area_type == '1') %>% mutate(tfn_area_type = '2')
-classified_build1 <- rbind(classified_build1, merge_temp)
+merge_temp <- classified_build %>% filter(tfn_area_type == '1') %>% mutate(tfn_area_type = '2')
+classified_build <- rbind(classified_build, merge_temp)
 
 # Add traveller types by combining underlying variables and joining a lookup
-classified_build1 <- classified_build1 %>%
+classified_build <- classified_build %>%
   unite("traveller_type_char", "age_work_status", "gender", "hh_adults", "cars", remove=FALSE, sep="_") %>%
   lu_traveller_type()
 
-time_df <- classified_build1 %>%
+time_df <- classified_build %>%
   mutate(weighted_trips = W1 * W2 * W5xHh) %>%
   select(IndividualID, hb_purpose, traveller_type, tfn_area_type, start_time, weighted_trips, W2) %>%
   group_by(IndividualID, hb_purpose, traveller_type, tfn_area_type, start_time, W2) %>%

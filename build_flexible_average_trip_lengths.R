@@ -5,7 +5,7 @@ require(tidyverse)
 # Def mile to km const
 M_TO_KM = 1.60934
 
-# Import ntem_build - NTEM segmented dataset 
+# Import ntem_build - NTEM segmented dataset
 nts_ntem_df <- read_csv('Y:/NTS/import/classified_nts_pre-weighting.csv', guess_max = 10^9)
 
 # Trip length in miles
@@ -89,7 +89,7 @@ build_atl <- function(nts_ntem_df,
                       ) {
 
   for(i in 1:nrow(target_params)){
-    
+
     # Filter down nts NTEM df
     trip_lengths <- nts_ntem_df %>%
       select(SurveyYear, TravDay, HHoldOSLAUA_B01ID, soc_cat, ns_sec, main_mode, hb_purpose, nhb_purpose,
@@ -190,29 +190,29 @@ build_atl <- function(nts_ntem_df,
     print(paste("Number of records:", sample_size))
 
     if(sample_size>0){
-    
+
       # Append to sample bin
       sz_bin <- bind_rows(sz_bin, c(param_name = param_name, sample=sample_size))
 
       # Get trip lengths only
       tlo <- trip_lengths$TripDisIncSW
       hist(tlo, breaks = c(25))
-    
+
       tlo_mean <- mean(tlo)*M_TO_KM
       tlo_sd <- sd(tlo)*M_TO_KM
-  
+
       atl_bin <- bind_rows(atl_bin, c(param_name = param_name, atl=tlo_mean))
 
       breaks <- target_bins$min
       names(breaks) <- NULL
-  
+
       # Name breaks
       tags <- NULL
       for (b in 1:nrow(target_bins)){
         target_bins$min[b]
         tags <- c(tags, paste0("(", target_bins$min[[b]], "-", target_bins$max[[b]], "]"))
       }
-    
+
       breaks <- c(breaks, target_bins$max[length(target_bins$max)])
 
       # Build placeholders for join
@@ -220,7 +220,7 @@ build_atl <- function(nts_ntem_df,
         as.tibble() %>%
         rename(tlb_desc = value) %>%
         mutate(ph=1)
-    
+
       purpose_frame <- purpose_sub %>%
         as.tibble() %>%
         rename(purpose = value) %>%
@@ -239,10 +239,10 @@ build_atl <- function(nts_ntem_df,
 
       # bucketing values into bins
       trip_lengths <- trip_lengths %>%
-        mutate(tlb_index = cut(TripDisIncSW, 
-                               breaks=breaks, 
-                               include.lowest=TRUE, 
-                               right=FALSE, 
+        mutate(tlb_index = cut(TripDisIncSW,
+                               breaks=breaks,
+                               include.lowest=TRUE,
+                               right=FALSE,
                                labels=FALSE)) %>%
         filter(purpose != 99 & !is.na(tlb_index)) %>%
         group_by(tlb_index, main_mode, purpose) %>%
@@ -255,7 +255,7 @@ build_atl <- function(nts_ntem_df,
       trip_lengths <- placeholder_frame %>%
         full_join(trip_lengths) %>%
         mutate(trips = replace_na(trips, 0))
-  
+
       # Get % share for each number of trips
       totals <- trip_lengths %>%
         select(tlb_desc, purpose, trips) %>%
@@ -276,7 +276,7 @@ build_atl <- function(nts_ntem_df,
       trip_lengths$atl <- trip_lengths$atl*M_TO_KM
 
       hist(trip_lengths$band_share)
-      
+
       trip_lengths %>% write_csv(paste0(export, target_trip_origin, "_tlb_", param_name, ".csv"))
       }
     }
