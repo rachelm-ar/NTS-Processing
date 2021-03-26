@@ -1,36 +1,3 @@
-library(readr)
-library(stringr)
-library(tidyr)
-library(dplyr)
-library(purrr)
-
-save_processed = TRUE
-build_type = "hb_trip_rates"
-unclassified_build_v <- "tfn_unclassified_build_no_stage19.csv"
-custom_export <- "C:/Users/Pluto/Documents/NTS/"
-custom_import = "C:/Users/Pluto/Documents/NTS/"
-
-classify_nts(unclassified_build_v = "tfn_unclassified_build_no_stage19.csv",
-             build_type = "hb_trip_rates",
-             save_processed = TRUE)
-
-source_lookups <- function(username){
-  
-  lookups_f_dir <- str_c("C:/Users/", username, 
-                         "/Documents/GitHub/NTS-Processing/lookups.R")
-  
-  if(file.exists(lookups_f_dir)){
-    
-    source(lookups_f_dir)
-    
-  } else {
-    
-    stop("Github Folder not in documents - add custom path 'lookups_dir' to lookups.R in NTS Processing")
-    
-  }
-  
-}
-
 classify_nts <- function(unclassified_build_v,
                          build_type,
                          save_processed = FALSE,
@@ -55,7 +22,7 @@ classify_nts <- function(unclassified_build_v,
                        str_c(nts_dir, "import/"),
                        custom_import)
   
-  column_names_dir <- str_c(import_dir, "classified_build_vars.csv")
+  column_names_dir <- str_c(import_dir, "columns_subset/classified_build_vars.csv")
   
   ub_dir <- str_c(import_dir, unclassified_build_v)
   
