@@ -1,13 +1,18 @@
+
+unclassified_build_v = "unclassified builds/unclassified_build_tfn.csv"
+
+# TODO: How are any of these supposed to be defined - got to give me some clues
+
 classify_nts <- function(unclassified_build_v,
                          build_type,
                          save_processed = FALSE,
                          custom_import = FALSE,
                          custom_export = FALSE){
-  
 
  # Load libraries ----------------------------------------------------------
   packages <- c("readr", "stringr", "tidyr", "dplyr", "purrr")
   library_c(packages)
+  require(tidyverse)
   
  # Initialise Directories/Read CSVS/Source R scripts -----------------------
   
@@ -50,6 +55,9 @@ classify_nts <- function(unclassified_build_v,
            PSUPSect = str_replace_all(PSUPSect, " ", "")) %>% 
     mutate(sw_weight = ifelse(TripDisIncSW < 1 & MainMode_B04ID == 1, 7, 1))
   
+  # TODO: Checks after steps
+  ub %>% count(SurveyYear)
+  
   # Classify Purposes -------------------------------------------------------
   ub <- ub %>%
     lu_trip_origin() %>% 
@@ -57,6 +65,9 @@ classify_nts <- function(unclassified_build_v,
     lu_nhb_purpose() %>% 
     lu_nhb_purpose_hb_leg() %>% 
     mutate(trip_purpose = ifelse(trip_origin == "hb", hb_purpose, nhb_purpose))
+  
+  # TODO: Checks after steps
+  ub %>% count(SurveyYear)
   
   # Classify Other variables ------------------------------------------------
   ub <- ub %>%
