@@ -1,49 +1,44 @@
 library(tidyverse)
 
-####
-
-username <- Sys.info()[[6]]
 nts_dir <- "Y:/NTS/"
-lookups_dir <- str_c(nts_dir, "lookups/")
-lookup_f_dir <- str_c("C:/Users/", username, "/Documents/GitHub/NTS-Processing/lookups.R")
-cb_dir <- str_c(nts_dir, "import/classified builds/classified_build.csv")
+lookup_dir <- str_c(nts_dir, "lookups/")
 
-if(file.exists(lookup_f_dir)){
-  
-  source(lookup_f_dir)
-  
-} else {
-  
-  stop("Github Folder not in documents - add custom path 'lookups_dir' to lookups.R in NTS Processing")
-  
-}
+# Lookup functions
+source(str_c(lookup_dir,"lookups.r"))
 
-retain_cols <- c("IndividualID", "XSOC2000_B02ID", "NSSec_B03ID", "TripID", "TravDay", "MainMode_B04ID", "TripPurpFrom_B01ID",
+# Read in classified output
+classified_build <- read_csv('Y:/NTS/import/classified builds/classified_build_tfn.csv', guess_max=1000) %>%
+  # Apply standard trip weighting
+  mutate(trip_weights = W1 * W5 * W2)
+
+classified_build %>% select(SurveyYear) %>% distinct()
+
+retain_cols <- c("IndividualID", "soc_cat", "ns_sec", "TripID", "TravelWeekDay_B01ID", "main_mode", "TripPurpFrom_B01ID",
                  "TripPurpTo_B01ID", "TripStart_B01ID", "TripEnd_B01ID", "hb_purpose", "nhb_purpose", "trip_weights")
 
-
-cb <- read_csv(cb_dir)
-cb1 <- cb
-
-cb2 <- cb1 %>%
-  filter(W1 == 1) %>% 
-  mutate(trip_weights = W5 * sw_weight) %>% 
-  select(any_of(retain_cols)) %>% 
+cb_sub <- classified_build %>%
+  select(retain_cols) %>%
   distinct()
 
-cb23 <- cb2
-
-tour_groups <- cb23 %>% 
-  arrange(IndividualID, TripID) %>% 
-  group_by(IndividualID) %>% 
-  mutate(start_flag = case_when(
-    TripPurpFrom_B01ID == 23 ~ 1,
-    TRUE ~ 0)) %>% 
-  mutate(end_flag = case_when(
-    TripPurpTo_B01ID == 23 ~ 1,
-    TRUE ~ 0)) %>% 
+### Proof of concept for NHB method ###
+# Get 1 travel diary
+# TODO: In prod retain some other survey characteristics or the join might fail
+tour_groups <- cb_sub %>%
+  #filter(IndividualID == 2015016037) %>% # IndividualID == 2019016037
+  unique() %>%
+  arrange(IndividualID, TripID) %>%
+  group_by(IndividualID) %>%
+  mutate(start_flag = case_when(TripPurpFrom_B01ID == 23 ~ 1,
+                                TRUE ~ 0)) %>%
+  mutate(end_flag = case_when(TripPurpTo_B01ID == 23 ~ 1,
+                              TRUE ~ 0)) %>%
   mutate(trip_group = cumsum(start_flag)) %>%
   ungroup()
+
+### Spotcheck some individuals
+individuals <- tour_groups %>% select(IndividualID) %>% distinct()
+i_test1 <- tour_groups %>%
+  filter(IndividualID == 2017016037)
 
 # Note - trip ID has to go
 hb_trips <- tour_groups %>%

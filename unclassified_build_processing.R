@@ -1,7 +1,21 @@
 
-unclassified_build_v = "unclassified builds/unclassified_build_tfn.csv"
+unclassified_build_v <- "unclassified builds/unclassified_build_tfn.csv"
+build_types <- c('hb_trip_rates', 'car_ownership')
 
-# TODO: How are any of these supposed to be defined - got to give me some clues
+define_nts_audit_params <- function(nts_dat){
+  ###
+  # Takes a fresh NTS import and defines params for audit
+  # Just gives survey year as a starter
+  ###
+  
+  unq_syear <- nts_dat %>%
+    select(SurveyYear) %>%
+    count(SurveyYear)
+  
+  return(unq_syear)
+  
+}
+
 
 classify_nts <- function(unclassified_build_v,
                          build_type,
@@ -10,8 +24,6 @@ classify_nts <- function(unclassified_build_v,
                          custom_export = FALSE){
 
  # Load libraries ----------------------------------------------------------
-  packages <- c("readr", "stringr", "tidyr", "dplyr", "purrr")
-  library_c(packages)
   require(tidyverse)
   
  # Initialise Directories/Read CSVS/Source R scripts -----------------------
@@ -27,6 +39,7 @@ classify_nts <- function(unclassified_build_v,
                        str_c(nts_dir, "import/"),
                        custom_import)
   
+  # TODO: I have found this
   column_names_dir <- str_c(import_dir, "columns_subset/classified_build_vars.csv")
   
   ub_dir <- str_c(import_dir, unclassified_build_v)
@@ -40,22 +53,27 @@ classify_nts <- function(unclassified_build_v,
   hb_trip_rates_export <- str_c(export_dir, "classified_build_hb trip rates.csv")
   car_availability_export <- str_c(export_dir, "classified_build_ca.csv")
   
-  ### Read
+  ### TODO: Read col names
   column_names <- read_csv(column_names_dir) %>%
     pull()
   
-  ub <- read_csv(ub_dir) %>% 
-    select(any_of(column_names))
+  ub <- read_csv(ub_dir) #%>%
+    # select(any_of(column_names))
+  
+  # Define audit params
+  # TODO: Expand this to cover more key variables, give acceptance parameters
+  nts_audit <- define_nts_audit_params(ub)
 
   # Pre-processing ----------------------------------------------------------
-  
+
   # Reformat Postcode and short walk weighting
   ub <- ub %>% 
     mutate(PSUPSect = str_replace(PSUPSect, "^(.*\\s.).*", "\\1"),
            PSUPSect = str_replace_all(PSUPSect, " ", "")) %>% 
     mutate(sw_weight = ifelse(TripDisIncSW < 1 & MainMode_B04ID == 1, 7, 1))
   
-  # TODO: Checks after steps
+  # TODO: Check function after steps, return nominal
+  # audit1 <- check_nts_processing(ub, nts_audit)
   ub %>% count(SurveyYear)
   
   # Classify Purposes -------------------------------------------------------
@@ -66,7 +84,7 @@ classify_nts <- function(unclassified_build_v,
     lu_nhb_purpose_hb_leg() %>% 
     mutate(trip_purpose = ifelse(trip_origin == "hb", hb_purpose, nhb_purpose))
   
-  # TODO: Checks after steps
+  # TODO: Checkfunction after steps return nominal
   ub %>% count(SurveyYear)
   
   # Classify Other variables ------------------------------------------------
@@ -82,6 +100,8 @@ classify_nts <- function(unclassified_build_v,
     lu_tfn_area_type() %>%
     mutate(ns_sec = ifelse(NSSec_B03ID == -9, 99, NSSec_B03ID))
   
+  ub %>% count(SurveyYear)
+
   if(save_processed) write_csv(ub, str_c(export_dir, "classified_build.csv"))
   
   if(build_type == "hb_trip_rates"){
@@ -103,7 +123,7 @@ classify_nts <- function(unclassified_build_v,
     
     write_csv(hb_trip_rates_build, str_c(export_dir, "hb_trip_rates_build.csv"))
     
-  } else if(build_type == "car_availability"){
+  } else if(build_type == "car_ownership"){
     
     car_availability <- ub %>% 
       select(EcoStat_B01ID, NumCarVan_B02ID, HHoldNumAdults, HHoldOSWard_B01ID, tfn_area_type, W1, W3) %>% 
@@ -113,7 +133,7 @@ classify_nts <- function(unclassified_build_v,
       ungroup() %>% 
       arrange(EcoStat_B01ID, HHoldOSWard_B01ID, HHoldNumAdults, tfn_area_type)
     
-    write_csv(car_availability, "C:/Users/Pluto/Documents/NTS/car_availability_build.csv")
+    write_csv(car_availability, "C:/Users/Pluto/Documents/NTS/car_ownership_build.csv")
     
   }
   
