@@ -7,9 +7,19 @@ lookup_dir <- str_c(nts_dir, "lookups/")
 source(str_c(lookup_dir,"lookups.r"))
 
 # Read in classified output
-classified_build <- read_csv('Y:/NTS/import/classified builds/classified_build_tfn.csv', guess_max=1000) %>%
+classified_build <- read_csv('Y:/NTS/import/classified builds/classified_build.csv', guess_max=1000) %>%
   # Apply standard trip weighting
   mutate(trip_weights = W1 * W5 * W2)
+
+# Read in NTEM CTripEnd rates
+ntem_nhb <- read_csv('I:/NorMITs Synthesiser/Docs/Ecosystem DfT NTEM/TripRates_for_TfN/IgammaNMHM/IgammaNMHM.csv')
+# Rename cols to match
+ntem_nhb <- ntem_nhb %>%
+  rename(nhb_p = N) %>%
+  rename(nhb_m = M) %>%
+  rename(hb_p = H) %>%
+  rename(hb_m = HBM) %>%
+  rename(trip_rate_ntem = Gamma)
 
 classified_build %>% select(SurveyYear) %>% distinct()
 
@@ -42,14 +52,14 @@ i_test1 <- tour_groups %>%
 
 # Note - trip ID has to go
 hb_trips <- tour_groups %>%
-  select(IndividualID, hb_purpose, MainMode_B04ID, trip_group, start_flag, trip_weights) %>%
+  select(IndividualID, hb_purpose, main_mode, trip_group, start_flag, trip_weights) %>%
   filter(start_flag == 1) %>%
-  rename(hb_mode = MainMode_B04ID)
+  rename(hb_mode = main_mode)
 
 nhb_trips <- tour_groups %>%
-  select(IndividualID, nhb_purpose, MainMode_B04ID, trip_group, start_flag, end_flag, trip_weights) %>%
+  select(IndividualID, nhb_purpose, main_mode, trip_group, start_flag, end_flag, trip_weights) %>%
   filter(start_flag == 0 & end_flag == 0) %>%
-  rename(nhb_mode = MainMode_B04ID)
+  rename(nhb_mode = main_mode)
 
 hb_leg_info <- hb_trips %>%
   select(IndividualID, hb_purpose, hb_mode, trip_group)
@@ -57,9 +67,18 @@ hb_leg_info <- hb_trips %>%
 nhb_w_hb <- nhb_trips %>%
   left_join(hb_leg_info, by=c("IndividualID", "trip_group"))
 
-# TODO: Group and sum out the identifiers and the people
+# Group and sum out the identifiers and the people
+hb_totals <- hb_trips %>%
+  group_by(hb_purpose, hb_mode) %>%
+  summarise(hb_trips = sum(trips_weights, na.rm=TRUE))
+
+nhb_totals <- nhb_w_hb %>%
+  group_by(nhb_purpose, nhb_mode, hb_purpose, hb_mode) %>%
+  summarise(nhb_trips = sum(trip_weights, na.rm=TRUE))
+
 # TODO: Turn into trip rate (nhb by p/m/nhbp/nhbm divided by hb by p/m)
 # TODO: Check against NTEM rates (IgammaNHBH)
+
 # TODO: Look at getting in SIC & SOC (can be in time split, not here)
 
 trip_rates %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_enh_trip_rates.csv'))
