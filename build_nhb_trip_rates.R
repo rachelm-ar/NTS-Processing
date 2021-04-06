@@ -6,6 +6,8 @@ lookup_dir <- str_c(nts_dir, "lookups/")
 # Lookup functions
 source(str_c(lookup_dir,"lookups.r"))
 
+# BACKLOG: Look at getting in SIC & SOC (can be in time split, not here)
+
 # Read in classified output
 classified_build <- read_csv('Y:/NTS/import/classified builds/classified_build.csv', guess_max=1000) %>%
   # Apply standard trip weighting
@@ -15,10 +17,10 @@ classified_build <- read_csv('Y:/NTS/import/classified builds/classified_build.c
 ntem_nhb <- read_csv('I:/NorMITs Synthesiser/Docs/Ecosystem DfT NTEM/TripRates_for_TfN/IgammaNMHM/IgammaNMHM.csv')
 # Rename cols to match
 ntem_nhb <- ntem_nhb %>%
-  rename(nhb_p = N) %>%
-  rename(nhb_m = M) %>%
-  rename(hb_p = H) %>%
-  rename(hb_m = HBM) %>%
+  rename(nhb_purpose = N) %>%
+  rename(nhb_mode = M) %>%
+  rename(hb_purpose = H) %>%
+  rename(hb_mode = HBM) %>%
   rename(trip_rate_ntem = Gamma)
 
 classified_build %>% select(SurveyYear) %>% distinct()
@@ -32,9 +34,12 @@ cb_sub <- classified_build %>%
 
 ### Proof of concept for NHB method ###
 # Get 1 travel diary
-# TODO: In prod retain some other survey characteristics or the join might fail
+
+# TODO: Weekday only
+weekday_codes = c()
+
 tour_groups <- cb_sub %>%
-  #filter(IndividualID == 2015016037) %>% # IndividualID == 2019016037
+  filter(TravelWeekDay_B01ID %in% weekday_codes) %>% # IndividualID == 2019016037
   unique() %>%
   arrange(IndividualID, TripID) %>%
   group_by(IndividualID) %>%
@@ -47,8 +52,6 @@ tour_groups <- cb_sub %>%
 
 ### Spotcheck some individuals
 individuals <- tour_groups %>% select(IndividualID) %>% distinct()
-i_test1 <- tour_groups %>%
-  filter(IndividualID == 2017016037)
 
 # Note - trip ID has to go
 hb_trips <- tour_groups %>%
@@ -70,50 +73,38 @@ nhb_w_hb <- nhb_trips %>%
 # Group and sum out the identifiers and the people
 hb_totals <- hb_trips %>%
   group_by(hb_purpose, hb_mode) %>%
-  summarise(hb_trips = sum(trips_weights, na.rm=TRUE))
+  summarise(hb_trips = sum(trip_weights, na.rm=TRUE)) %>%
+  ungroup()
 
 nhb_totals <- nhb_w_hb %>%
   group_by(nhb_purpose, nhb_mode, hb_purpose, hb_mode) %>%
-  summarise(nhb_trips = sum(trip_weights, na.rm=TRUE))
+  summarise(nhb_trips = sum(trip_weights, na.rm=TRUE)) %>%
+  ungroup()
 
-# TODO: Turn into trip rate (nhb by p/m/nhbp/nhbm divided by hb by p/m)
-# TODO: Check against NTEM rates (IgammaNHBH)
+# Turn into trip rate (nhb by p/m/nhbp/nhbm divided by hb by p/m)
+nhb_trip_rates <- nhb_totals %>%
+  left_join(hb_totals, by=c('hb_purpose', 'hb_mode')) %>%
+  mutate(nhb_trip_rate = nhb_trips/hb_trips)
 
-# TODO: Look at getting in SIC & SOC (can be in time split, not here)
+# Format for output
+nhb_trip_rates <- nhb_trip_rates %>%
+  filter(!is.na(hb_purpose))
+
+# Check against NTEM rates (IgammaNHBH)
+ntem_comparison <- nhb_trip_rates %>%
+  left_join(ntem_nhb, by=c('hb_purpose', 'hb_mode', 'nhb_purpose', 'nhb_mode'))
+
+# Format for output
+
+# Write out
+ntem_comparison %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_ntem.csv'))
 
 trip_rates %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_enh_trip_rates.csv'))
 
-# Post processing - replace 99 with 'none' - rename soc_cat = soc, ns_sec to ns
-# TODO: if you can do that in R is saves a job but might be awkwartd with data types
-
 # TODO: Revisit time split - using at least variables from NTS
+# DfT variables: params [n = nhb_p, m = nhb_m, r = tfn area type of hb origin], var [d = time split (1:4 AM, IP, PM, OP)]
+# TODO: Peg hb area type
 
-nhb_time_split <- classified_build %>%
-  filter(trip_origin == 'nhb') %>%
-  filter(nhb_purpose_hb_leg != 99) %>%
-  filter(nhb_purpose != 99) %>%
-  filter(TravDay %in% c(1,2,3,4,5)) %>%
-  filter(!is.na(start_time)) %>%
-  select(tfn_area_type,
-         ca,
-         nhb_purpose,
-         main_mode,
-         start_time,
-         trip_weights) %>%
-  group_by(tfn_area_type,
-           ca,
-           nhb_purpose,
-           main_mode,
-           start_time) %>%
-  summarise(time_trips = sum(trip_weights)) %>%
-  ungroup() %>%
-  group_by(tfn_area_type,
-           ca,
-           nhb_purpose,
-           main_mode) %>%
-  mutate(total_trips = sum(time_trips)) %>%
-  ungroup() %>%
-  mutate(time_share = time_trips/total_trips) %>%
-  select(-time_trips, -total_trips)
+time_splits <- process # placeholder
 
-nhb_time_split %>% write_csv(paste0(nts_dir, 'outputs/nhb_ave_wday_time_split.csv'))
+time_splits %>% write_csv(paste0(nts_dir, 'outputs/tfn_nhb_ave_wday_time_split_18.csv'))
