@@ -16,7 +16,7 @@ lookup_dir <- str_c(nts_dir, "lookups/")
 source(str_c(lookup_dir,"lookups.r"))
 
 # Unclassified build
-classified_build_dir <- str_c(import_dir, "classified_nts_pre-weighting.csv") 
+classified_build_dir <- str_c(import_dir, "/classified builds/classified_build.csv") 
 
 # Read classified_pre_weighted trip rates
 classified_build <- read_csv(classified_build_dir)
