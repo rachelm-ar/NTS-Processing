@@ -35,3 +35,14 @@ classify_nts(unclassified_build_v = "unclassified_build_tfn.csv",
              save_processed = TRUE,
              custom_import = "C:/Users/HumzaAli/Documents/NTS/",
              custom_export = "C:/Users/HumzaAli/Documents/NTS/")
+
+
+# NHB ---------------------------------------------------------------------
+
+# trip_rate = TRUE/FALSE - do you want to calculate new trip rates?
+# time_split = TRUE/FALSE - do you want to calculate new time splits?
+
+extract_nhb(drive = "Y",
+            user = user,
+            trip_rate = TRUE,
+            time_split = TRUE)
