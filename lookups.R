@@ -206,7 +206,7 @@ lu_ca <- function(df){
 lu_traveller_type <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "traveller_type---traveller_type_char",
-              keys = "traveller_type_char",
+              lookup_csv = "traveller_type---age_work_status--gender--hh_adults--cars",
+              keys = c("age_work_status", "gender", "hh_adults", "cars"),
               id = "traveller_type")
 }

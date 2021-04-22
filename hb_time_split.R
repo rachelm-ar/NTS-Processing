@@ -1,65 +1,111 @@
-library("tidyverse")
-
-# NTS folder
-nts_dir <- "Y:/NTS/"
-
-# Imports folder
-import_dir <- str_c(nts_dir, "import/")
-
-# Outputs folder
-output_dir <- str_c(nts_dir, "outputs/hb_time_split/")
-
-# Lookups
-lookup_dir <- str_c(nts_dir, "lookups/")
-
-# Lookup functions
-source(str_c(lookup_dir,"lookups.r"))
-
-# Unclassified build
-classified_build_dir <- str_c(import_dir, "/classified builds/classified_build.csv") 
-
-# Read classified_pre_weighted trip rates
-classified_build <- read_csv(classified_build_dir)
-
-# Filter for hb purposes, remove london underground, redefine area types and gender for children
-classified_build <- classified_build %>%
-  filter(trip_purpose %in% 1:8) %>%
-  mutate(tfn_area_type = ifelse(tfn_area_type %in% c(1,2), 1, tfn_area_type))
-
-# Redefine area type with both 1 and 2 as the same
-merge_temp <- classified_build %>% filter(tfn_area_type == '1') %>% mutate(tfn_area_type = '2')
-classified_build <- rbind(classified_build, merge_temp)
-
-# Add traveller types by combining underlying variables and joining a lookup
-classified_build <- classified_build %>%
-  unite("traveller_type_char", "age_work_status", "gender", "hh_adults", "cars", remove=FALSE, sep="_") %>%
-  lu_traveller_type()
-
-time_df <- classified_build %>%
-  mutate(weighted_trips = W1 * W2 * W5xHh) %>%
-  select(IndividualID, hb_purpose, traveller_type, tfn_area_type, start_time, weighted_trips, W2) %>%
-  group_by(IndividualID, hb_purpose, traveller_type, tfn_area_type, start_time, W2) %>%
-  summarise(weighted_trips = sum(weighted_trips, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(trips = weighted_trips/W2) %>%
-  select(hb_purpose, traveller_type, tfn_area_type, start_time, trips) %>%
-  group_by(hb_purpose, traveller_type, tfn_area_type, start_time, .drop = FALSE) %>%
-  summarise(tp_trips = sum(trips, na.rm = TRUE)) %>%
-  group_by(hb_purpose, traveller_type, tfn_area_type, .drop = FALSE) %>%
-  mutate(total_trips = sum(tp_trips),
-         time_split = tp_trips/total_trips) %>%
-  ungroup()
-
-# Transform into wide format and fill in missing values
-time_df <- time_df %>%
-  rename(p = hb_purpose, area_type = tfn_area_type) %>%
-  select(p, traveller_type, area_type, start_time, time_split) %>%
-  mutate_at(.vars = vars("p", "traveller_type", "area_type", "start_time"),
-            .funs = as.integer) %>%
-  mutate(p = as.integer(p), area_type = as.integer(area_type), start_time = as.integer(start_time)) %>%
-  complete(p = 1:8, traveller_type = 1:88, start_time = 1:6, area_type = 1:8, fill = list(time_split = 0)) %>%
-  pivot_wider(names_from = start_time, values_from = time_split, names_prefix = "tp") %>%
-  arrange(area_type, traveller_type, p) %>%
-  select(area_type, traveller_type, p, tp1, tp2, tp3, tp4, tp5, tp6)
-
-time_df %>% write_csv(str_c(output_dir, "hb_time_split.csv"))
+extract_hb_ts <- function(drive, user, weekday, week){
+  
+  library_list <- c("dplyr",
+                    "stringr",
+                    "readr",
+                    "tidyr")
+  
+  library_c(library_list)
+  
+ # Directories -------------------------------------------------------------
+  
+  y_dir <- "Y:/NTS/"
+  c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
+  nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
+  
+  import_dir <- str_c(nts_dir, "import/")
+  cb_dir <- str_c(import_dir, "classified builds/")
+  
+  export_dir <- str_c(nts_dir, "outputs/hb/hb_time_split/")
+  dir.create(export_dir, showWarnings = FALSE)
+  
+  # Read classified_build
+  cb <- read_csv(str_c(cb_dir, "classified_build.csv"))
+  
+ # Pre Processing ---------------------------------------------------------
+  
+  # Removing london Underground?
+  # Why redefinition of tfn area type?
+  # Children Genderless
+  cb <- cb %>% 
+    filter(trip_purpose %in% 1:8) %>% 
+    mutate(tfn_area_type = ifelse(tfn_area_type == 2, 1 , tfn_area_type),
+           gender = ifelse(age_work_status == 1, 2, gender))
+  
+  # Add this to classified build!
+  cb <- cb %>%
+    lu_traveller_type()
+  
+  # Add weights
+  cb <- mutate(cb, trip_weights = W1 * W2 * W5 * sw_weight)
+  
+ # Time Split - Week -------------------------------------------------------
+  
+  if(week){
+    
+    # Derive factors
+    ts_week <- cb %>% 
+      filter(!is.na(start_time)) %>% 
+      select(hb_purpose, traveller_type, tfn_area_type, start_time, trip_weights) %>% 
+      group_by(hb_purpose, traveller_type, tfn_area_type, start_time) %>%
+      summarise(total_trips = sum(trip_weights, na.rm = TRUE)) %>% 
+      group_by(hb_purpose, traveller_type, tfn_area_type) %>% 
+      mutate(time_split = total_trips/sum(total_trips)) %>% 
+      arrange(hb_purpose, traveller_type, tfn_area_type, start_time) %>% 
+      ungroup()
+    
+    # Reformat
+    ts_week <- ts_week %>%
+      rename(p = hb_purpose,
+             area_type = tfn_area_type) %>% 
+      select(p, traveller_type, area_type, start_time, time_split) %>%
+      mutate_at(.vars = vars("p", "traveller_type", "area_type", "start_time"),
+                .funs = as.integer)
+    
+    # Fill in missing and transform to wide
+    ts_week_wide <- ts_week %>%
+      complete(p = 1:8, traveller_type = 1:88, start_time = 1:6, area_type = 1:8, fill = list(time_split = 0)) %>% 
+      pivot_wider(names_from = start_time, values_from = time_split, names_prefix = "tp") %>% 
+      arrange(p, traveller_type, area_type) %>%
+      select(p, traveller_type, area_type, tp1, tp2, tp3, tp4, tp5, tp6)
+    
+    write_csv(ts_week_wide, str_c(export_dir, "hb_time_split_week.csv"))
+    
+  }
+  
+ # Time Split - Weekday ----------------------------------------------------
+  
+  if(weekday){
+    
+    # Derive factors
+    ts_weekday <- cb %>% 
+      filter(!is.na(start_time),
+             start_time %in% 1:4) %>% 
+      select(hb_purpose, traveller_type, tfn_area_type, start_time, trip_weights) %>% 
+      group_by(hb_purpose, traveller_type, tfn_area_type, start_time) %>%
+      summarise(total_trips = sum(trip_weights, na.rm = TRUE)) %>% 
+      group_by(hb_purpose, traveller_type, tfn_area_type) %>% 
+      mutate(time_split = total_trips/sum(total_trips)) %>% 
+      arrange(hb_purpose, traveller_type, tfn_area_type, start_time) %>% 
+      ungroup()
+    
+    # Reformat
+    ts_weekday <- ts_weekday %>%
+      rename(p = hb_purpose,
+             area_type = tfn_area_type) %>% 
+      select(p, traveller_type, area_type, start_time, time_split) %>%
+      mutate_at(.vars = vars("p", "traveller_type", "area_type", "start_time"),
+                .funs = as.integer)
+    
+    # Fill in missing and transform to wide
+    ts_weekday_wide <- ts_weekday %>%
+      complete(p = 1:8, traveller_type = 1:88, start_time = 1:4, area_type = 1:8, fill = list(time_split = 0)) %>% 
+      pivot_wider(names_from = start_time, values_from = time_split, names_prefix = "tp") %>% 
+      arrange(p, traveller_type, area_type) %>%
+      select(p, traveller_type, area_type, tp1, tp2, tp3, tp4)
+    
+    write_csv(ts_weekday_wide, str_c(export_dir, "hb_time_split_weekday.csv")) 
+    
+  }
+  
+}
