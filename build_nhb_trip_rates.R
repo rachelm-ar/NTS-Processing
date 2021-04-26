@@ -14,16 +14,15 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
   c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
   nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
   
-  import_dir <- str_c(nts_dir, "import/")
-  ctripend_dir <- str_c(import_dir, "ctripend/")
-  cb_dir <- str_c(import_dir, "classified builds/")
+  ctripend_dir <- str_c(nts_dir, "import/ctripend/")
+  cb_dir <- str_c(nts_dir, "classified builds/", cb_name, ".csv")
   
   export_dir <- str_c(nts_dir, "outputs/nhb/")
   
   # Read in -----------------------------------------------------------------
   
   # Classified build
-  cb <- read_csv(str_c(cb_dir, "classified_build.csv"))
+  cb <- read_csv(cb_dir)
   
   # NTEM nhb trip rates
   tr_control <- read_csv(str_c(ctripend_dir, "/IgammaNMHM/IgammaNMHM.csv"))

@@ -1,7 +1,3 @@
-
-unclassified_build_v <- "unclassified builds/unclassified_build_tfn.csv"
-build_types <- c('hb_trip_rates', 'car_ownership')
-
 define_nts_audit_params <- function(nts_dat){
   ###
   # Takes a fresh NTS import and defines params for audit
@@ -16,55 +12,53 @@ define_nts_audit_params <- function(nts_dat){
   
 }
 
-
-classify_nts <- function(unclassified_build_v,
+classify_nts <- function(user,
+                         ub_name,
+                         cb_columns_name,
                          build_type,
-                         save_processed = FALSE,
-                         custom_import = FALSE,
-                         custom_export = FALSE){
+                         drive,
+                         out_cb_name,
+                         save_processed = FALSE){
 
- # Load libraries ----------------------------------------------------------
-  require(tidyverse)
+  library_list <- c("dplyr",
+                    "stringr",
+                    "readr",
+                    "tidyr",
+                    "purrr")
+ 
+  library_c(library_list)
+
+# Directories -------------------------------------------------------------
   
- # Initialise Directories/Read CSVS/Source R scripts -----------------------
+  # Imports
+  y_dir <- "Y:/NTS/"
+  c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
+  nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
   
-  # Source R files
-  username <- Sys.info()[[6]]
-  source_lookups(username)
+  ub_dir <- str_c(nts_dir, "unclassified builds/", ub_name, ".csv")
+  cb_columns_dir <- str_c(nts_dir, "import/cb_columns/", cb_columns_name, ".csv")
   
-  ### Import Directories
-  nts_dir <- "Y:/NTS/" 
+  # Exports
+  export_dir <- str_c(nts_dir, "classified builds/")
+  dir.create(export_dir, showWarnings = FALSE)
   
-  import_dir <- ifelse(custom_import == FALSE, 
-                       str_c(nts_dir, "import/"),
-                       custom_import)
+  out_cb_dir <- str_c(export_dir, out_cb_name, ".csv")
+  out_hb_tr_dir <- str_c(export_dir, "cb_hb trip rates.csv")
+  out_ca_dir <- str_c(export_dir, "cb_ca.csv")
   
-  # TODO: I have found this
-  column_names_dir <- str_c(import_dir, "columns_subset/classified_build_vars.csv")
+  # Unclassified build
+  ub <- read_csv(ub_dir)
   
-  ub_dir <- str_c(import_dir, unclassified_build_v)
+  # Columns subset
+  cb_columns <- read_csv(cb_columns_dir) %>% pull()
   
-  ### Export Directories
-  export_dir <- ifelse(custom_export == FALSE, 
-                       str_c(import_dir, "classified builds/"),
-                       custom_export)
-  
-  classified_export <- str_c(export_dir, "classified_build.csv")
-  hb_trip_rates_export <- str_c(export_dir, "classified_build_hb trip rates.csv")
-  car_availability_export <- str_c(export_dir, "classified_build_ca.csv")
-  
-  ### TODO: Read col names
-  column_names <- read_csv(column_names_dir) %>%
-    pull()
-  
-  ub <- read_csv(ub_dir) #%>%
-    # select(any_of(column_names))
+  ub <- select(ub, all_of(cb_columns))
   
   # Define audit params
   # TODO: Expand this to cover more key variables, give acceptance parameters
   nts_audit <- define_nts_audit_params(ub)
 
-  # Pre-processing ----------------------------------------------------------
+ # Pre-processing ----------------------------------------------------------
 
   # Reformat Postcode and short walk weighting
   ub <- ub %>% 
@@ -102,7 +96,7 @@ classify_nts <- function(unclassified_build_v,
   
   ub %>% count(SurveyYear)
 
-  if(save_processed) write_csv(ub, str_c(export_dir, "classified_build.csv"))
+  if(save_processed) write_csv(ub, out_cb_dir)
   
   if(build_type == "hb_trip_rates"){
     
@@ -121,7 +115,7 @@ classify_nts <- function(unclassified_build_v,
                trip_purpose = 1:8,
                fill = list(weekly_trips = 0, trip_weights = 0, trip_rate = 0, W2 = 0))
     
-    write_csv(hb_trip_rates_build, str_c(export_dir, "hb_trip_rates_build.csv"))
+    write_csv(hb_trip_rates_build, out_hb_tr_dir)
     
   } else if(build_type == "car_ownership"){
     
@@ -133,7 +127,7 @@ classify_nts <- function(unclassified_build_v,
       ungroup() %>% 
       arrange(EcoStat_B01ID, HHoldOSWard_B01ID, HHoldNumAdults, tfn_area_type)
     
-    write_csv(car_availability, "C:/Users/Pluto/Documents/NTS/car_ownership_build.csv")
+    write_csv(car_availability, out_ca_dir)
     
   }
   

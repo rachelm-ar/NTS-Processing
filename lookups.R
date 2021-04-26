@@ -3,7 +3,7 @@ join_lookup <- function(df, lookup_csv, keys, id,
                         filter_na = FALSE,
                         variable_expansion = FALSE) {
   
-  lookup_dir <- "Y:/NTS/lookups/"
+  lookup_dir <- "C:/Users/Pluto/Documents/NTS_C/lookups/"
   
   # Read in lookup csv
   lookup <- read_csv(str_c(lookup_dir, lookup_csv, ".csv"))
@@ -12,7 +12,7 @@ join_lookup <- function(df, lookup_csv, keys, id,
   
   if(variable_expansion != FALSE) {
     
-    lookup <- expand_variable(lookup, keys, id, variable_expansion)
+    lookup <- expand_variable(lookup, id, variable_expansion)
     
   }
   
@@ -38,23 +38,22 @@ join_lookup <- function(df, lookup_csv, keys, id,
   
 }
 
-expand_variable <- function(lookup, keys, id, variable_expansion) {
+
+expand_variable <- function(lookup, id, variable_expansion){
   
-  new_cols <- lookup %>% 
-    pull(variable_expansion) %>%
-    str_split(., "_") %>% 
-    map(length) %>% 
-    unlist() %>% 
-    max()
+  variables_expanded <- map(variable_expansion, custom_separate, lookup, id)
   
-  lookup %>%
-    separate(!!sym(variable_expansion), into = str_c("x",seq(1:new_cols))) %>% 
-    pivot_longer(-c(keys[1], id)) %>% 
-    na.omit() %>% 
-    select(-name) %>%
-    rename(!!sym(variable_expansion) := value) %>% 
-    mutate(!!sym(variable_expansion) := as.integer(!!sym(variable_expansion)))
+  reduce(variables_expanded, left_join)
   
+}
+
+
+custom_separate <- function(variable_expand, lookup, id){
+  
+  lookup %>% 
+    separate_rows(variable_expand, sep = "_") %>%
+    mutate(!!variable_expand := as.double(!!sym(variable_expand))) %>% 
+    select(id, variable_expand)
   
 }
 
@@ -109,9 +108,10 @@ lu_age_work_status <- function(df){
   
   join_lookup(df = df,
               lookup_csv = "age_work_status--Age_B01ID---EcoStat_B01ID",
-              keys = c("Age_B01ID","EcoStat_B01ID"),
+              keys = c("Age_B01ID", "EcoStat_B01ID"),
               id = "age_work_status",
-              filter_na = TRUE)
+              filter_na = TRUE,
+              variable_expansion = c("Age_B01ID", "EcoStat_B01ID"))
   
 }
 
@@ -121,7 +121,8 @@ lu_cars <- function(df){
               lookup_csv = "cars---NumCarVan_B02ID--HHoldNumAdults",
               keys = c("NumCarVan_B02ID","HHoldNumAdults"),
               id = "cars",
-              filter_na = TRUE)
+              filter_na = TRUE,
+              variable_expansion = c("NumCarVan_B02ID","HHoldNumAdults"))
   
 }
 

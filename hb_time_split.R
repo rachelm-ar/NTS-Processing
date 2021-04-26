@@ -1,4 +1,8 @@
-extract_hb_ts <- function(drive, user, weekday, week){
+extract_hb_ts <- function(cb_name,
+                          drive, 
+                          user, 
+                          weekday, 
+                          week){
   
   library_list <- c("dplyr",
                     "stringr",
@@ -13,14 +17,13 @@ extract_hb_ts <- function(drive, user, weekday, week){
   c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
   nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
   
-  import_dir <- str_c(nts_dir, "import/")
-  cb_dir <- str_c(import_dir, "classified builds/")
+  cb_dir <- str_c(nts_dir, "classified builds/", cb_name, ".csv")
   
   export_dir <- str_c(nts_dir, "outputs/hb/hb_time_split/")
   dir.create(export_dir, showWarnings = FALSE)
   
   # Read classified_build
-  cb <- read_csv(str_c(cb_dir, "classified_build.csv"))
+  cb <- read_csv(cb_dir)
   
  # Pre Processing ---------------------------------------------------------
   

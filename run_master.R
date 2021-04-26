@@ -3,9 +3,9 @@ repo_dir <- paste0("C:/Users/", user, "/Documents/GitHub/NTS-Processing/")
 
 # Load custom functions
 source(paste0(repo_dir, "utils.R"))
+source(paste0(repo_dir, "lookups.R"))
 source(paste0(repo_dir, "extraction_script_trip_rates.R"))
 source(paste0(repo_dir, "unclassified_build_processing.R"))
-source(paste0(repo_dir, "lookups.R"))
 source(paste0(repo_dir, "build_nhb_trip_rates.R"))
 source(paste0(repo_dir, "hb_time_split.R"))
 source(paste0(repo_dir, "hb_mode_split.R"))
@@ -27,22 +27,35 @@ extract_raw_nts(import_dir = "C:/Users/HumzaAli/Documents/NTS/UKDA-7553-tab/tab/
 
 # Classified build --------------------------------------------------------
 
-# If you want to save time with reading:
-#   custom_import: directory in c drive to a folder which has
-#                   1. unclassified_build.csv
-#                   2. classified_build_vars.csv
-# If you want to save time with writing:
-#   custom_export: directory in c drive to save builds
+"
+ub_name: CSV name of unclassified build
 
-classify_nts(unclassified_build_v = "unclassified_build_tfn.csv",
+cb_columns_name: CSV name of vars to select in ub
+
+build_type: hb_trip_rates OR ca
+
+drive: Which drive?
+
+out_cb_name: name of classified_build out
+
+save_processed: TRUE - save classified build
+
+"
+
+build_types <- c('hb_trip_rates', 'car_ownership')
+
+classify_nts(user = user,
+             ub_name = "unclassified_build_tfn",
+             cb_columns_name = "classified_build_vars_tfn",
              build_type = "hb_trip_rates",
-             save_processed = TRUE,
-             custom_import = "C:/Users/HumzaAli/Documents/NTS/",
-             custom_export = "C:/Users/HumzaAli/Documents/NTS/")
+             drive = "Y",
+             out_cb_name = "classified_build_tfn",
+             save_processed = FALSE)
 
 # HB Time Split -----------------------------------------------------------
 
-extract_hb_ts(drive = "Y",
+extract_hb_ts(cb_name = "classified_build",
+              drive = "C",
               user = user,
               weekday = TRUE,
               week = TRUE)
@@ -50,15 +63,16 @@ extract_hb_ts(drive = "Y",
 
 # HB Mode Split -----------------------------------------------------------
 
-extract_hb_ms(drive = "Y",
+extract_hb_ms(cb_name = "classified_build",
+              drive = "C",
               user = user,
               weekday = TRUE,
               week = TRUE)
 
-
 # HB Time Mode Split ------------------------------------------------------
 
-extract_hb_mts(drive = "Y", 
+extract_hb_mts(cb_name = "classified_build",
+               drive = "C", 
                user = user)
 
 # NHB ---------------------------------------------------------------------
