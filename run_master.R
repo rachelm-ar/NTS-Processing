@@ -19,8 +19,8 @@ source(paste0(repo_dir, "hb_mode_time_split.R"))
 # extract_name: name of output csv
 # tsy: filter for travel survey year, remove if no filter
 
-extract_raw_nts(import_dir = "C:/Users/HumzaAli/Documents/NTS/UKDA-7553-tab/tab/",
-                export_dir = "C:/Users/HumzaAli/Documents/NTS/",
+extract_raw_nts(import_dir = "C:/Users/Pluto/Documents/NTS_C/UKDA-7553-tab/tab/",
+                export_dir = "C:/Users/Pluto/Documents/NTS_C/unclassified builds/",
                 extract_version = "tfn",
                 extract_name = "unclassified_build_tfn",
                 tsy = 2015:2019)
@@ -48,7 +48,7 @@ classify_nts(user = user,
              ub_name = "unclassified_build_tfn",
              cb_columns_name = "classified_build_vars_tfn",
              build_type = "hb_trip_rates",
-             drive = "Y",
+             drive = "C",
              out_cb_name = "classified_build_tfn",
              save_processed = FALSE)
 

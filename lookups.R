@@ -10,11 +10,14 @@ join_lookup <- function(df, lookup_csv, keys, id,
   
   # Expand variable if reqired
   
-  if(variable_expansion != FALSE) {
+  if(variable_expansion[1] != FALSE) {
     
-    lookup <- expand_variable(lookup, id, variable_expansion)
+    lookup <- reduce(variable_expansion, function(...) separate_rows(..., sep = "_"), .init = lookup)
     
   }
+  
+  # Convert to double
+  lookup <- mutate_at(lookup, all_of(keys), as.double)
   
   # Merge df with lookup by keys
   df <- df %>%
@@ -25,6 +28,7 @@ join_lookup <- function(df, lookup_csv, keys, id,
     
     df <- df %>%
       filter(is.na(get(id)) | get(id) != filter_id)
+    
   }
   
   if(filter_na != FALSE) {
@@ -39,68 +43,57 @@ join_lookup <- function(df, lookup_csv, keys, id,
 }
 
 
-expand_variable <- function(lookup, id, variable_expansion){
-  
-  variables_expanded <- map(variable_expansion, custom_separate, lookup, id)
-  
-  reduce(variables_expanded, left_join)
-  
-}
-
-
-custom_separate <- function(variable_expand, lookup, id){
-  
-  lookup %>% 
-    separate_rows(variable_expand, sep = "_") %>%
-    mutate(!!variable_expand := as.double(!!sym(variable_expand))) %>% 
-    select(id, variable_expand)
-  
-}
+# Trip Purposes -----------------------------------------------------------
 
 lu_trip_origin <- function(df){
   
   join_lookup(df = df,
               lookup_csv = "trip_origin---TripPurpFrom_B01ID",
               keys = "TripPurpFrom_B01ID",
-              id = "trip_origin")
+              id = "trip_origin",
+              variable_expansion = "TripPurpFrom_B01ID")
   
 }
 
 lu_hb_purpose <- function(df){
   
   join_lookup(df = df,
-                lookup_csv = "hb_purpose---TripPurpTo_B01ID",
-                keys = c("TripPurpTo_B01ID", "MainMode_B04ID"),
-                id = "hb_purpose",
-                variable_expansion = "MainMode_B04ID")
-  
-}
-
-lu_nhb_purpose_hb_leg <- function(df){
-  
-  join_lookup(df = df,
-              lookup_csv = "nhb_purpose_hb_leg---TripPurpFrom_B01ID",
-              keys = c("TripPurpFrom_B01ID", "MainMode_B04ID"),
-              id = "nhb_purpose_hb_leg",
-              variable_expansion = "MainMode_B04ID")
+              lookup_csv = "hb_purpose---TripPurpTo_B01ID--MainMode_B11ID",
+              keys = c("TripPurpTo_B01ID", "MainMode_B11ID"),
+              id = "hb_purpose",
+              variable_expansion = c("TripPurpTo_B01ID", "MainMode_B11ID"))
   
 }
 
 lu_nhb_purpose <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "nhb_purpose---TripPurpTo_B01ID",
-              keys = "TripPurpTo_B01ID",
-              id = "nhb_purpose")
+              lookup_csv = "nhb_purpose---TripPurpTo_B01ID--MainMode_B11ID",
+              keys = c("TripPurpTo_B01ID", "MainMode_B11ID"),
+              id = "nhb_purpose",
+              variable_expansion = c("TripPurpTo_B01ID", "MainMode_B11ID"))
   
 }
+
+lu_nhb_purpose_hb_leg <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "nhb_purpose_hb_leg---TripPurpFrom_B01ID--MainMode_B11ID",
+              keys = c("TripPurpFrom_B01ID", "MainMode_B11ID"),
+              id = "nhb_purpose_hb_leg",
+              variable_expansion = c("TripPurpFrom_B01ID", "MainMode_B11ID"))
+  
+}
+
+# Other variables ---------------------------------------------------------
 
 lu_gender <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "gender---Sex_B01ID",
-              keys = "Sex_B01ID",
-              id = "gender")
+              lookup_csv = "gender---Sex_B01ID--Age_B01ID",
+              keys = c("Sex_B01ID",  "Age_B01ID"),
+              id = "gender",
+              variable_expansion = c("Sex_B01ID",  "Age_B01ID"))
   
 }
 
@@ -115,44 +108,46 @@ lu_age_work_status <- function(df){
   
 }
 
-lu_cars <- function(df){
+lu_hh_type <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "cars---NumCarVan_B02ID--HHoldNumAdults",
-              keys = c("NumCarVan_B02ID","HHoldNumAdults"),
-              id = "cars",
-              filter_na = TRUE,
-              variable_expansion = c("NumCarVan_B02ID","HHoldNumAdults"))
+              lookup_csv = "hh_type--HHoldNumAdults---NumCarVan_B02ID",
+              keys = c("HHoldNumAdults", "NumCarVan_B02ID"),
+              id = "hh_type",
+              variable_expansion = c("HHoldNumAdults", "NumCarVan_B02ID"),
+              filter_na = TRUE)
   
 }
 
-lu_hh_adults <- function(df){
+lu_traveller_type <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "hh_adults---HHoldNumAdults",
-              keys = "HHoldNumAdults",
-              id = "hh_adults")
+              lookup_csv = "traveller_type---age_work_status--gender--hh_type",
+              keys = c("age_work_status", "gender", "hh_type"),
+              id = "traveller_type")
+}
+
+
+
+lu_soc_cat<- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "soc_cat---XSOC2000_B02ID--Age_B01ID",
+              keys = c("XSOC2000_B02ID", "Age_B01ID"),
+              id = "soc_cat",
+              variable_expansion = c("XSOC2000_B02ID", "Age_B01ID"),
+              filter_na = TRUE)
   
 }
 
 lu_main_mode <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "main_mode---MainMode_B04ID",
-              keys = "MainMode_B04ID",
+              lookup_csv = "main_mode---MainMode_B11ID",
+              keys = "MainMode_B11ID",
               id = "main_mode",
-              filter_id = 99,
+              variable_expansion = "MainMode_B11ID",
               filter_na = TRUE)
-  
-}
-
-lu_soc_cat<- function(df){
-  
-  join_lookup(df = df,
-              lookup_csv = "soc_cat---XSOC2000_B02ID",
-              keys = "XSOC2000_B02ID",
-              id = "soc_cat",
-              filter_id = -8)
   
 }
 
@@ -161,7 +156,9 @@ lu_start_time <- function(df){
   join_lookup(df = df,
               lookup_csv = "start_time---TravelWeekDay_B01ID--TripStart_B01ID",
               keys = c("TravelWeekDay_B01ID", "TripStart_B01ID"),
-              id = "start_time")
+              id = "start_time",
+              variable_expansion = c("TravelWeekDay_B01ID", "TripStart_B01ID"),
+              filter_na = TRUE)
   
 }
 
@@ -170,16 +167,8 @@ lu_end_time<- function(df){
   join_lookup(df = df,
               lookup_csv = "end_time---TravelWeekDay_B01ID--TripEnd_B01ID",
               keys = c("TravelWeekDay_B01ID","TripEnd_B01ID"),
-              id = "end_time")
-  
-}
-
-lu_area_type <- function(df){
-  
-  join_lookup(df = df,
-              lookup_csv = "area_type---HHoldAreaType1_B01ID",
-              keys = "HHoldAreaType1_B01ID",
-              id = "area_type",
+              id = "end_time",
+              variable_expansion = c("TravelWeekDay_B01ID", "TripEnd_B01ID"),
               filter_na = TRUE)
   
 }
@@ -194,20 +183,40 @@ lu_tfn_area_type <- function(df){
   
 }
 
-lu_ca <- function(df){
+tt1 <- read_csv("C:/Users/Pluto/Documents/NTS_C/lookups/traveller_type---age_work_status--gender--hh_type.csv")
+
+lookup = tt1
+keys = c("age_work_status", "gender", "hh_type", "hh_adults", "hh_cars", "ns_sec", "soc_cat")
+id = "traveller_type"
+variable_expansion <- keys
+
+reduce(variable_expansion, function(...) separate_rows(..., sep = "_"), .init = lookup)
+
+age_work_status	gender	hh_type	hh_adults	hh_cars	ns_sec	soc_cat
+
+
+join_lookup(df = df,
+            lookup_csv = "traveller_type---age_work_status--gender--hh_type",
+            keys = c("age_work_status", "gender", "hh_type"),
+            id = "traveller_type")
+
+rep(9:40, each = 4)
+
+9_10_11_12
+13_14_15_16
+
+
+
+output <- list()
+
+for(i in 9:88){
   
-  join_lookup(df = df,
-              lookup_csv = "ca---NumCarVan_B02ID",
-              keys = "NumCarVan_B02ID",
-              id = "ca",
-              filter_na = TRUE)
+  if(i %% 4 == 1){
+    
+    output[i] <- str_c(i, "_", i+1, "_", i+2, "_", i+3)
+    
+  }
   
 }
 
-lu_traveller_type <- function(df){
-  
-  join_lookup(df = df,
-              lookup_csv = "traveller_type---age_work_status--gender--hh_adults--cars",
-              keys = c("age_work_status", "gender", "hh_adults", "cars"),
-              id = "traveller_type")
-}
+

@@ -17,7 +17,7 @@ extract_raw_nts <- function(import_dir,
   trip_file_path <- str_c(import_dir, '/trip_special_2002-2019_protect.tab')
   stage_file_path <- str_c(import_dir, '/stage_special_2002-2019_protect.tab')
   
-  column_subsets_dir <- str_c("Y:/NTS/import/unclassified builds/column_subsets/extraction_cols_", 
+  column_subsets_dir <- str_c("Y:/NTS/import/ub_columns/extraction_cols_", 
                               extract_version , ".csv")
   
   ### Read in

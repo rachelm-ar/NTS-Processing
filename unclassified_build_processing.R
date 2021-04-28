@@ -82,6 +82,21 @@ classify_nts <- function(user,
   ub %>% count(SurveyYear)
   
   # Classify Other variables ------------------------------------------------
+  ub %>% lu_age_work_status() %>%
+    mutate(ns_sec = ifelse(NSSec_B03ID == -9, 99, NSSec_B03ID)) %>%
+    filter(age_work_status == 5, SurveyYear < 2010) %>% count(NSSec_B03ID)
+  
+  ub %>%
+    lu_gender() %>%
+    lu_age_work_status() %>%
+    lu_hh_type() %>%
+    lu_soc_cat()
+    lu_traveller_type() %>%
+    lu_main_mode() %>%
+    lu_start_time() %>%
+    lu_end_time()
+    lu_tfn_area_type()
+  
   ub <- ub %>%
     lu_gender() %>% 
     lu_age_work_status() %>% 
