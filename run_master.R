@@ -12,18 +12,14 @@ source(paste0(repo_dir, "hb_mode_split.R"))
 source(paste0(repo_dir, "hb_mode_time_split.R"))
 
 # Extraction Script -------------------------------------------------------
+"
+Only C drive support - read/write to C drive
 
-# import_dir: special license directory
-# export_dir: directory to export 
-# extract_version: what is this export for? name must be consistent with extraction_cols_'name'.csv
-# extract_name: name of output csv
-# tsy: filter for travel survey year, remove if no filter
+Have a folder called NTS_C in documents with specialise licence inside
 
-extract_raw_nts(import_dir = "C:/Users/Pluto/Documents/NTS_C/UKDA-7553-tab/tab/",
-                export_dir = "C:/Users/Pluto/Documents/NTS_C/unclassified builds/",
-                extract_version = "tfn",
-                extract_name = "unclassified_build_tfn",
-                tsy = 2015:2019)
+"
+
+create_ub(extract_version = "tfn", drive = "C")
 
 # Classified build --------------------------------------------------------
 
@@ -41,25 +37,21 @@ out_cb_name: name of classified_build out
 save_processed: TRUE - save classified build
 
 "
-
 build_types <- c('hb_trip_rates', 'car_ownership')
 
 classify_nts(user = user,
-             ub_name = "unclassified_build_tfn",
-             cb_columns_name = "classified_build_vars_tfn",
+             cb_version = "pr_freight",
              build_type = "hb_trip_rates",
              drive = "C",
-             out_cb_name = "classified_build_tfn",
-             save_processed = FALSE)
+             save_processed = TRUE)
 
 # HB Time Split -----------------------------------------------------------
 
-extract_hb_ts(cb_name = "classified_build",
+extract_hb_ts(cb_version = "tfn",
               drive = "C",
               user = user,
               weekday = TRUE,
               week = TRUE)
-
 
 # HB Mode Split -----------------------------------------------------------
 

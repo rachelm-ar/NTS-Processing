@@ -1,71 +1,62 @@
-extract_raw_nts <- function(import_dir,
-                            export_dir,
-                            extract_version,
-                            extract_name,
-                            tsy){
+read_custom_select <- function(file_path, col_name, column_subsets){
   
-  # Custom function to install if not already and load
-  library_c("tidyverse")
+  select_cols <- column_subsets %>%
+    pull(col_name) %>%
+    discard(is.na)
+  
+  read_delim(file_path, delim = "\t", guess_max = 1000) %>%
+    select(all_of(select_cols))
+  
+  
+}
+
+create_ub <- function(username = user,
+                      extract_version,
+                      drive,
+                      tsy = 2002:2019){
+  
+  # Load libraries
+  library_list <- c("stringr",
+                    "readr",
+                    "dplyr",
+                    "purrr")
+  
+  library_c(library_list)
+  
+# Paths -------------------------------------------------------------------
+  
+  nts_c_dir <- str_c("C:/Users/", username, "/Documents/NTS_C/")
+  
+  import_dir <- str_c(nts_c_dir, "UKDA-7553-tab/tab/")
+  
+  nts_dir <- ifelse(drive == "C", nts_c_dir, "Y:/NTS/")
+  
+  column_subsets_dir <- str_c(nts_dir, "import/ub_columns/extraction_cols_", extract_version , ".csv")
   
   # Paths
-  attitudes_path <- str_c(import_dir, '/attitudes_special_2002-2019_protect.tab')
-  days_file_path <-  str_c(import_dir, '/day_special_2002-2019_protect.tab')
-  individual_file_path <- str_c(import_dir, '/individual_special_2002-2019_protect.tab')
-  psu_id_file_path <- str_c(import_dir, '/psu_special_2002-2019_protect.tab')
-  household_file_path <- str_c(import_dir, '/household_special_2002-2019_protect.tab')
-  ldj_file_path <- str_c(import_dir, '/ldj_special_2002-2019_protect.tab')
-  trip_file_path <- str_c(import_dir, '/trip_special_2002-2019_protect.tab')
-  stage_file_path <- str_c(import_dir, '/stage_special_2002-2019_protect.tab')
+  attitudes_path <- str_c(import_dir, 'attitudes_special_2002-2019_protect.tab')
+  days_file_path <-  str_c(import_dir, 'day_special_2002-2019_protect.tab')
+  individual_file_path <- str_c(import_dir, 'individual_special_2002-2019_protect.tab')
+  psu_id_file_path <- str_c(import_dir, 'psu_special_2002-2019_protect.tab')
+  household_file_path <- str_c(import_dir, 'household_special_2002-2019_protect.tab')
+  ldj_file_path <- str_c(import_dir, 'ldj_special_2002-2019_protect.tab')
+  trip_file_path <- str_c(import_dir, 'trip_special_2002-2019_protect.tab')
+  stage_file_path <- str_c(import_dir, 'stage_special_2002-2019_protect.tab')
   
-  column_subsets_dir <- str_c("Y:/NTS/import/ub_columns/extraction_cols_", 
-                              extract_version , ".csv")
+  # export dir
+  export_dir <- str_c(nts_c_dir, "unclassified builds/ub_", extract_version, ".csv")
   
-  ### Read in
+# Read in -----------------------------------------------------------------
+  
   column_subsets <- read_csv(column_subsets_dir)
   
-  # TODO: build function in utils.r that will lapply over to avoid repetition
-  psu_cols <- column_subsets %>% 
-    pull(psu_cols) %>% 
-    discard(is.na) 
-  
-  household_cols <- column_subsets %>% 
-    pull(household_cols) %>% 
-    discard(is.na) 
-  
-  individual_cols <- column_subsets %>% 
-    pull(individual_cols) %>% 
-    discard(is.na) 
-  
-  days_cols <- column_subsets %>% 
-    pull(days_cols) %>% 
-    discard(is.na) 
-  
-  trip_cols <- column_subsets %>% 
-    pull(trip_cols) %>% 
-    discard(is.na) 
-  
-  ldj_cols <- column_subsets %>% 
-    pull(ldj_cols) %>% 
-    discard(is.na) 
-  
-  stage_cols <- column_subsets %>% 
-    pull(stage_cols) %>% 
-    discard(is.na) 
-  
-  psu_df <- read_delim(psu_id_file_path, delim = "\t", guess_max = 1000) %>% 
-    select(psu_cols)
-  
-  household_df <- read_delim(household_file_path, delim = "\t", guess_max = 1000) %>%
-    select(household_cols)
-  
-  individual_df <- read_delim(individual_file_path, delim = "\t", guess_max = 1000) %>%
-    select(individual_cols)
-  
-  days_df <- read_delim(days_file_path, delim = "\t", guess_max = 1000) %>%
-    select(days_cols)
-  
-  trip_df <- read_delim(trip_file_path, delim = "\t", guess_max = 1000) %>%
-    select(trip_cols)
+  psu_df <- read_custom_select(psu_id_file_path, "psu_cols", column_subsets)
+  household_df <- read_custom_select(household_file_path, "household_cols", column_subsets)
+  individual_df <- read_custom_select(individual_file_path, "individual_cols", column_subsets)
+  days_df <- read_custom_select(days_file_path, "days_cols", column_subsets)
+  trip_df <- read_custom_select(trip_file_path, "trip_cols", column_subsets)
+  ldj_df <- read_custom_select(ldj_file_path, "ldj_cols", column_subsets)
+  stage_df <- read_custom_select(stage_file_path, "stage_cols", column_subsets)
   
   nts_df <- psu_df %>%
     left_join(household_df, by = 'PSUID') %>%
@@ -80,10 +71,14 @@ extract_raw_nts <- function(import_dir,
   nts_df <- nts_df %>%
     left_join(trip_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'DayID'))
   
-  if(!missing(tsy)) nts_df <- filter(nts_df, SurveyYear %in% tsy)
+  #nts_df <- nts_df %>%
+  #  left_join(stage_df)
+  
+  nts_df <- nts_df %>%
+    filter(SurveyYear %in% tsy)
   
   nts_df %>% 
     na.omit() %>% 
-  write_csv(str_c(export_dir, extract_name, '.csv'))
+    write_csv(export_dir)
   
 }

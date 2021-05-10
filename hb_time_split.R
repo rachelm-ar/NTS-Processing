@@ -1,4 +1,4 @@
-extract_hb_ts <- function(cb_name,
+extract_hb_ts <- function(cb_version,
                           drive, 
                           user, 
                           weekday, 
@@ -17,7 +17,7 @@ extract_hb_ts <- function(cb_name,
   c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
   nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
   
-  cb_dir <- str_c(nts_dir, "classified builds/", cb_name, ".csv")
+  cb_dir <- str_c(nts_dir, "classified builds/cb_", cb_version, ".csv")
   
   export_dir <- str_c(nts_dir, "outputs/hb/hb_time_split/")
   dir.create(export_dir, showWarnings = FALSE)

@@ -1,3 +1,13 @@
+match_columns <- function(x, df, lookup){
+  
+  ub_class <- class(df[[x]])
+  
+  ub_class <- paste0("as.", ub_class)
+  
+  match.fun(ub_class)(lookup[[x]])
+  
+}
+
 join_lookup <- function(df, lookup_csv, keys, id,
                         filter_id = FALSE, 
                         filter_na = FALSE,
@@ -16,8 +26,15 @@ join_lookup <- function(df, lookup_csv, keys, id,
     
   }
   
-  # Convert to double
-  lookup <- mutate_at(lookup, all_of(keys), as.double)
+  # Convert to type in unclassified build
+  lu_cols <- colnames(lookup)
+  ub_cols <- colnames(df)
+  
+  common_cols <- lu_cols[lu_cols %in% ub_cols]
+  
+  lookup[common_cols] <- lapply(common_cols, match_columns, df, lookup)
+  
+  #lookup <- mutate_at(lookup, all_of(keys), as.double)
   
   # Merge df with lookup by keys
   df <- df %>%
@@ -41,7 +58,6 @@ join_lookup <- function(df, lookup_csv, keys, id,
   return(df)
   
 }
-
 
 # Trip Purposes -----------------------------------------------------------
 
@@ -111,10 +127,10 @@ lu_age_work_status <- function(df){
 lu_hh_type <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "hh_type--HHoldNumAdults---NumCarVan_B02ID",
-              keys = c("HHoldNumAdults", "NumCarVan_B02ID"),
+              lookup_csv = "hh_type--HHoldNumAdults---NumCarVan",
+              keys = c("HHoldNumAdults", "NumCarVan"),
               id = "hh_type",
-              variable_expansion = c("HHoldNumAdults", "NumCarVan_B02ID"),
+              variable_expansion = c("HHoldNumAdults", "NumCarVan"),
               filter_na = TRUE)
   
 }
@@ -122,20 +138,18 @@ lu_hh_type <- function(df){
 lu_traveller_type <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "traveller_type---age_work_status--gender--hh_type",
-              keys = c("age_work_status", "gender", "hh_type"),
-              id = "traveller_type")
+              lookup_csv = "traveller_type---age_work_status--gender--hh_type--soc--ns",
+              keys = c("age_work_status", "gender", "hh_type", "soc", "ns"),
+              id = c("tfn_traveller_type", "ntem_traveller_type"))
 }
 
-
-
-lu_soc_cat<- function(df){
+lu_soc <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "soc_cat---XSOC2000_B02ID--Age_B01ID",
-              keys = c("XSOC2000_B02ID", "Age_B01ID"),
-              id = "soc_cat",
-              variable_expansion = c("XSOC2000_B02ID", "Age_B01ID"),
+              lookup_csv = "soc---XSOC2000_B02ID--Age_B01ID--EcoStat_B01ID",
+              keys = c("XSOC2000_B02ID", "Age_B01ID", "EcoStat_B01ID"),
+              id = "soc",
+              variable_expansion = c("XSOC2000_B02ID", "Age_B01ID", "EcoStat_B01ID"),
               filter_na = TRUE)
   
 }
@@ -147,6 +161,17 @@ lu_main_mode <- function(df){
               keys = "MainMode_B11ID",
               id = "main_mode",
               variable_expansion = "MainMode_B11ID",
+              filter_na = TRUE)
+  
+}
+
+lu_stage_mode <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "stage_mode---StageMode_B11ID",
+              keys = "StageMode_B11ID",
+              id = "stage_mode",
+              variable_expansion = "StageMode_B11ID",
               filter_na = TRUE)
   
 }
@@ -183,40 +208,21 @@ lu_tfn_area_type <- function(df){
   
 }
 
-tt1 <- read_csv("C:/Users/Pluto/Documents/NTS_C/lookups/traveller_type---age_work_status--gender--hh_type.csv")
-
-lookup = tt1
-keys = c("age_work_status", "gender", "hh_type", "hh_adults", "hh_cars", "ns_sec", "soc_cat")
-id = "traveller_type"
-variable_expansion <- keys
-
-reduce(variable_expansion, function(...) separate_rows(..., sep = "_"), .init = lookup)
-
-age_work_status	gender	hh_type	hh_adults	hh_cars	ns_sec	soc_cat
-
-
-join_lookup(df = df,
-            lookup_csv = "traveller_type---age_work_status--gender--hh_type",
-            keys = c("age_work_status", "gender", "hh_type"),
-            id = "traveller_type")
-
-rep(9:40, each = 4)
-
-9_10_11_12
-13_14_15_16
-
-
-
-output <- list()
-
-for(i in 9:88){
+lu_sw_weight <- function(df){
   
-  if(i %% 4 == 1){
-    
-    output[i] <- str_c(i, "_", i+1, "_", i+2, "_", i+3)
-    
-  }
+  join_lookup(df = df,
+              lookup_csv = "sw_weight---TripDisIncSW_B01ID--MainMode_B04ID",
+              keys = c("TripDisIncSW_B01ID","MainMode_B04ID"),
+              id = "sw_weight",
+              variable_expansion = c("TripDisIncSW_B01ID","MainMode_B04ID"))
   
 }
 
-
+lu_is_north <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "is_north---HHoldOSLAUA_B01ID",
+              keys = "HHoldOSLAUA_B01ID",
+              id = "is_north")
+  
+}
