@@ -71,14 +71,40 @@ create_ub <- function(username = user,
   nts_df <- nts_df %>%
     left_join(trip_df, by=c('PSUID', 'HouseholdID', 'IndividualID', 'DayID'))
   
-  #nts_df <- nts_df %>%
+  nts_df <- nts_df %>%
+    left_join(ldj_df, by = c('PSUID', 'HouseholdID', 'IndividualID', 'TripID'))
+  
+  # nts_df <- nts_df %>%
   #  left_join(stage_df)
   
   nts_df <- nts_df %>%
     filter(SurveyYear %in% tsy)
+    
+  #  nts_df %>% 
+  #  rename(ns = NSSec_B03ID) %>%
+  #  mutate(ns = ifelse(ns == -9, 6, ns)) %>% 
+  #  group_by(HouseholdID) %>%
+  #  mutate(ns = min(ns)) %>%
+  #  ungroup() %>%
+  #  mutate(ns = ifelse(ns == 6, 5, ns)) %>%
+  #  write_csv(export_dir)
   
   nts_df %>% 
-    na.omit() %>% 
     write_csv(export_dir)
   
 }
+
+nts_df %>% 
+    rename(ns = NSSec_B03ID) %>%
+    mutate(ns = ifelse(ns == -9, 6, ns)) %>% 
+    group_by(HouseholdID) %>%
+    mutate(ns = min(ns)) %>%
+    ungroup() %>%
+    mutate(ns = ifelse(ns == 6, 5, ns)) %>%
+  count(SurveyYear, ns)
+
+rand_df <- read_csv("Y:/NTS/unclassified builds/ub_RAND.csv")
+
+rand_df %>%
+  count(SurveyYear, ns) %>%
+  print(n=40)

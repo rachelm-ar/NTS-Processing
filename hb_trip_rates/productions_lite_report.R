@@ -10,20 +10,26 @@ report_productions <- function(){
   select <- dplyr::select
 
   # Read in trip rates, land use, time splits, mode splits and NTEM  --------
-  trip_rates_out <- read_csv("C:/Users/Pluto/Documents/NTS_C/outputs/hb/hb_trip_rates/testing/hb_trip_rates_v2.1.csv")
+  trip_rates_out <- read_csv("C:/Users/Pluto/Documents/NTS_C/outputs/hb/hb_trip_rates/hb_trip_rates.csv")
   tp_split <- read_csv('C:/Users/Pluto/Documents/Trip_rate_testing/hb_time_split.csv')
   mode_split <- read_csv('C:/Users/Pluto/Documents/Trip_rate_testing/hb_mode_split.csv')
   ntem_control <- read_csv('C:/Users/Pluto/Documents/Trip_rate_testing/ntem_control.csv')
   
-  land_use <- data.table::fread('C:/Users/Pluto/Documents/Trip_rate_testing/land_use_output_msoa.csv',
-                                select = c('msoa_zone_id',
-                                           'area_type',
-                                           'cars',
-                                           'traveller_type',
-                                           'soc',
-                                           'ns',
-                                           'people'))
-  land_use <- as_tibble(land_use)
+  land_use <- read_csv("C:/Users/Pluto/Documents/Trip_rate_testing/land_use_output_msoa.csv")
+  land_use <- select(land_use, msoa_zone_id, area_type, traveller_type, ns, soc, people)
+  
+  tt_lu <- read_csv("C:/Users/Pluto/Documents/NTS_C/lookups/tfn_traveller_type.csv")
+  tt_lu <- tt_lu %>%
+    rename(ns = ns_sec,
+           soc = soc_cat)
+  
+  land_use <- land_use %>%
+    mutate(soc = ifelse(traveller_type %in% c(1:8, 25:48, 65:88), 4, soc)) %>%
+    rename(ntem_traveller_type = traveller_type) %>%
+    left_join(tt_lu) %>%
+    select(msoa_zone_id, area_type, tfn_traveller_type, ns, soc, people, hh_cars) %>%
+    rename(traveller_type = tfn_traveller_type,
+           cars = hh_cars) 
   
   # Pre process land use and trip rates preparing for merge -----------------
   p_join <- tibble(p = rep(1, 8),
@@ -41,22 +47,21 @@ report_productions <- function(){
     mutate(soc = ifelse(p %in% 1:2, as.character(as.integer(soc)), "none"),
            ns = ifelse(p %in% 1:2, "none", as.character(as.integer(ns))))
   
-  tt_lu <- read_csv("Y:/NTS/lookups/traveller_type---age_work_status--gender--hh_adults--cars.csv")
+  tt_lu <- read_csv("C:/Users/Pluto/Documents/NTS_C/lookups/tfn_traveller_type.csv")
+  
+  tt_lu <- tt_lu %>% 
+    select(tfn_traveller_type, hh_cars) %>%
+    rename(traveller_type = tfn_traveller_type,
+           cars = hh_cars)
   
   trip_rates <- trip_rates_out %>% 
     mutate(soc = ifelse(p %in% 1:2, as.character(soc), "none"),
-           soc = ifelse(p %in% 1:2 & soc == "99", "0", as.character(soc))) %>% 
-    left_join(tt_lu) %>% 
-    select(-c(age_work_status, gender, hh_adults)) %>%
-    mutate(cars = case_when(
-      cars == 1 ~ "0",
-      cars == 2 ~ "1",
-      cars == 3 ~ "1+",
-      cars == 4 ~ "2+"
-    ))
+           soc = ifelse(p %in% 1:2 & soc == "99", "0", as.character(soc)),
+           ns = as.character(ns)) %>% 
+    left_join(tt_lu)
   
-
   # Join and calculate productions ------------------------------------------
+  
   productions <- land_use %>% 
     left_join(trip_rates, by = c("traveller_type",
                                  "p",

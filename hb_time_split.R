@@ -1,3 +1,8 @@
+cb_version = "tfn"
+drive = "C"
+weekday = TRUE
+week = TRUE
+
 extract_hb_ts <- function(cb_version,
                           drive, 
                           user, 
@@ -27,9 +32,7 @@ extract_hb_ts <- function(cb_version,
   
  # Pre Processing ---------------------------------------------------------
   
-  # Removing london Underground?
   # Why redefinition of tfn area type?
-  # Children Genderless
   cb <- cb %>% 
     filter(trip_purpose %in% 1:8) %>% 
     mutate(tfn_area_type = ifelse(tfn_area_type == 2, 1 , tfn_area_type),
@@ -41,6 +44,9 @@ extract_hb_ts <- function(cb_version,
   
   # Add weights
   cb <- mutate(cb, trip_weights = W1 * W2 * W5 * sw_weight)
+  
+  cb %>%
+    select(trip_purpose, TripPurpTo_B01ID, TripPurpFrom_B01ID, TripPurpose_B01ID)
   
  # Time Split - Week -------------------------------------------------------
   
