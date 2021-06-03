@@ -14,13 +14,15 @@ join_lookup <- function(df, lookup_csv, keys, id,
                         filter_na = FALSE,
                         variable_expansion = FALSE){
   
+  username <- Sys.info()[[6]]
+  
   if(version == "tfn"){
     
-    lookup_dir <- "C:/Users/Pluto/Documents/NTS_C/lookups/"
+    lookup_dir <- paste0("C:/Users/", username, "/Documents/NTS_C/lookups/")
     
   } else if(version == "ntem"){
     
-    lookup_dir <- "C:/Users/Pluto/Documents/NTS_C/lookups/ntem/"
+    lookup_dir <- paste0("C:/Users/", username, "/Documents/NTS_C/lookups/ntem/")
     
   }
   

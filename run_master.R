@@ -15,12 +15,14 @@ source(paste0(repo_dir, "hb_mode_time_split.R"))
 "
 Only C drive support - read/write to C drive
 
-Have a folder called NTS_C in documents with specialise licence inside
+Have a folder called NTS_C in documents with special licence inside
 
 "
-
-create_ub(extract_version = "ntem", 
-          drive = "C")
+# TODO: Tell me where I'm exporting
+# TODO: Create write folders for exports - dont make me do it :D
+# TODO: Which drive is the drive? It's param import drive I think, maybe change var name
+create_ub(extract_version = "tfn", 
+          drive = "Y")
 
 # Classified build --------------------------------------------------------
 
@@ -46,9 +48,14 @@ lookups_version = "tfn"
 drive = "C"
 save_processed = TRUE
 
+# TODO: This doesn't match the actual function parameters - what should lookups_version be? - probably resolved
+# TODO: could this check pathing first and error - save the time lost importing
+# TODO: Also need report on data sourcing to pop out of this. Leave a bit more of an audit trail.
+
 create_cb(user = user,
           ub_version = "tfn",
-          cb_version = "ntem",
+          cb_version = "tfn",
+          lookups_version = "tfn",
           build_type = "hb_trip_rates",
           drive = "C",
           save_processed = TRUE)
