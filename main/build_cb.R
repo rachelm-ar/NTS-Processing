@@ -111,14 +111,6 @@ build_cb <- function(user,
     
   }
   
-  cb %>% 
-    filter(!is.na(ntem_at)) %>% 
-    filter(!str_detect(HHoldOSLAUA_B01ID, "S")) %>% 
-    count(tfn_at,ntem_at) %>% 
-    group_by(tfn_at) %>% 
-    mutate(overlap = n/sum(n) * 100) %>% 
-    View()
-  
   if(save_processed) write_csv(cb, out_cb_dir)
   
   if(build_type == "hb_trip_rates"){

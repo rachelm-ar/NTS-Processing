@@ -2,13 +2,13 @@ user <- Sys.info()[[6]]
 repo_dir <- paste0("C:/Users/", user, "/Documents/GitHub/NTS-Processing/")
 
 # Load custom functions
-source(paste0(repo_dir, "utils.R"))
-source(paste0(repo_dir, "lookups.R"))
-source(paste0(repo_dir, "build_ub.R"))
-source(paste0(repo_dir, "build_cb.R"))
-source(paste0(repo_dir, "build_hb_trip_rates.R"))
-source(paste0(repo_dir, "build_hb_mts.R"))
-source(paste0(repo_dir, "build_hb_productions.R"))
+source(paste0(repo_dir, "utils/utils.R"))
+source(paste0(repo_dir, "utils/lookups.R"))
+source(paste0(repo_dir, "main/build_ub.R"))
+source(paste0(repo_dir, "main/build_cb.R"))
+source(paste0(repo_dir, "main/build_hb_trip_rates.R"))
+source(paste0(repo_dir, "main/build_hb_mts.R"))
+source(paste0(repo_dir, "main/build_hb_productions.R"))
 
 # Extraction Script -------------------------------------------------------
 "
@@ -52,15 +52,21 @@ build_hb_trip_rates(user = user,
                     drive = "C",
                     tfn_or_ntem = "tfn")
 
+build_hb_trip_rates(user = user,
+                    drive = "C",
+                    tfn_or_ntem = "ntem")
+
 # HB Time Mode Split ------------------------------------------------------
 
 build_hb_mts(user = user,
              drive = "C",
              tfn_or_ntem = "tfn")
+build_hb_mts(user = user,
+             drive = "C",
+             tfn_or_ntem = "ntem")
 
 # HB Productions ---------------------------------------------------------------------
 
 build_hb_productions(user = user,
                      drive = "C")
-
 
