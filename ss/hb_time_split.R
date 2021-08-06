@@ -1,3 +1,5 @@
+# TODO: Weighted averages???
+
 cb_version = "tfn"
 drive = "C"
 weekday = TRUE

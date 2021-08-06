@@ -1,9 +1,3 @@
-#' TODO:
-#' 1. TfN Area Type - Missing data
-#' 2. NTS audit - add parameters and extra functionality. something along the lines of testing if we are dropping
-#' more than 10% for any segments. This can cause bias later on if one segment is being completely dropped.
-#' 
-
 define_nts_audit_params <- function(nts_dat){
   ###
   # Takes a fresh NTS import and defines params for audit
@@ -11,7 +5,6 @@ define_nts_audit_params <- function(nts_dat){
   ###
   
   unq_syear <- nts_dat %>%
-    select(SurveyYear) %>%
     count(SurveyYear)
   
   return(unq_syear)
@@ -46,7 +39,7 @@ create_cb <- function(user,
                       ub_version,
                       cb_version,
                       lookups_version,
-                      build_type,
+                      build_type = "",
                       drive,
                       save_processed = FALSE){
 
@@ -78,9 +71,10 @@ create_cb <- function(user,
   
   # Unclassified build
   ub <- read_csv(ub_dir)
-
+  
   # Columns subset
-  cb_columns <- read_csv(cb_columns_dir) %>% pull()
+  cb_columns <- read_csv(cb_columns_dir)
+  cb_columns <- pull(cb_columns)
   
   ub <- select(ub, all_of(cb_columns))
   
@@ -124,7 +118,8 @@ create_cb <- function(user,
     lu_main_mode(lookups_version) %>%
     lu_start_time(lookups_version) %>%
     lu_end_time(lookups_version) %>%
-    lu_sw_weight(lookups_version)
+    lu_sw_weight(lookups_version) %>% 
+    lu_is_north(lookups_version)
   
   if(lookups_version == "ntem"){
     
@@ -147,12 +142,10 @@ create_cb <- function(user,
     ub <- ub %>%
       lu_soc(lookups_version) %>%
       lu_tfn_tt(lookups_version) %>%
-      lu_tfn_area_type(lookups_version) 
+      lu_tfn_at(lookups_version) 
     
   }
   
-  ub %>% count(SurveyYear)
-
   if(save_processed) write_csv(ub, out_cb_dir)
   
   if(build_type == "hb_trip_rates"){
@@ -162,11 +155,15 @@ create_cb <- function(user,
     
     grouping_vars <- colnames(ub)[colnames(ub) %in% grouping_vars]
     
+    # Remove Air trips
+    ub <- filter(ub, main_mode != 8)
+    
     # Weight trips by short walk and calculate weekly trips
     weighted_trips <- ub %>%
-      filter(trip_purpose %in% 1:8) %>%
+      filter(trip_purpose %in% 1:8,
+             W1 == 1) %>%
       group_by_at(grouping_vars) %>%
-      summarise(weekly_trips = sum(W1 * sw_weight),
+      summarise(weekly_trips = sum(JJXSC),
                 W2 = mean(W2),
                 W5 = sum(W5),
                 W5xHH = sum(W5xHH)) %>%
@@ -183,15 +180,14 @@ create_cb <- function(user,
     
     write_csv(hb_trip_rates_out, out_hb_tr_dir)
     
-    # Average response weights
     response_weights <- ub %>%
-      filter(trip_purpose %in% 1:8) %>%
-      select(trip_purpose, age_work_status, W5, W5xHH, W2) %>%
-      group_by(trip_purpose, age_work_status) %>%
-      summarise(trips = n(),
-                W5 = sum(W5, na.rm = TRUE)/sum(W2, na.rm = TRUE)) %>%
+      filter(trip_purpose %in% 1:8,
+             W1 == 1) %>%
+      select(IndividualID, trip_purpose, age_work_status,  W2, W5, W5xHH) %>%
+      group_by(age_work_status, trip_purpose) %>%
+      summarise(W5W2 = n()/sum(W2)) %>%
       ungroup()
-    
+
     write_csv(response_weights, out_hb_weights_dir)
     
   }

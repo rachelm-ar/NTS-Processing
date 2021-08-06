@@ -1,7 +1,0 @@
-Accessibilty metrics - didn't work, keep for posterity, joins may be useful metric didn't work
-Aggregate_*_split - pre- short walk weighting, some bits for Jack's accessibility analysis in the hb_only - intermediate steps
-2017_distance_bands_... - For NELUM params, no short walk, archive
-build_average_trip lengths = should probably come out at some point and keep flexible
-rail_share_accessible_jobs_regression - old abandoned method but some good code for regression model building
-trip_rate_pre-processing - Humza to replace with a combination of this and unclassified build
-updated_mode_shares_with_accessibility - Archived but might be useful next time mode share comes up
