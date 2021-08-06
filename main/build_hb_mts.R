@@ -32,7 +32,9 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
   # Read
   cb <- read_csv(cb_dir)
   tfn_lu <- read_csv(tfn_lu_dir)
-  cte_mts <- read_csv(cte_mts_dir)
+  
+  # Build output folder
+  dir.create(str_c(nts_dir, "outputs/hb/hb_mode_time_split"))
   
   # Pre Processing ---------------------------------------------------------
   
