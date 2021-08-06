@@ -48,6 +48,9 @@ build_cb(user = user,
 
 # HB Trip Rates -----------------------------------------------------------
 
+drive = "C"
+tfn_or_ntem = "tfn"
+
 build_hb_trip_rates(user = user,
                     drive = "C",
                     tfn_or_ntem = "tfn")
