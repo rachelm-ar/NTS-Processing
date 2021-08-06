@@ -117,7 +117,8 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
                     "purrr",
                     "ggplot2",
                     "ggpmisc",
-                    "ggthemes")
+                    "ggthemes",
+                    "pscl")
   
   library_c(library_list)
   
@@ -153,7 +154,7 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   out_purpose_plot_dir <- str_c(export_dir, "Reports/", tfn_or_ntem, "_vs_ctripend_trip_rates_purposes.png")
   
   # Create export directories
-  dir.create(export_dir, showWarnings = FALSE)
+  dir.create(str_c(export_dir, "Reports/"), showWarnings = FALSE)
   
 # Pre Processing ----------------------------------------------------------
 

@@ -45,11 +45,14 @@ build_cb(user = user,
          build_type = "hb_trip_rates",
          save_processed = TRUE)
 
+build_cb(user = user,
+         drive = "C",
+         version_in = "tfn",
+         version_out = "ntem",
+         build_type = "hb_trip_rates",
+         save_processed = TRUE)
 
 # HB Trip Rates -----------------------------------------------------------
-
-drive = "C"
-tfn_or_ntem = "tfn"
 
 build_hb_trip_rates(user = user,
                     drive = "C",
