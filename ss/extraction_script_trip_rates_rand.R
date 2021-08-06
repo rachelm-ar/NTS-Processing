@@ -8,8 +8,8 @@
 require(tidyverse)
 
 # Path to tab files - should be SPSS equivalent?
-file <- 'C:/Users/genie/Documents/UKDA-7553-tab/tab'
-export <- 'C:/Users/genie/Documents'
+file <- 'C:/Users/Pluto/Documents/NTS_C/UKDA-7553-tab/tab'
+export <- 'C:/Users/Pluto/Documents/NTS_C'
 
 attitudes_file_path = paste0(file, '/attitudes_special_2002-2019_protect.tab')
 days_file_path = paste0(file, '/day_special_2002-2019_protect.tab')

@@ -1,4 +1,232 @@
-require(tidyverse)
+library(tidyverse)
+
+test <- rnorm(100, mean = 7, sd = 5)
+
+test <- test[test > 0]
+
+#####
+
+library(scales)
+
+nts %>%
+  select(main_mode, TripDisIncSW) %>%
+  mutate(dist_km = TripDisIncSW * 1.60934) %>%
+  mutate(bands_km = cut(dist_km, c(0,1,2,5,10,15,25,50,100,200,400,10000))) %>%
+  group_by(main_mode, bands_km) %>%
+  summarise(trips = n()) %>%
+  ungroup() %>%
+  mutate(main_mode = factor(main_mode, levels = 1:8, labels = c("Walk",
+                                                                "Cycle", 
+                                                                "Car",
+                                                                "Van",
+                                                                "Bus",
+                                                                "Surface Rail",
+                                                                "Light rail", 
+                                                                "Air"))) %>%
+  mutate(trips = trips) %>%
+  ggplot(aes(bands_km, trips)) + 
+  xlab("Distance Bands (KM)") +
+  ylab("# of Trips (in thousands)") +
+  labs(color='Mode')  +
+  scale_y_continuous(labels = unit_format(unit = "K", scale = 1e-3)) +
+  scale_color_manual(values=c("red", "blue", "green", "purple", "orange", "cyan", "grey", "black")) +
+  geom_line(aes(group = main_mode, colour = main_mode))
+
+
+  group_by(main_mode, bands_km) %>%
+  summarise(trips = n()) %>%
+  ungroup() %>%
+  geom_d
+
+
+#####
+
+nts <- read_csv("C:/Users/Pluto/Documents/NTS_C/classified builds/cb_tfn.csv")
+
+nts <- nts %>%
+  mutate(passenger = ifelse(MainMode_B03ID %in% c(7, 8, 11, 12, 15, 16, 26, 27), 1, 0),
+         driver = ifelse(MainMode_B03ID %in% c(4, 5, 6, 9, 10, 13, 14, 17), 1, 0))
+  
+# Day type
+nts <- nts %>%
+  mutate(day_type = ifelse(start_time %in% 1:4, "weekday", "weekend"))
+
+# Define trip from, trip to
+nts <- nts %>%
+  filter(!(TripPurpFrom_B01ID == 17 & TripPurpTo_B01ID == 23),
+         !(TripPurpFrom_B01ID == 23 & TripPurpTo_B01ID == 17),
+         !(TripPurpFrom_B01ID == 17 & TripPurpFrom_B01ID == 17)) %>%
+  mutate(trip_direction = ifelse(TripPurpFrom_B01ID %in% c(17,23), "FH",
+                                 ifelse(TripPurpTo_B01ID %in% c(17,23), "TH", "NHB")))
+
+nts <- nts %>%
+  filter(!is.na(trip_purpose))
+
+tohometrips <- nts %>%
+  filter(TripPurpTo_B01ID %in% c(17,23)) %>%
+  filter(!(TripPurpFrom_B01ID %in% c(16,22) & TripPurpTo_B01ID %in% c(17,23))) %>%
+  mutate(TripPurpFrom_B01ID = case_when(
+         TripPurpFrom_B01ID %in% c(1, 18) ~ 1,
+         TripPurpFrom_B01ID %in% c(2, 19) ~ 2,
+         TripPurpFrom_B01ID %in% c(3, 20) ~ 3,
+         TripPurpFrom_B01ID %in% c(4, 5, 21) ~ 4,
+         TripPurpFrom_B01ID %in% c(6, 7, 8) ~ 5,
+         TripPurpFrom_B01ID %in% c(9, 11, 12, 13, 22, 16) ~ 6,
+         TripPurpFrom_B01ID %in% c(10) ~ 7,
+         TripPurpFrom_B01ID %in% c(14) ~ 8,
+         TripPurpFrom_B01ID %in% c(15) ~ 8,
+       )) %>%
+  mutate(trip_purpose = TripPurpFrom_B01ID)
+
+nts2 <- nts %>%
+  filter(!TripPurpTo_B01ID %in% c(17,23)) %>%
+  bind_rows(tohometrips)
+
+nts3 <- nts2 %>%
+  mutate(weights = W1 * W2 * W5 * sw_weight) %>%
+  mutate(passenger = passenger * W2 * W5 * sw_weight,
+         driver = driver * W2 * W5 * sw_weight) %>%
+  select(main_mode, trip_purpose, tfn_area_type, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID, day_type, trip_direction, TripDisIncSW, passenger, driver, weights) %>%
+  group_by(main_mode, trip_purpose, tfn_area_type, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID, day_type, trip_direction, driver, TripDisIncSW) %>%
+  summarise(trips = sum(weights),
+            passenger = sum(passenger),
+            driver = sum(driver)) %>%
+  ungroup() %>%
+  mutate(trip_mile = TripDisIncSW * trips)
+
+nts3 %>%
+  write_csv("C:/Users/Pluto/Documents/NTS_C/nts_tld_all_vars.csv")
+
+## CO
+
+library(tidyverse)
+
+co <- read_csv("C:/Users/Pluto/Documents/NTS_C/nts_tld_all_vars_car_occupancy.csv")
+
+co2 <- co %>%
+  na.omit() %>% 
+  filter(main_mode == 3, day_type == "weekday") %>% 
+  mutate(trip_purpose_agg = case_when(
+    trip_purpose == 1 ~ "HBW",
+    trip_purpose == 2 ~ "HBB",
+    trip_purpose == 3 ~ "HBE",
+    trip_purpose == 4 ~ "HBS",
+    trip_purpose == 5 ~ "HBPB",
+    trip_purpose == 6 ~ "HBS",
+    trip_purpose == 7 ~ "HBVF",
+    trip_purpose == 8 ~ "HBH",
+    trip_purpose %in% 12:18 ~ "NHB",
+  ))
+
+p1 <- co2 %>% 
+  unite(purpose_direction, c(trip_purpose_agg, trip_direction), sep = "_") %>% 
+  mutate(purpose_direction = ifelse(trip_purpose %in% 12:18, "NHB", purpose_direction),
+         purpose_direction = factor(purpose_direction)) %>% 
+  select(purpose_direction, TripDisIncSW, trips, passenger, driver, trip_mile) %>% 
+  mutate(bands = cut(TripDisIncSW, c(0,1,2,3,4,5,6,7,8,9,10,12.5,15,17.5,20,25,30,35,40,50,75,100,150,200,250,300,400,600,999), 
+                     right = FALSE,
+                     labels = FALSE,
+                     ordered_result = TRUE)) %>%
+  mutate(bands = factor(bands)) %>% 
+  group_by(purpose_direction, bands) %>%
+  summarise(passenger = sum(passenger),
+            driver = sum(driver)) %>% 
+  ungroup() %>%
+  mutate(band2 = case_when(
+    bands %in% 1:2 ~ 1,
+    bands %in% 3:5 ~ 2,
+    bands %in% 6:10 ~ 3,
+    bands %in% 11:15 ~ 4,
+    bands %in% 16:19 ~ 5,
+    bands %in% 20:21 ~ 6,
+    bands %in% 22:24 ~ 7,
+    bands %in% 25:28 ~ 8
+  ))
+
+p1 %>%
+  mutate(occupancy = 1 + passenger/driver) %>%
+  group_by(purpose_direction) %>%
+  summarise(mean(occupancy, na.rm = TRUE))
+  
+
+p2 <- p1 %>%
+  mutate(occupancy = 1 + passenger/driver) %>% 
+  filter(str_detect(purpose_direction, "^HB")) %>%
+  mutate(overall_purpose = str_sub(purpose_direction, 1, 3)) %>%
+  mutate(overall_purpose = ifelse(overall_purpose == "HBV", "HBVF",
+                                  ifelse(overall_purpose == "HBP", "HBPB", overall_purpose))) %>% 
+  mutate(overall_purpose = factor(overall_purpose)) %>%
+  mutate(purpose_direction = str_sub(purpose_direction, -2, -1)) %>% 
+  ggplot(aes(x = bands, y = occupancy)) +
+  geom_path(aes(colour = purpose_direction, group = purpose_direction)) +
+  facet_wrap(overall_purpose ~ ., ncol = 2)
+
+p3 <- p1 %>%
+  group_by(purpose_direction, band2) %>%
+  mutate(passenger2 = sum(passenger),
+         driver2 = sum(driver)) %>% 
+  mutate(occupancy = 1 + passenger2/driver2) %>% 
+  filter(str_detect(purpose_direction, "^HB")) %>%
+  mutate(overall_purpose = str_sub(purpose_direction, 1, 3)) %>%
+  mutate(overall_purpose = ifelse(overall_purpose == "HBV", "HBVF",
+                                  ifelse(overall_purpose == "HBP", "HBPB", overall_purpose))) %>% 
+  mutate(overall_purpose = factor(overall_purpose)) %>%
+  mutate(purpose_direction = str_sub(purpose_direction, -2, -1)) %>%
+  ggplot(aes(x = bands, y = occupancy)) +
+  geom_path(aes(colour = purpose_direction, group = purpose_direction)) +
+  facet_wrap(overall_purpose ~ ., ncol = 2)
+
+library(Cairo)  
+
+png(filename="Y:/NTS/TLD_by_purpose_plot_agg.png",
+    type="cairo",
+    units="in", 
+    width=8, 
+    height=8, 
+    pointsize=12, 
+    res=300)
+print(p3)
+dev.off()
+
+##
+
+
+## SS
+
+
+nts2 %>%
+  mutate(weights = W1 * W2 * W5 * sw_weight) %>%
+  select(main_mode, trip_purpose, tfn_area_type, start_time, TripOrigCounty_B01ID, TripOrigGOR_B02ID, TripDestCounty_B01ID, TripDestGOR_B02ID, day_type, trip_direction, TripDisIncSW, weights) %>%
+  group_by(main_mode, trip_purpose, tfn_area_type, start_time, TripOrigCounty_B01ID, TripOrigGOR_B02ID, TripDestCounty_B01ID, TripDestGOR_B02ID, day_type, trip_direction, TripDisIncSW) %>%
+  summarise(trips = sum(weights)) %>%
+  ungroup() %>%
+  mutate(trip_mile = TripDisIncSW * trips) %>%
+  write_csv("C:/Users/Pluto/Documents/NTS_C/nts_tld_all_vars.csv")
+
+##
+
+  
+nts3 <- nts2 %>%
+  select(main_mode, trip_purpose, TripOrigCounty_B01ID, TripDestCounty_B01ID, TripOrigGOR_B02ID, TripDestGOR_B02ID,
+         trip_direction, day_type, W1, W2, W5, sw_weight) %>%
+  mutate(weights = W1 * W2 * W5 * sw_weight) %>%
+  select(-c(W1, W2, W5, sw_weight))
+
+nts3 %>%
+  group_by(main_mode, trip_purpose, TripOrigCounty_B01ID, TripDestCounty_B01ID, TripOrigGOR_B02ID, TripDestGOR_B02ID, trip_direction, day_type) %>%
+  summarise(trips = sum(weights, na.rm = TRUE)) %>%
+  ungroup() %>%
+  write_csv("Y:/NTS/nts_tld_county_gor.csv")
+
+nts2 %>%
+  group_by(main_mode, trip_purpose, TripOrigCounty_B01ID, TripDestCounty_B01ID, TripOrigGOR_B02ID, TripDestGOR_B02ID, trip_direction) %>%
+  summarise(trips = sum(weights, na.rm = TRUE)) %>%
+  ungroup() %>%
+  count(trip_purpose)
+  filter(!is.na(trip_purpose)) %>%
+  filter(trip_purpose != 99) %>%
+  write_csv("C:/Users/Pluto/Documents/NTS_C/nts_tld_county_gor.csv")
+
 
 # Code purpose: Build mode specific PA to OD factors
 

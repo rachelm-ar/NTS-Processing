@@ -2,36 +2,77 @@ user <- Sys.info()[[6]]
 repo_dir <- paste0("C:/Users/", user, "/Documents/GitHub/NTS-Processing/")
 
 # Load custom functions
-source(paste0(repo_dir, "utils.r"))
-source(paste0(repo_dir, "extraction_script_trip_rates.R"))
-source(paste0(repo_dir, "unclassified_build_processing.R"))
+source(paste0(repo_dir, "utils/utils.R"))
+source(paste0(repo_dir, "utils/lookups.R"))
+source(paste0(repo_dir, "main/build_ub.R"))
+source(paste0(repo_dir, "main/build_cb.R"))
+source(paste0(repo_dir, "main/build_hb_trip_rates.R"))
+source(paste0(repo_dir, "main/build_hb_mts.R"))
+source(paste0(repo_dir, "main/build_hb_productions.R"))
 
 # Extraction Script -------------------------------------------------------
+"
+Only C drive support - read/write to C drive
 
-# import_dir: special license directory
-# export_dir: directory to export 
-# extract_version: what is this export for? name must be consistent with extraction_cols_'name'.csv
-# extract_name: name of output csv
-# tsy: filter for travel survey year, remove if no filter
+Have a folder called NTS_C in documents with specialise licence inside
 
-extract_raw_nts(import_dir = "C:/Users/HumzaAli/Documents/NTS/UKDA-7553-tab/tab/",
-                export_dir = "C:/Users/HumzaAli/Documents/NTS/",
-                extract_version = "tfn",
-                extract_name = "unclassified_build_tfn",
-                tsy = 2015:2019)
+"
 
+build_ub(extract_version = "tfn", 
+         drive = "C")
 
 # Classified build --------------------------------------------------------
 
-# If you want to save time with reading:
-#   custom_import: directory in c drive to a folder which has
-#                   1. unclassified_build.csv
-#                   2. classified_build_vars.csv
-# If you want to save time with writing:
-#   custom_export: directory in c drive to save builds
+"
+ub_name: CSV name of unclassified build
 
-classify_nts(unclassified_build_v = "unclassified_build_tfn.csv",
-             build_type = "hb_trip_rates",
-             save_processed = TRUE,
-             custom_import = "C:/Users/HumzaAli/Documents/NTS/",
-             custom_export = "C:/Users/HumzaAli/Documents/NTS/")
+cb_columns_name: CSV name of vars to select in ub
+
+build_type: hb_trip_rates OR ca
+
+drive: Which drive?
+
+out_cb_name: name of classified_build out
+
+save_processed: TRUE - save classified build
+
+"
+
+build_cb(user = user,
+         drive = "C",
+         version_in = "tfn",
+         version_out = "tfn",
+         build_type = "hb_trip_rates",
+         save_processed = TRUE)
+
+build_cb(user = user,
+         drive = "C",
+         version_in = "tfn",
+         version_out = "ntem",
+         build_type = "hb_trip_rates",
+         save_processed = TRUE)
+
+# HB Trip Rates -----------------------------------------------------------
+
+build_hb_trip_rates(user = user,
+                    drive = "C",
+                    tfn_or_ntem = "tfn")
+
+build_hb_trip_rates(user = user,
+                    drive = "C",
+                    tfn_or_ntem = "ntem")
+
+# HB Time Mode Split ------------------------------------------------------
+
+build_hb_mts(user = user,
+             drive = "C",
+             tfn_or_ntem = "tfn")
+build_hb_mts(user = user,
+             drive = "C",
+             tfn_or_ntem = "ntem")
+
+# HB Productions ---------------------------------------------------------------------
+
+build_hb_productions(user = user,
+                     drive = "C")
+

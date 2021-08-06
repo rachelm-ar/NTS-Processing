@@ -5,9 +5,10 @@ library(pscl)
 
 select <- dplyr::select
 
-hb_csv <- read_csv("C:/Users/Pluto/Documents/Trip_rate_testing/classified_nts_trip_rates_v10.csv")
-model_forms <- read_csv("C:/Users/Pluto/Documents/Trip_rate_testing/model_forms.csv")
-tt_lu <- read_csv("C:/Users/Pluto/Documents/Trip_rate_testing/traveller_type---age_work_status--gender--hh_adults--cars.csv")
+hb_csv <- read_csv("C:/Users/Pluto/Documents/NTS_C/classified builds/cb_hb trip rates.csv")
+model_forms <- read_csv("C:/Users/Pluto/Documents/NTS_C/import/hb_trip_rates/model_forms.csv")
+
+hb_csv <- hb_csv %>% filter(!SurveyYear %in% c(2018, 2019))
 
 hb_csv <- hb_csv %>% 
   select(age_work_status, gender, hh_adults, cars, soc_cat, ns_sec, tfn_area_type, trip_purpose, weekly_trips, trip_rate, W2) %>% 
@@ -18,16 +19,6 @@ hb_csv <- hb_csv %>%
          ns_sec = factor(ns_sec, levels = c(1:5, 99)),
          tfn_area_type = factor(tfn_area_type, levels = 1:8)) %>% 
   mutate(W2 = ifelse(W2 == 0, 1, W2))
-
-#test_df <- filter(hb_csv, trip_purpose == 1, age_work_status == 2) %>% 
-#  rename(trip_rates = trip_weights)
-#
-#test_mod <- glm.nb(weekly_trips ~ hh_adults + gender,
-#                   data = test_df)
-#
-#new_data = tibble(hh_adults = "1", gender = "0")
-#
-#predict.glm(test_mod, new_data, type = "response")
 
 # model_forms <- transpose(model_forms)
 all_vars <- list(trip_purpose = 1:8,
@@ -67,30 +58,6 @@ model_forms <- model_forms %>%
   mutate(response = ifelse(mod_form == "nb", "trip_rate", "weekly_trips"),
          formula = paste(response, paste(formula), sep = " ~ ")) %>% 
   select(-response)
-
-#test_df <- filter(hb_csv, trip_purpose == 3, age_work_status == 1)
-#
-#test_mod <- glm.nb(weekly_trips ~ hh_adults + cars + tfn_area_type,
-#                   data = test_df)
-#
-#df <- tibble(dependent_rate = c(5.2, 3.4, 7.8, 9.5),
-#             dependent_count = c(5, 3, 7, 9),
-#             pred1 = c(1, 2, 3, 4),
-#             pred2 = c(1, 2, 1, 2))
-#
-#nb_mod <- glm.nb(dependent_count ~ pred1 + pred2 + 
-#         offset(log(dependent_count/dependent_rate)), data = df)
-#
-#new_data <- tibble(pred1 = 4, pred2 = 1)
-
-#library(emmeans)
-#
-#emmeans(nb_mod,
-#        ~ pred1 + pred2,
-#        type = "response",
-#        offset = mean(df$dependent_count))
-#
-#predict.glm(nb_mod, new_data, "response")
 
 model_forms <- transpose(model_forms)
 
@@ -204,28 +171,22 @@ purpose_aws_report
 
 tt_trip_rates <- df_trip_rates %>% 
   mutate_at(vars(age_work_status, gender, hh_adults, cars), list(~ as.numeric(levels(.))[.])) %>% 
-  left_join(tt_lu, by = c("hh_adults", "cars", "age_work_status", "gender")) %>% 
+  lu_traveller_type() %>% 
   na.omit()
 
-df_trip_rates %>% 
-  mutate_at(vars(age_work_status, gender, hh_adults, cars), list(~ as.numeric(levels(.))[.])) %>% 
-  left_join(tt_lu, by = c("hh_adults", "cars", "age_work_status", "gender"))
-
 tt_trip_rates <- tt_trip_rates %>% 
-  group_by(trip_purpose, tt, tfn_area_type, soc_cat, ns_sec) %>%
+  group_by(trip_purpose, traveller_type, tfn_area_type, soc_cat, ns_sec) %>%
   summarise(trip_rates = mean(trip_rates)) %>% 
   ungroup()
 
 trip_rates_out <- tt_trip_rates %>% 
   rename(p = trip_purpose,
-         traveller_type = tt,
          soc = soc_cat,
          ns = ns_sec,
          trip_rate = trip_rates,
          area_type = tfn_area_type) %>% 
   dplyr::select(p, traveller_type, soc, ns, area_type, trip_rate)
 
-write_csv(trip_rates_out, "C:/Users/Pluto/Documents/Trip_rate_testing/hb_trip_rates_v3.5.csv")
+write_csv(trip_rates_out, "C:/Users/Pluto/Documents/NTS_C/outputs/hb/hb_trip_rates/testing/hb_trip_rates_v2.1.csv")
 
 report_productions()
-
