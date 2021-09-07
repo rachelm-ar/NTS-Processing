@@ -21,6 +21,16 @@ Have a folder called NTS_C in documents with specialise licence inside
 build_ub(extract_version = "tfn", 
          drive = "C")
 
+cb %>% 
+  filter(p %in% 1:8, W1 == 1) %>% 
+  mutate(trip_weights = W5xHH * JJXSC) %>% 
+  select(p, main_mode, start_time, ntem_tt, soc, trip_weights) %>% 
+  mutate(soc = case_when(
+    ntem_tt %in% c(1:8, 41:48, 81:88) ~ 4,
+    TRUE ~ as.double(soc)
+  )) %>% 
+  write_csv("Y:/NTS/initial_attraction_segments.csv")
+
 # Classified build --------------------------------------------------------
 
 "
@@ -37,12 +47,15 @@ out_cb_name: name of classified_build out
 save_processed: TRUE - save classified build
 
 "
+drive = "C"
+version_in = "tfn"
+version_out = "tfn"
 
 build_cb(user = user,
          drive = "C",
          version_in = "tfn",
          version_out = "tfn",
-         build_type = "hb_trip_rates",
+         build_type = "",
          save_processed = TRUE)
 
 build_cb(user = user,
@@ -67,6 +80,7 @@ build_hb_trip_rates(user = user,
 build_hb_mts(user = user,
              drive = "C",
              tfn_or_ntem = "tfn")
+
 build_hb_mts(user = user,
              drive = "C",
              tfn_or_ntem = "ntem")

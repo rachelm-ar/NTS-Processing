@@ -25,6 +25,7 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
   export_dir <- str_c(nts_dir, "outputs/hb/hb_mode_time_split/hb_mts_")
   wide_dir <- str_c(export_dir, tfn_or_ntem, "_wide.csv")
   tms_dir <- str_c(export_dir, "tms.csv")
+  segments_out <- str_c(nts_dir, "outputs/hb/hb_mode_time_split/segments_report.csv")
   
   # Tfn lu read
   tfn_lu_dir <- str_c(nts_dir, "lookups/tfn_traveller_type.csv")
@@ -32,9 +33,6 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
   # Read
   cb <- read_csv(cb_dir)
   tfn_lu <- read_csv(tfn_lu_dir)
-  
-  # Build output folder
-  dir.create(str_c(nts_dir, "outputs/hb/hb_mode_time_split"))
   
   # Pre Processing ---------------------------------------------------------
   
@@ -244,5 +242,33 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
       write_csv(wide_dir)
     
   }
+  
+# Counts Report -----------------------------------------------------------
+  
+  c_report <- counts %>% 
+    filter(area_type %in% c(1, 8)) %>% 
+    mutate(area_type = case_when(
+      area_type == 1 ~ 2,
+      area_type == 8 ~ 7,
+      TRUE ~ as.double(area_type)
+    )) %>%
+    bind_rows(counts) %>% 
+    arrange(p, area_type, ntem_tt, hh_type, tp, m)
+  
+  c_report_out <- c_report %>% 
+    distinct(p, area_type, ntem_tt, hh_type, count_seg1, count_seg2, count_seg3) %>% 
+    group_by(p) %>% 
+    summarise(seg1 = sum(count_seg1 > 300),
+              seg2 = sum((count_seg1 < 300 & count_seg2 > 300)),
+              seg3 = sum((count_seg2 < 300 & count_seg3 > 300))) %>% 
+    ungroup() %>% 
+    mutate(total = seg1 + seg2 + seg3) %>% 
+    mutate(seg1_prop = seg1/total * 100,
+           seg2_prop = seg2/total * 100,
+           seg3_prop = seg3/total * 100)
+  
+  write_csv(c_report_out, segments_out)
+  
+  # counts %>% filter(area_type == 6, ntem_tt == 6) %>% filter(trips != 0)
   
 }

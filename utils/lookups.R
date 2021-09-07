@@ -85,10 +85,10 @@ lu_hb_purpose <- function(df){
 lu_nhb_purpose <- function(df){
   
   join_lookup(df = df,
-              lookup_csv = "nhb_purpose---TripPurpTo_B01ID--MainMode_B11ID",
-              keys = c("TripPurpTo_B01ID", "MainMode_B11ID"),
+              lookup_csv = "nhb_purpose---TripPurpTo_B01ID",
+              keys = "TripPurpTo_B01ID",
               id = "nhb_purpose",
-              variable_expansion = c("TripPurpTo_B01ID", "MainMode_B11ID"))
+              variable_expansion = "TripPurpTo_B01ID")
   
 }
 

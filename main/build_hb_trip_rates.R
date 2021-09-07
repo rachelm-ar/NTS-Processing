@@ -163,6 +163,9 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
     # Combine AT 1 & 2
     cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
     
+    # Combine AT 7 & 8
+    cb <- mutate(cb, tfn_at = ifelse(tfn_at == 7, 8, tfn_at))
+    
     # Define covars for age work status groups
     worker_covars <- c("gender", "hh_type", "soc", "ns", "tfn_at", "SurveyYear")
     child_covars <- c("hh_type", "ns", "tfn_at", "SurveyYear")
@@ -202,6 +205,8 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   
 # Model Building and predicting -------------------------------------------
   
+  test1 <- build_model(models$mod_form[[1]], models$mod_formula[[1]], models$hb_df[[1]])
+  
   # Build model for each segment
   models <- mutate(models, hb_model = pmap(list(mod_form, mod_formula, hb_df), build_model))
   
@@ -213,7 +218,7 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   
   # Process data to fill in missing classifications. i.e. gender for children
   models <- mutate(models, new_data = map2(new_data, aws, process_newdata, tfn_or_ntem))
-
+  
 # Un-weighted Regressions Report ------------------------------------------
   
   # Same format as ATKINS/AECOM 2016 Report
@@ -230,17 +235,15 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   write_csv(unweight_report, str_c(export_dir, "Reports/unweighted_trip rates_report_", tfn_or_ntem, ".csv"))
   
 # Weighted Regressions ----------------------------------------------------
-
-  
   
   # Add purpose and age work status back in
-  models <- models %>%
+  models2 <- models %>%
     mutate(new_data = pmap(list(new_data, p, aws), infil_p_aws))
   
-  models <- models %>%
+  models2 <- models2 %>%
     mutate(new_data = map(new_data, c_weighted_rates, response_weights, tfn_or_ntem))
 
-  hb_trip_rates <- models %>% 
+  hb_trip_rates <- models2 %>% 
     pull(new_data) %>% 
     bind_rows() %>% 
     rename(trip_rates = trips)
@@ -257,6 +260,11 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
     hb_trip_rates <- hb_trip_rates %>%
       filter(tfn_at == 2) %>% 
       mutate(tfn_at = factor(1)) %>%
+      bind_rows(hb_trip_rates)
+    
+    hb_trip_rates <- hb_trip_rates %>%
+      filter(tfn_at == 8) %>% 
+      mutate(tfn_at = factor(7)) %>%
       bind_rows(hb_trip_rates)
     
     hb_trip_rates <- hb_trip_rates %>%
@@ -360,4 +368,3 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   dev.off()
   
 }
-

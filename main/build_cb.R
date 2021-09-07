@@ -68,7 +68,7 @@ build_cb <- function(user,
   ub <- cb_preprocess(ub, version)
    
   # Classify Purposes -------------------------------------------------------
-  
+
   # Remove Just-Walk trips 17, Other non-escort, and other escort 
   ub <- ub %>%
     filter(TripPurpose_B01ID != 17,
@@ -79,6 +79,11 @@ build_cb <- function(user,
     filter(!(TripPurpFrom_B01ID == 23 & TripPurpTo_B01ID == 17), # 11,438 records
            !(TripPurpFrom_B01ID == 17 & TripPurpTo_B01ID == 23)) # 24,810 records
   
+  # Redefine Escort Home trips as home
+  ub <- ub %>%
+    mutate(TripPurpTo_B01ID = ifelse(TripPurpTo_B01ID == 17, 23, TripPurpTo_B01ID),
+           TripPurpFrom_B01ID = ifelse(TripPurpFrom_B01ID == 17, 23, TripPurpFrom_B01ID))
+  
   # Define trip purposes
   ub <- ub %>%
     lu_trip_origin() %>%
@@ -86,7 +91,7 @@ build_cb <- function(user,
     lu_nhb_purpose() %>% 
     lu_nhb_purpose_hb_leg() %>%
     mutate(p = ifelse(trip_origin == "hb", hb_purpose, nhb_purpose))
-  
+
   # Classify Other variables ------------------------------------------------
   
   cb <- ub %>%
@@ -101,6 +106,8 @@ build_cb <- function(user,
     lu_soc() %>%
     lu_tfn_at() %>% 
     lu_tt()
+  
+  cb <- mutate(cb, weighted_trips = W5xHH * W2 * JJXSC)
   
   if(version_out == "ntem"){
     
@@ -162,13 +169,13 @@ build_cb <- function(user,
     response_weights <- cb %>% 
       filter(p %in% 1:8,
              W1 == 1) %>%
-      select(IndividualID, p, SurveyYear, W5xHH, JJXSC) %>% 
+      select(IndividualID, p, SurveyYear, W5xHH, JJXSC, W2) %>% 
       mutate(trips = 1) %>% 
       complete(nesting(IndividualID, SurveyYear),
                p = 1:8,
-               fill = list(W5xHH = 0, trips = 0, JJXSC = 0)) %>% 
+               fill = list(W5xHH = 0, trips = 0, JJXSC = 0, W2 = 0)) %>% 
       group_by(p, SurveyYear) %>% 
-      summarise(r_weights = sum(W5xHH*JJXSC)/sum(trips*JJXSC),
+      summarise(r_weights = sum(W5xHH*JJXSC*W2)/sum(trips*JJXSC*W2),
                 count = sum(trips)) %>% 
       ungroup()
       

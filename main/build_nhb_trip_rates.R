@@ -1,10 +1,14 @@
-#TODO:Look at getting in SIC & SOC (can be in time split, not here)
+drive = "C"
+user = user
+trip_rate = TRUE
+time_split = TRUE
 
 extract_nhb <- function(drive, user, trip_rate, time_split){
   
   library_list <- c("dplyr",
                     "stringr",
-                    "readr")
+                    "readr",
+                    "tidyr")
   
   library_c(library_list)
   
@@ -15,7 +19,7 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
   nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
   
   ctripend_dir <- str_c(nts_dir, "import/ctripend/")
-  cb_dir <- str_c(nts_dir, "classified builds/", cb_name, ".csv")
+  cb_dir <- str_c(nts_dir, "classified builds/cb_tfn.csv")
   
   export_dir <- str_c(nts_dir, "outputs/nhb/")
   
@@ -31,11 +35,11 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
   ts_control <- read_csv(str_c(ctripend_dir, "/IRHOdmnr/IRHOdmnr_Final.csv"))
   
   # Pre-processing ----------------------------------------------------------
-  
+
   # Classified build columns and weights
   retain_cols <- c("IndividualID", 
-                   "soc_cat", 
-                   "ns_sec", 
+                   "soc", 
+                   "ns", 
                    "TripID", 
                    "TravelWeekDay_B01ID", 
                    "main_mode", 
@@ -46,38 +50,65 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
                    "hb_purpose", 
                    "nhb_purpose", 
                    "trip_weights",
-                   "tfn_area_type",
-                   "start_time")
+                   "tfn_at",
+                   "start_time",
+                   "trip_origin",
+                   "p")
   
   cb <- cb %>%
-    mutate(trip_weights = W1 * W5 * W2 * sw_weight) %>%
+    filter(W1 == 1) %>% 
+    mutate(trip_weights = W5xHH * W2 * JJXSC) %>%
     select(one_of(retain_cols))
+  
+  # Remove visiting friends
+  cb <- cb %>% 
+    filter(hb_purpose != 7, nhb_purpose != 17)
+  
+  # Remove air
+  cb <- filter(cb, main_mode != 8)
+  
+  # Aggregate car & van
+  cb <- mutate(cb, main_mode = ifelse(main_mode == 3, 4, main_mode))
+  
+  # Aggregate light rail and surface rail
+  cb <- mutate(cb, main_mode = ifelse(main_mode == 7, 6, main_mode))
+  
+  # Aggregate Area Type 1 & 2
+  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
+  
+  # Aggregate Area Type 7 & 8
+  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 8, 7, tfn_at))
   
   # NHB trip rates renaming
   tr_old_vars <- c("N", "M", "H", "HBM", "Gamma")
-  tr_new_vars <- c("nhb_purpose", "nhb_mode", "hb_purpose", "hb_mode", "trip_rate_ntem")
+  tr_new_vars <- c("nhb_purpose", "nhb_mode", "hb_purpose", "hb_mode", "cte_tr")
   
   tr_control <- rename_at(tr_control, all_of(tr_old_vars), ~ tr_new_vars)
   
-  # NHB trip rates - Merge Business/Commute & Driving/Passenger
+  # NHB trip rates remove car driver and passenger
   tr_control <- tr_control %>%
-    mutate(nhb_mode = ifelse(nhb_mode == 4, 3, nhb_mode),
-           hb_mode = ifelse(hb_mode == 4, 3, hb_mode),
-           nhb_purpose = ifelse(nhb_purpose == 11, 12, nhb_purpose)) %>% 
-    group_by(nhb_purpose, nhb_mode, hb_purpose, hb_mode) %>%
-    summarise(trip_rate_ntem = sum(trip_rate_ntem))
+    filter(!nhb_mode %in% c(3,4),
+           !hb_mode %in% c(3,4))
   
   # Time Split pre processing
   ts_old_vars <- c("n", "m", "r", "d", "rho2")
-  ts_new_vars <- c("nhb_purpose", "nhb_mode", "tfn_area_type", "start_time", "time_split")
+  ts_new_vars <- c("nhb_p", "m", "tfn_at", "tp", "cte_ts")
   
   ts_control <- rename_at(ts_control, all_of(ts_old_vars), ~ ts_new_vars)
   
-  
+  ts_control <- ts_control %>%
+    filter(!m %in% c(3,4))
+    
   # Trip Grouping -----------------------------------------------------------
-  # Why unique?
-  tour_groups_week <- cb %>%
-    unique() %>%
+  
+  # Discard finals trips in travel diary which are outbound
+  cb <- cb %>%
+    group_by(IndividualID) %>% 
+    filter(!(TripID == max(TripID) & TripPurpFrom_B01ID == 23)) %>% 
+    ungroup()
+  
+  # Start a trip when from home and end when to home
+  tour_groups <- cb %>%
     arrange(IndividualID, TripID) %>%
     group_by(IndividualID) %>%
     mutate(start_flag = case_when(TripPurpFrom_B01ID == 23 ~ 1,
@@ -87,8 +118,8 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
     mutate(trip_group = cumsum(start_flag)) %>%
     ungroup()
   
-  tour_groups <- filter(tour_groups_week, TravelWeekDay_B01ID %in% 1:5)
-  
+  # If Individuals last trip is HB outbound then remove
+  tour_groups <- filter(tour_groups, trip_group != 0)
   
   # NHB Trip Rates ----------------------------------------------------------
   
@@ -131,67 +162,160 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
       mutate(nhb_trip_rate = nhb_trips/hb_trips) %>% 
       filter(!is.na(hb_purpose))
     
+    # Manual fix
+    nhb_trip_rates <- nhb_trip_rates %>%
+      filter(hb_purpose != 99)
+    
+    # Infill 0 for missing segments
+    nhb_trip_rates <- nhb_trip_rates %>%
+      complete(nhb_purpose = c(11, 12, 13, 14, 15, 16, 18),
+               nhb_mode = c(1, 2, 4, 5, 6),
+               hb_purpose = c(1, 2, 3, 4, 5, 6, 8),
+               hb_mode = c(1, 2, 4, 5, 6),
+               fill = list(nhb_trips = 0, hb_trips = 0, nhb_trip_rate = 0))
+    
+    nhb_trip_rates <- nhb_trip_rates %>% 
+      rename(nhb_p = nhb_purpose,
+             nhb_m = nhb_mode,
+             p = hb_purpose,
+             m = hb_mode)
+    
     # Check against NTEM rates (IgammaNHBH)
     ntem_comparison <- nhb_trip_rates %>%
+      filter(nhb_mode != 4, hb_mode != 4) %>% 
       left_join(tr_control, by=c('hb_purpose', 'hb_mode', 'nhb_purpose', 'nhb_mode'))
     
-    lm(nhb_trip_rate ~ trip_rate_ntem, data = ntem_comparison) %>%
+    lm(nhb_trip_rate ~ cte_tr, data = ntem_comparison) %>%
       summary()
     
     # Write out
-    write_csv(nhb_trip_rates, str_c(export_dir, "nhnhb_ave_wday_ntem.csv"))
-    
-    write_csv(nhb_trip_rates, str_c(export_dir, "nhb_ave_wday_enh_trip_rates.csv"))
+    write_csv(nhb_trip_rates, str_c(export_dir, "nhb_trip_rates.csv"))
     
   }  
   
   if(time_split){
     
-    # Weekdays ---------------------------------------------------------
+    # Filter for nhb trips
+    ts_nhb_trips <- cb %>% 
+      filter(trip_origin == "nhb", p != 99)
     
-    # NHB trips with start time
-    ts_nhb_trips <- tour_groups %>%
-      select(IndividualID, nhb_purpose, tfn_area_type, start_time, main_mode, trip_group, start_flag, end_flag, trip_weights) %>%
-      filter(start_flag == 0 & end_flag == 0) %>%
-      rename(nhb_mode = main_mode)
+    # Modes
+    modes_list <- cb %>% 
+      distinct(main_mode) %>% 
+      pull() %>% 
+      sort()
     
-    # Calculate time splits
-    ts_factors <- ts_nhb_trips %>% 
-      group_by(nhb_purpose, nhb_mode, tfn_area_type, start_time) %>%
+    # Area Types
+    ats_list <- cb %>% 
+      distinct(tfn_at) %>%
+      pull() %>%
+      sort()
+    
+    # Aggregate 
+    agg_all <- ts_nhb_trips %>%
+      select(p, tfn_at, start_time, main_mode, trip_weights) %>%
+      group_by(p, tfn_at, start_time, main_mode) %>%
       summarise(trips = sum(trip_weights)) %>%
-      na.omit() %>% 
-      group_by(nhb_purpose, nhb_mode, tfn_area_type) %>%
-      mutate(prop = trips/sum(trips)) %>%
-      rename(tfn_time_split = prop)
+      ungroup()
     
-    ts_comparison <- ts_factors %>% 
+    # Infill for all combinations
+    agg_all <- agg_all %>% 
+      complete(p = c(11, 12, 13, 14, 15, 16, 18),
+               tfn_at = ats_list,
+               start_time = 1:6,
+               main_mode = modes_list,
+               fill = list(trips = 0)) %>%
+      select(p, tfn_at, main_mode, start_time, trips) %>% 
+      arrange(p, tfn_at, main_mode, start_time) 
+    
+    # Find sample sizes of proposed segmentation
+    counts <- agg_all %>%
+      group_by(p, tfn_at, main_mode) %>%
+      mutate(count_seg1 = sum(trips)) %>%
+      ungroup() %>%
+      group_by(p, main_mode) %>%
+      mutate(count_seg2 = sum(trips)) %>%
+      ungroup()
+    
+    # First seg calculation
+    seg1_split <- counts %>%
+      filter(count_seg1 >= 300) %>%
+      group_by(p, tfn_at, main_mode) %>%
+      mutate(split = trips/sum(trips)) %>%
+      ungroup() %>% 
+      select(p, tfn_at, main_mode, start_time, split) %>% 
+      arrange(p, tfn_at, main_mode)
+    
+    # 2nd Seg average infill
+    seg2_infill <- agg_all %>% 
+      group_by(p, main_mode, start_time) %>%
+      summarise(trips = sum(trips)) %>%
+      ungroup()
+    
+    seg2_infill_split <- seg2_infill %>% 
+      group_by(p, main_mode) %>% 
+      mutate(split = trips/sum(trips)) %>% 
+      ungroup()
+
+    # Seg 2 filter and join infill
+    seg2_split <- counts %>%
+      filter(count_seg1 < 300, count_seg2 >= 300) %>%
+      distinct(p, tfn_at, main_mode) %>%
+      left_join(seg2_infill_split) %>% 
+      select(p, tfn_at, main_mode, start_time, split) %>% 
+      arrange(p, tfn_at, main_mode, start_time)
+    
+    nhb_time_split <- bind_rows(seg1_split, seg2_split)
+    
+    # Add tfn area types 1 and 8 back in
+    nhb_time_split <- nhb_time_split %>%
+      filter(tfn_at == 2) %>% 
+      mutate(tfn_at = 1) %>% 
+      bind_rows(nhb_time_split)
+    
+    nhb_time_split <- nhb_time_split %>%
+      filter(tfn_at == 7) %>% 
+      mutate(tfn_at = 8) %>% 
+      bind_rows(nhb_time_split)
+    
+    # Post process
+    nhb_time_split <- nhb_time_split %>%
+      rename(nhb_p = p,
+             m = main_mode,
+             tp = start_time)
+    
+    # Write out
+    write_csv(nhb_time_split, str_c(export_dir, "nhb_time_splits.csv"))
+    
+    ts_comparison <- nhb_time_split %>% 
+      filter(m != 4) %>% 
       left_join(ts_control)
     
-    lm(tfn_time_split ~ time_split, data = ts_comparison) %>% 
+    lm(split ~ cte_ts, data = ts_comparison) %>% 
       summary()
     
-    write_csv(ts_comparison, str_c(export_dir, "nhb_ave_wday_time_split_ntem.csv"))
+    # Counts report
+    c_report <- counts %>% 
+      filter(tfn_at %in% c(2, 7)) %>% 
+      mutate(tfn_at = case_when(
+        tfn_at == 2 ~ 1,
+        tfn_at == 7 ~ 8,
+        TRUE ~ as.double(tfn_at)
+      )) %>%
+      bind_rows(counts) %>% 
+      arrange(p, tfn_at, main_mode, start_time)
     
-    write_csv(ts_factors, str_c(export_dir, "tfn_nhb_ave_wday_time_split_18.csv"))
+    c_report_out <- c_report %>% 
+      distinct(p, tfn_at, main_mode, count_seg1, count_seg2) %>% 
+      group_by(p) %>% 
+      summarise(seg1 = sum(count_seg1 > 300),
+                seg2 = sum((count_seg1 < 300 & count_seg2 > 300))) %>% 
+      ungroup() %>% 
+      mutate(total = seg1 + seg2) %>% 
+      mutate(seg1_prop = seg1/total * 100,
+             seg2_prop = seg2/total * 100)
     
-    
-    # Full Week ---------------------------------------------------------------
-    
-    ts_nhb_trips_week <- tour_groups_week %>%
-      select(IndividualID, nhb_purpose, tfn_area_type, start_time, main_mode, trip_group, start_flag, end_flag, trip_weights) %>%
-      filter(start_flag == 0 & end_flag == 0) %>%
-      rename(nhb_mode = main_mode)
-    
-    ts_factors_week <- ts_nhb_trips_week %>% 
-      group_by(nhb_purpose, nhb_mode, tfn_area_type, start_time) %>%
-      summarise(trips = sum(trip_weights)) %>%
-      na.omit() %>% 
-      group_by(nhb_purpose, nhb_mode, tfn_area_type) %>%
-      mutate(prop = trips/sum(trips)) %>%
-      rename(tfn_time_split = prop)
-    
-    
-    write_csv(ts_factors_week, str_c(export_dir, 'tfn_nhb_ave_week_time_split_18.csv'))
+    write_csv(c_report_out, str_c(export_dir, "Reports/time_split_proportions.csv"))
     
   }
   

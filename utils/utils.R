@@ -1,3 +1,49 @@
+# Create NTS C Folder in C Drive ------------------------------------------
+create_nts_c <- function(user = Sys.info()[[6]]){
+  
+  main_dir <- paste0("C:/Users/", user, "/Documents/NTS_D/")
+  
+  # Unclassified build
+  dir.create(paste0(main_dir, "unclassified builds/"), showWarnings = FALSE, recursive = TRUE)
+  
+  # Classified build
+  dir.create(paste0(main_dir, "classified builds/"), showWarnings = FALSE, recursive = TRUE)
+  
+  # Imports
+  
+  dir.create(paste0(main_dir, "import/ub_columns/"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(paste0(main_dir, "import/land_use/"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(paste0(main_dir, "import/hb_trip_rates/"), showWarnings = FALSE, recursive = TRUE)
+  
+  # Outputs
+  
+  dir.create(paste0(main_dir, "outputs/hb/hb_trip_rates/Reports/"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(paste0(main_dir, "outputs/hb/hb_trip_rates/hb_mode_time_split/"), showWarnings = FALSE, recursive = TRUE)
+  
+  # Productions Reporting output
+  dir.create(paste0(main_dir, "outputs/hb/Productions reporting/P - AT - NTEM_TT/Production Comparisons"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(paste0(main_dir, "outputs/hb/Productions reporting/P - AT - NTEM_TT/Production Purpose Mode"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(paste0(main_dir, "outputs/hb/Productions reporting/P - MSOA/Mode Time Split/By Area Type/"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(paste0(main_dir, "outputs/hb/Productions reporting/P - MSOA/Purpose/By Area Type/"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(paste0(main_dir, "outputs/hb/Productions reporting/Purpose Mode Report/"), showWarnings = FALSE, recursive = TRUE)
+  
+  
+  # NHB
+  dir.create(paste0(main_dir, "outputs/nhb/Reports/"), showWarnings = FALSE, recursive = TRUE)
+  
+  # Lookups Copy
+  
+  lookups_y <- list.files("Y:/NTS/lookups", recursive = TRUE)
+  lookups_y <- paste0("Y:/NTS/lookups/", lookups_y)
+
+  dir.create(paste0(main_dir, "lookups/ntem/"), showWarnings = FALSE, recursive = TRUE)
+  
+  file.copy(lookups_y, paste0(main_dir, "lookups/"), overwrite = TRUE, recursive = FALSE)
+  
+}
+
+create_nts_c()
+
 # Install (if needed) and load libraries --------
 
 library_c <- function(packages_list) {

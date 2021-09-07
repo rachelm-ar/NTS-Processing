@@ -311,13 +311,13 @@ build_hb_productions <- function(user, drive, landuse_preprocess = FALSE){
   r2_tfn_ntem_mts <- plot_purpose_comparison(r2_tfn_ntem, "tp", "m", 5)
 
   save_plot(str_c(r2_dir, "cte_ntem.png"), r2_ntem_cte, 4, 4)
-  save_plot(str_c(r2_dir, "cte_ntem_mts.png"), r2_ntem_cte_mts, 12, 12)
+  save_plot(str_c(r2_dir, "cte_ntem_mts.png"), r2_ntem_cte_mts, 12, 14)
   
   save_plot(str_c(r2_dir, "cte_tfn.png"), r2_tfn_cte, 4, 4)
-  save_plot(str_c(r2_dir, "cte_tfn_mts.png"), r2_tfn_cte_mts, 12, 12)
+  save_plot(str_c(r2_dir, "cte_tfn_mts.png"), r2_tfn_cte_mts, 12, 14)
   
   save_plot(str_c(r2_dir, "ntem_tfn.png"), r2_tfn_ntem, 4, 4)
-  save_plot(str_c(r2_dir, "ntem_tfn_mts.png"), r2_tfn_ntem_mts, 12, 12)
+  save_plot(str_c(r2_dir, "ntem_tfn_mts.png"), r2_tfn_ntem_mts, 12, 14)
   
   ### By P, MSOA, AT, m, tp
   

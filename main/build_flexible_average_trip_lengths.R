@@ -1,8 +1,5 @@
 library(tidyverse)
 
-test <- rnorm(100, mean = 7, sd = 5)
-
-test <- test[test > 0]
 
 #####
 
@@ -35,9 +32,9 @@ nts %>%
 
   group_by(main_mode, bands_km) %>%
   summarise(trips = n()) %>%
-  ungroup() %>%
-  geom_d
-
+  ungroup()
+  
+  
 
 #####
 
@@ -83,11 +80,11 @@ nts2 <- nts %>%
   bind_rows(tohometrips)
 
 nts3 <- nts2 %>%
-  mutate(weights = W1 * W2 * W5 * sw_weight) %>%
+  mutate(weights = W1 * W2 * W5xHH * JJXSC) %>%
   mutate(passenger = passenger * W2 * W5 * sw_weight,
          driver = driver * W2 * W5 * sw_weight) %>%
-  select(main_mode, trip_purpose, tfn_area_type, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID, day_type, trip_direction, TripDisIncSW, passenger, driver, weights) %>%
-  group_by(main_mode, trip_purpose, tfn_area_type, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID, day_type, trip_direction, driver, TripDisIncSW) %>%
+  select(main_mode, trip_purpose, tfn_at, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID, day_type, trip_direction, TripDisIncSW, passenger, driver, weights) %>%
+  group_by(main_mode, trip_purpose, tfn_at, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID, day_type, trip_direction, driver, TripDisIncSW) %>%
   summarise(trips = sum(weights),
             passenger = sum(passenger),
             driver = sum(driver)) %>%
