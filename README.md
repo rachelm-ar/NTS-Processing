@@ -24,8 +24,11 @@ National Travel Survey (NTS) Processing  is Transport for the North's (TfN) suit
    - [NorMITs Matrix Tools](#matrix-tools)
 
 ## [Summary](#contents)
+NTS Processing is an ordered sequence, where the first process returns in the inputs for the 2nd process and so forth. This is represented in the OP flow model below. A summary of each process is detailed in chronological order below:
 
-Reads in raw NTS data and joins tables together by utilising the hierarchical nature of the NTS to flexibily create an 'unclassified build' by specifiying the tables and variables within each table to join.
+- [Unclassified Build](#unclassified-build) (**UB**) - Reads in raw NTS data and joins tables together by utilising the hierarchical nature of the NTS to flexibily create an 'unclassified build' by specifiying the tables and variables within each table to join.
+- [Classified Build](#classified-build) (**CB**) - 
+
 
 ![UB-op-flow](nts_op-ub_github.drawio.png)
 
