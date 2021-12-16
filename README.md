@@ -51,9 +51,9 @@ In order to smoothly run the tools, follow the steps below:
 3.	If granted access to raw NTS data, save within NTS_C. For example: C:\Users\Pluto\Documents\NTS_C\UKDA-7553-tab\tab
 
 ## [Required Data](#contents)
-In order to run NTS Processing from start to finish, i.e. obtain all outputs, there are certain dependencies on inputs which are listed for each wrapper function.
+In order to run NTS Processing from start to finish, i.e. obtain all outputs, there are certain dependencies on inputs which are listed for each wrapper function. The minimum required to obtain a classified build is:
 
-### [Lookups](#contents)
+1. All lookups obtained from running step 1 in [Quick start Guide](#[Quick Start Guide!]).
 
 
 ![UB-op-flow](docs/nts_op_UB.png)
