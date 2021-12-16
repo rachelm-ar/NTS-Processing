@@ -42,7 +42,7 @@ One important requisite which deserves explanation is the Lookup process impleme
 
 
 
-![UB-op-flow](docs/nts_op_UB_github.drawio.png)
+![UB-op-flow](docs/nts_op_UB.png)
 
 It then classfies this build based on classifications relevant to TfN's Analtitical Framework models.
 Using classified build, we create trip rates, mode time splits and productions - reporting comparisons of these data sets to CTripEnd.
