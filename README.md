@@ -10,27 +10,26 @@ National Travel Survey (NTS) Processing  is Transport for the North's (TfN) suit
  - [Summary](#summary) 
  - [Quick Start Guide](#quick-start-guide)
  - [Required Data](#required-data)
-   - [NoTEM](#notem)
-   - [TMS](#tms)
-   - [EFS](#efs)
-   - [Elasticity](#elasticity)
  - [Documentation](#documentation)
  - [Planned Improvements](#planned-improvements)
  - [Sharing](#sharing)
-   - [Sharing Models](#sharing-models)
-   - [Sharing Requests](#sharing-requests)
- - [Gory Details](#gory-details)
-   - [Northern Trip End Model](#northern-trip-end-model)
-   - [Travel Market Synthesiser](#travel-market-synthesiser)
-   - [External Forecast System](#external-forecast-system)
-   - [Elasticity](#elasticity-model)
-   - [NorMITs Matrix Tools](#matrix-tools)
+ - [Functionality](#nts-outputs)
+   - [Lookups](#lookups)
+   - [Unclassified Build](#ub)
+   - [Classified Build](#cb)
+   - [HB Trip Rates](#hb_trip-rates)
+   - [HB Mode Time Splits](#hb-mts) - 
+   - [HB Production Model](#hb-production-model) - 
+   - [NHB Trip Rates](#nhb-trip-rates) - 
+   - [NHB Time Splits](#nhb-time_splits) - 
+   - [Car Occupancy](#car-occupancy) - 
+   - [Trip Length Distributions](#tld)
 
 ## [Summary](#contents)
 NTS Processing is an ordered sequence, where the unclassified build becomes the input for the classified build which becomes the main input for all outputs. This is represented in the OP flow model below. A summary of each process is detailed in chronological order below:
 
-1. [Unclassified Build](#unclassified-build) (**UB**) - Reads in raw NTS data and joins tables together by utilising the hierarchical nature of the NTS to flexibily create an 'unclassified build' by specifiying the tables and variables within each table to join.
-2. [Classified Build](#classified-build) (**CB**) - 
+1. [Unclassified Build](#ub) (**UB**) - Reads in raw NTS data and joins tables together by utilising the hierarchical nature of the NTS to flexibily create an 'unclassified build' by specifiying the tables and variables within each table to join.
+2. [Classified Build](#cb) (**CB**) - 
 3. [HB Trip Rates](#hb_trip-rates) - 
 4. [HB Mode Time Splits](#hb-mts) - 
 5. [HB Production Model](#hb-production-model) - 
@@ -53,7 +52,21 @@ In order to smoothly run the tools, follow the steps below:
 ## [Required Data](#contents)
 In order to run NTS Processing from start to finish, i.e. obtain all outputs, there are certain dependencies on inputs which are listed for each wrapper function. The minimum required to obtain a classified build is:
 
-1. All lookups obtained from running step 1 in [Quick start Guide](#[Quick Start Guide!]).
+1. All lookups obtained from running step 1 in Quick start guide.
+2. Raw NTS tsv's with an 'extraction_cols.csv' OR a pre-made unclassified build csv.
+
+## [Documentation](#contents)
+Currently code documentation ca be found in sharepoint. There are planned improvements to hosting this online.
+
+## [Planned improvements](#contents)
+There is one major improvement due early 2022. The format will change to support an R package structure. Code will also be more 'strict' to avoid incorrect errors. The final addition is to add sanity checks within all functions, particularly UB and CB, to ensure any filtering processes are applied correctly.
+
+## [Sharing](#contents)
+TfN's Technical Assurance, Modelling and Economics (**TAME**) team have done
+a great deal of work to develop TfN’s Analytical Framework.
+As part of this, we would like to start sharing some of our tools, NTS Processing included.
+
+## [NTS Outputs](#contents)
 
 
 ![UB-op-flow](docs/nts_op_UB.png)
