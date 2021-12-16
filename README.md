@@ -38,8 +38,11 @@ NTS Processing is an ordered sequence, where the unclassified build becomes the 
 7. [Car Occupancy](#car-occupancy) - 
 8. [Trip Length Distributions](#tld)
 
-One important requisite which deserves explanation is the Lookup process implemented to swiftly and flexibly adjust and/or add new variables.
+One important requisite deserving explanation is the Lookup process implemented to flexibly adjust and/or add new variables.
 
+![op_flow](docs/nts_op.png)
+
+## [Quick Start Guide!](#contents)
 
 
 ![UB-op-flow](docs/nts_op_UB.png)
