@@ -68,5 +68,10 @@ As part of this, we would like to start sharing some of our tools, NTS Processin
 
 ## [NTS Outputs](#contents)
 
+#### [Lookups](#contents)
+A unique procedure has been implemented to swiftly add or adjust lookups. A lookup in this context refers to adding new variables to the classified build based on variables available within the unclassified build. This section explains the format of a csv lookup input to allow you to create your own lookups. There are three steps:
 
+1. Navigate to '.../lookups/' and add a new csv with this naming convention 'new_var---var1--var2--..--varn.csv', where *new_var* is the name of the variable to add and *var1...varn* are variables within the unclassified build to define *new_var*.
+
+2. 
 ![UB-op-flow](docs/nts_op_UB.png)
