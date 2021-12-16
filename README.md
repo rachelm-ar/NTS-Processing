@@ -33,32 +33,27 @@ NTS Processing is an ordered sequence, where the unclassified build becomes the 
 2. [Classified Build](#classified-build) (**CB**) - 
 3. [HB Trip Rates](#hb_trip-rates) - 
 4. [HB Mode Time Splits](#hb-mts) - 
-5. [NHB Trip Rates](#nhb-trip-rates) - 
-6. [NHB Time Splits](#nhb-time_splits) - 
-7. [Car Occupancy](#car-occupancy) - 
-8. [Trip Length Distributions](#tld)
+5. [HB Production Model](#hb-production-model) - 
+6. [NHB Trip Rates](#nhb-trip-rates) - 
+7. [NHB Time Splits](#nhb-time_splits) - 
+8. [Car Occupancy](#car-occupancy) - 
+9. [Trip Length Distributions](#tld)
 
 One important requisite deserving explanation is the Lookup process implemented to flexibly adjust and/or add new variables.
 
 ![op_flow](docs/nts_op.png)
 
 ## [Quick Start Guide!](#contents)
+In order to smoothly run the tools, follow the steps below:
+
+1.	Open run_master.R and execute lines 1-12. If this is your first time, then this will create a folder 'NTS_C' and copy the required inputs from Y drive to your C drive within documents. For example: C:\Users\Pluto\Documents\NTS_C
+2.	It is better to run with ‘drive = C’ whenever a function has the option as an argument due to slow speeds with the Y drive. This is particularly important for build_ub as raw NTS tsv’s are not saved on the Y drive.
+3.	If granted access to raw NTS data, save within NTS_C. For example: C:\Users\Pluto\Documents\NTS_C\UKDA-7553-tab\tab
+
+## [Required Data](#contents)
+In order to run NTS Processing from start to finish, i.e. obtain all outputs, there are certain dependencies on inputs which are listed for each wrapper function.
+
+### [Lookups](#contents)
 
 
 ![UB-op-flow](docs/nts_op_UB.png)
-
-It then classfies this build based on classifications relevant to TfN's Analtitical Framework models.
-Using classified build, we create trip rates, mode time splits and productions - reporting comparisons of these data sets to CTripEnd.
-
-## Backlog
-Non-homebased trip rates and time splits
-
-National Travel Survey analysis routines
-
-## Overview
-A suite of tools to read in NTS raw data using its hierarchical data format and joins tables to create an 'unclassified build'.
-It then classfies this build based on classifications relevant to TfN's Analtitical Framework models.
-Using classified build, we create trip rates, mode time splits and productions - reporting comparisons of these data sets to CTripEnd.
-
-## Backlog
-Non-homebased trip rates and time splits
