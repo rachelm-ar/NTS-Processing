@@ -68,6 +68,9 @@ As part of this, we would like to start sharing some of our tools, NTS Processin
 
 ## [Functionality](#contents)
 
+Notes:
+Inputs and Outputs in *italics* are optional.
+
 #### [Lookups](#contents)
 A unique procedure has been implemented to swiftly add or adjust lookups. A lookup in this context refers to adding new variables to the classified build based on variables available within the unclassified build. This section explains the format of a csv lookup input to allow you to create your own lookups. A detailed explanation with an example is provided within the NTS Processing Code Note.
 
@@ -83,3 +86,15 @@ A unique procedure has been implemented to swiftly add or adjust lookups. A look
 1. Unclassified build - ub_VERSION.csv in *'.../unclassified_builds/*
 
 ![UB-op-flow](docs/nts_op_UB.png)
+
+#### [Classified Build](#contents)
+
+**name:** build_cb.R
+
+**inputs:**
+1. Unclassified build - ub_VERSION.csv
+
+**outputs**
+1. Classified build - cb_VERSION.csv in *'.../classified_builds/*
+2. *HB Trip Rates build* - cb_hb_tr_VERSION.csv in *'.../classified_builds/*
+
