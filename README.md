@@ -18,25 +18,25 @@ National Travel Survey (NTS) Processing  is Transport for the North's (TfN) suit
    - [Unclassified Build](#ub)
    - [Classified Build](#cb)
    - [HB Trip Rates](#hb_trip-rates)
-   - [HB Mode Time Splits](#hb-mts) - 
-   - [HB Production Model](#hb-production-model) - 
-   - [NHB Trip Rates](#nhb-trip-rates) - 
-   - [NHB Time Splits](#nhb-time_splits) - 
-   - [Car Occupancy](#car-occupancy) - 
+   - [HB Mode Time Splits](#hb-mts) 
+   - [HB Production Model](#hb-production-model)
+   - [NHB Trip Rates](#nhb-trip-rates)
+   - [NHB Time Splits](#nhb-time_splits)
+   - [Car Occupancy](#car-occupancy)
    - [Trip Length Distributions](#tld)
 
 ## [Summary](#contents)
 NTS Processing is an ordered sequence, where the unclassified build becomes the input for the classified build which becomes the main input for all outputs. This is represented in the OP flow model below. A summary of each process is detailed in chronological order below:
 
 1. [Unclassified Build](#ub) (**UB**) - Reads in raw NTS data and joins tables together by utilising the hierarchical nature of the NTS to flexibily create an 'unclassified build' by specifiying the tables and variables within each table to join.
-2. [Classified Build](#cb) (**CB**) - 
-3. [HB Trip Rates](#hb_trip-rates) - 
-4. [HB Mode Time Splits](#hb-mts) - 
-5. [HB Production Model](#hb-production-model) - 
-6. [NHB Trip Rates](#nhb-trip-rates) - 
-7. [NHB Time Splits](#nhb-time_splits) - 
-8. [Car Occupancy](#car-occupancy) - 
-9. [Trip Length Distributions](#tld)
+2. [Classified Build](#cb) (**CB**) - Reads in the unclassified build and defines TfN specific variables, based on pre-defined lookups; applies weighting methodology and filtering process to create a build ready for modelling and analysis. 
+3. [HB Trip Rates](#hb_trip-rates) - Reads in the classified build alongside pre-defined model form and response day weighting to build statistical models that predict trip rate for each purpose by segmentation defined in NorMITs Demand TMS.
+4. [HB Mode Time Splits](#hb-mts) - Reads in the classified build and outputs the TfN equiavelent of CTripEnd *IRHOmdhsr*.
+5. [HB Production Model](#hb-production-model) - Mini production model for sense checking outputs of TfN HB trip rates and mode time splits vs CTripEnd
+6. [NHB Trip Rates](#nhb-trip-rates) - Reads in the classified build and creates NHB trip rate factors based on CTripEnd methodology
+7. [NHB Time Splits](#nhb-time_splits) - Reads in the classified build and creates NHB time splits based on CTripEnd methodology
+8. [Car Occupancy](#car-occupancy) - Reads in classified build, flexibily calculates car-occupancy by distance band given a level of segmentation
+9. [Trip Length Distributions](#tld) - Reads in classified build, flexibility derives TLD's given a level of segmentation.
 
 One important requisite deserving explanation is the Lookup process implemented to flexibly adjust and/or add new variables.
 
