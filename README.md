@@ -80,10 +80,10 @@ A unique procedure has been implemented to swiftly add or adjust lookups. A look
 
 **inputs:**
 1. NTS Raw .tab files in C drive
-2. List of tables with variables within each table to join 'extraction_cols_VERSION.csv' in *'.../import/ub_columns/'* where VERSION will be consistent for UB and CB
+2. List of tables with variables within each table to join 'extraction_cols_(VERSION).csv' in *'.../import/ub_columns/'* where '(VERSION)' will be consistent for UB and CB
 
 **outputs**
-1. Unclassified build - ub_VERSION.csv in *'.../unclassified_builds/*
+1. Unclassified build - ub_(VERSION).csv in *'.../unclassified_builds/*
 
 ![UB-op-flow](docs/nts_op_UB.png)
 
@@ -92,9 +92,36 @@ A unique procedure has been implemented to swiftly add or adjust lookups. A look
 **name:** build_cb.R
 
 **inputs:**
-1. Unclassified build - ub_VERSION.csv
+1. Unclassified build - ub_(VERSION).csv
 
 **outputs**
-1. Classified build - cb_VERSION.csv in *'.../classified_builds/*
-2. *HB Trip Rates build* - cb_hb_tr_VERSION.csv in *'.../classified_builds/*
+1. Classified build - cb_(VERSION).csv in *'.../classified_builds/'*
+2. *HB Trip Rates build* - cb_hb_tr_(VERSION).csv in *'.../classified_builds/'*
+3. *Response weights for HB Trip Rates* - hb_response_weights.csv in *'.../import/hb_trip_rates/'* 
 
+#### [HB Trip Rates](#contents)
+
+**name:** build_hb_trip_rates.R
+
+**inputs:**
+1. Classified build - cb_(VERSION).csv
+2. Response weights for HB Trip Rates - hb_response_weight.csv
+3. HB Purpose Model Forms - model_forms.csv in *'.../import/hb_trip_rates/'* 
+
+**outputs**
+1. hb_trip_rates - hb_trip_rates_V(ITERATION) in *'.../outputs/hb/hb_trip_rates/*
+2. 2. *Unweighted regression output* - unweighted_trip_rates_report.csv in *'.../outputs/hb/hb_trip_rates/Reports/*
+
+
+#### [HB Trip Rates](#contents)
+
+**name:** build_hb_trip_rates.R
+
+**inputs:**
+1. Classified build - cb_(VERSION).csv
+2. Response weights for HB Trip Rates - hb_response_weight.csv
+3. HB Purpose Model Forms - model_forms.csv in *'.../import/hb_trip_rates/'* 
+
+**outputs**
+1. hb_trip_rates - hb_trip_rates_V(ITERATION) in *'.../outputs/hb/hb_trip_rates/*
+2. 2. *Unweighted regression output* - unweighted_trip_rates_report.csv in *'.../outputs/hb/hb_trip_rates/Reports/*
