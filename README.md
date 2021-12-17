@@ -13,7 +13,7 @@ National Travel Survey (NTS) Processing  is Transport for the North's (TfN) suit
  - [Documentation](#documentation)
  - [Planned Improvements](#planned-improvements)
  - [Sharing](#sharing)
- - [Functionality](#nts-outputs)
+ - [Functionality](#functionality)
    - [Lookups](#lookups)
    - [Unclassified Build](#ub)
    - [Classified Build](#cb)
