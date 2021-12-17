@@ -73,4 +73,13 @@ A unique procedure has been implemented to swiftly add or adjust lookups. A look
 
 #### [Unclassified Build](#contents)
 
+**name:** build_ub.R
+
+**inputs:**
+1. NTS Raw .tab files in C drive
+2. List of tables with variables within each table to join 'extraction_cols_VERSION.csv' in *'.../import/ub_columns/'* where VERSION will be consistent for UB and CB
+
+**outputs**
+1. Unclassified build - ub_VERSION.csv in *'.../unclassified_builds/*
+
 ![UB-op-flow](docs/nts_op_UB.png)
