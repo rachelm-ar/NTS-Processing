@@ -68,9 +68,6 @@ As part of this, we would like to start sharing some of our tools, NTS Processin
 
 ## [Functionality](#contents)
 
-Notes:
-Inputs and Outputs in *italics* are optional.
-
 #### [Lookups](#contents)
 A unique procedure has been implemented to swiftly add or adjust lookups. A lookup in this context refers to adding new variables to the classified build based on variables available within the unclassified build. This section explains the format of a csv lookup input to allow you to create your own lookups. A detailed explanation with an example is provided within the NTS Processing Code Note.
 
