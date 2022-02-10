@@ -79,6 +79,12 @@ nts <- nts %>%
     TripDestGOR_B02ID == 10 ~ "wales",
     TripDestGOR_B02ID == 11 ~ "scotland"))
 
+# Aggregate car/van and light/heavy rail
+nts <- nts %>%
+  mutate(main_mode = ifelse(main_mode == 4, 3, main_mode),
+         main_mode = ifelse(main_mode == 7, 6, main_mode)) %>%
+  filter(main_mode != 8)
+
 # Derive population -------------------------------------------------------
 
 # Calculate population by GOR
@@ -243,8 +249,9 @@ output <- map(ua_sic_trips, function(x){
   
 })
 
-ua_sic = ua_sic_trips[[8]]
-purpose = 8
+ua_sic = ua_sic_trips[[1]]
+purpose = 1
+best_ecats = model_outputs[[1]]
 sic = sic_jobs
 cut_off = 0.9 
 greater_or_less = "greater"
@@ -253,30 +260,7 @@ ua_to_gor
 gor_expand_factors
 
 
-calculate_attractions <- function(ua_sic, purpose, sic, cut_off, greater_or_less, output, ua_to_gor, gor_expand_factors){
-  
-  best_ecats <- output %>%
-    bind_rows() %>% 
-    filter(p == purpose) %>% 
-    mutate(pr = percent_rank(r2)) %>% 
-    ungroup()
-  
-  if(greater_or_less == "greater"){
-    
-    best_ecats <- filter(best_ecats, pr > cut_off)
-      
-  } else if(greater_or_less == "less"){
-    
-    best_ecats <- filter(best_ecats, pr < cut_off)
-    
-  }
-  
-  best_ecats <- best_ecats %>%
-    select(p, e_cat) %>% 
-     pull(e_cat)
-  
-  best_ecats = c("s99", "s75", "s08", "s51", "s27", "s87", "s55", "s01", "s21", "s50")
-  best_ecats = str_c(best_ecats, "_Wrkrs")
+calculate_attractions <- function(ua_sic, purpose, best_ecats, sic, ua_to_gor, gor_expand_factors){
   
   # imagine the model for purpose 1 has been built and the following covariates are 'best'
   # these covariates have the individual highest R^2 univariate models
@@ -330,25 +314,28 @@ calculate_attractions <- function(ua_sic, purpose, sic, cut_off, greater_or_less
   
   sum_output <- tibble(p = purpose, attractions = sum_output)
   
-  list(final_trips, sum_output)
+  output1 <- sic %>%
+    select(contains(best_ecats)) %>% 
+    summarise_all(sum) %>% 
+    mutate(p = purpose) %>% 
+    pivot_longer(-p, names_to = "sic", values_to = "jobs") %>%
+    mutate(weight = attraction_weight)
+  
+  list(final_trips, sum_output) 
   
 }
 
-sic_jobs %>%
-  na.omit() %>%
-  select(msoa_zone_id, s01_Wrkrs, s02_Wrkrs, s05_Wrkrs, s06_Wrkrs) %>% 
-  pivot_longer(-msoa_zone_id) %>% 
-  group_by(msoa_zone_id) %>%
-  summarise(attractions = sum(value)) %>% 
-  ungroup() %>%
-  select(-msoa_zone_id) %>%
-  sum()
+attractions <- pmap(list(ua_sic_trips, 1:8, model_outputs), calculate_attractions, sic, ua_to_gor, gor_expand_factors)
+
+bind_rows(attractions) %>% 
+  write_csv("I:/NTS/outputs/attractions/attraction_weights_v0.1.csv")
 
 attractions <- map2(ua_sic_trips, 1:8, calculate_attractions, sic_jobs, 0.8, "greater", output, ua_to_gor, gor_expand_factors)
 
-final_output <- attractions %>%
-  map(1) %>% 
-  bind_rows()
+##################################
+
+
+
 
 #write_csv(final_output, "I:/NTS/outputs/attractions/initial_results/attractions.csv")
 
@@ -415,14 +402,14 @@ lad_comparison %>%
   filter(LAD20CD %in% c("E09000019", "E09000007", "E09000033", "E09000028", "E09000012", "E09000013", "E09000020", "E09000022", "E09000030", "E09000032")) %>% 
   arrange(desc(ratio)) %>% 
   print(n= 30)
-  
+
 
 ###############
 
 lad_comparison %>%
   filter(p == 8) %>% 
   arrange(desc(tempro_attractions))
-  mutate(diff = tfn_attractions - tempro_attractions) %>%
+mutate(diff = tfn_attractions - tempro_attractions) %>%
   arrange(desc(diff))
 
 # todo calculate expansion factor for working age people (16-74), for all purposes - try maybe just 1 and 2
