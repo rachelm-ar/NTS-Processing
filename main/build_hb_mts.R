@@ -4,7 +4,13 @@
 #' 3. Else group by p, hh_type and calculate split
 #' Work backwards for each segment and combine together
 
-build_hb_mts <- function(user, drive, tfn_or_ntem){
+drive = "C"
+tfn_or_ntem = "tfn"
+seg_max = 300
+
+# do for level 2 and level 3 the same I did for purpose only
+
+build_hb_mts <- function(user, drive, tfn_or_ntem, seg_max){
   
   library_list <- c("dplyr",
                     "stringr",
@@ -136,10 +142,10 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
     group_by(p, hh_type) %>%
     mutate(count_seg3 = sum(trips)) %>%
     ungroup()
-  
+
   # First seg calculation
   seg1_split <- counts %>%
-    filter(count_seg1 >= 300) %>%
+    filter(count_seg1 >= seg_max) %>%
     group_by(p, area_type, ntem_tt) %>%
     mutate(split = trips/sum(trips)) %>%
     ungroup() %>% 
@@ -181,13 +187,13 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
   
   # Seg 2 filter and join infill
   seg2_split <- counts %>%
-    filter(count_seg1 < 300, count_seg2 >= 300) %>%
+    filter(count_seg1 < seg_max, count_seg2 >= seg_max) %>%
     distinct(p, area_type, ntem_tt) %>%
     left_join(seg2_infill_split)
   
   # Seg 3 filter and join infill
   seg3_split <- counts %>%
-    filter(count_seg2 < 300) %>%
+    filter(count_seg2 < seg_max) %>%
     distinct(p, area_type, ntem_tt) %>%
     left_join(seg3_infill_split)
   
@@ -231,7 +237,7 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
     
     mts_wide %>% 
       rename(tfn_at = area_type) %>% 
-      write_csv(wide_dir)
+      write_csv("I:/NTS/outputs/hb/hb_mode_time_split/hb_mts_tfn_wide.csv")
     
     write_csv(tms_output, tms_dir)
     
@@ -258,9 +264,9 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
   c_report_out <- c_report %>% 
     distinct(p, area_type, ntem_tt, hh_type, count_seg1, count_seg2, count_seg3) %>% 
     group_by(p) %>% 
-    summarise(seg1 = sum(count_seg1 > 300),
-              seg2 = sum((count_seg1 < 300 & count_seg2 > 300)),
-              seg3 = sum((count_seg2 < 300 & count_seg3 > 300))) %>% 
+    summarise(seg1 = sum(count_seg1 > seg_max),
+              seg2 = sum((count_seg1 < seg_max & count_seg2 > seg_max)),
+              seg3 = sum((count_seg2 < seg_max & count_seg3 > seg_max))) %>% 
     ungroup() %>% 
     mutate(total = seg1 + seg2 + seg3) %>% 
     mutate(seg1_prop = seg1/total * 100,
@@ -268,7 +274,5 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
            seg3_prop = seg3/total * 100)
   
   write_csv(c_report_out, segments_out)
-  
-  # counts %>% filter(area_type == 6, ntem_tt == 6) %>% filter(trips != 0)
   
 }
