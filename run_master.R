@@ -79,7 +79,8 @@ build_hb_trip_rates(user = user,
 
 build_hb_mts(user = user,
              drive = "C",
-             tfn_or_ntem = "tfn")
+             tfn_or_ntem = "tfn",
+             seg_max = 300)
 
 build_hb_mts(user = user,
              drive = "C",
