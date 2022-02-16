@@ -24,12 +24,7 @@ cb_preprocess <- function(ub, cb_version){
   
 }
 
-build_cb <- function(user,
-                     drive,
-                     version_in,
-                     version_out,
-                     build_type = "",
-                     save_processed = FALSE){
+build_cb <- function(cb_input_csv_dir, tfn_or_ntem = "tfn", save_processed, extract_hb_trip_rates_inputs){
   
   library_list <- c("dplyr",
                     "stringr",
@@ -41,23 +36,21 @@ build_cb <- function(user,
   
   # Directories -------------------------------------------------------------
    
-  # Imports
-  y_dir <- "Y:/NTS/"
-  c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
-  nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
-  
-  ub_dir <- str_c(nts_dir, "unclassified builds/ub_", version_in, ".csv")
+  cb_input <- read_csv(cb_input_csv_dir)
   
   # Exports
-  export_dir <- str_c(nts_dir, "classified builds/")
-  dir.create(export_dir, showWarnings = FALSE)
+  dir.create(cb_input$output_dir, showWarnings = FALSE)
   
-  out_cb_dir <- str_c(export_dir, "cb_", version_out, ".csv")
-  out_hb_tr_dir <- str_c(export_dir, "cb_hb_tr_", version_out, ".csv")
-  out_hb_weights_dir <- str_c(nts_dir, "import/hb_trip_rates/hb_response_weights_", version_out, ".csv")
+  out_cb_dir <- str_c(cb_input$output_dir, cb_input$output_name)
+  
+  out_hb_tr_dir <- str_c(cb_input$hb_trip_rates_inputs_dir, "hb_tr_input_", sep = "\\")
+  out_hb_tr_dir <- str_c(out_hb_tr_dir, tfn_or_ntem, ".csv")
+  
+  out_hb_weights_dir <- str_c(cb_input$hb_trip_rates_inputs_dir, "hb_tr_response_weights_", sep = "\\")
+  out_hb_weights_dir <- str_c(out_hb_weights_dir, tfn_or_ntem, ".csv")
   
   # Unclassified build
-  ub <- read_csv(ub_dir)
+  ub <- read_csv(cb_input$ub_csv_dir)
   
   # Audit 1
   nts_audit <- define_nts_audit_params(ub)
@@ -109,7 +102,7 @@ build_cb <- function(user,
   
   cb <- mutate(cb, weighted_trips = W5xHH * W2 * JJXSC)
   
-  if(version_out == "ntem"){
+  if(tfn_or_ntem == "ntem"){
     
     cb <- cb %>% 
       lu_ntem_at() %>%
@@ -120,16 +113,16 @@ build_cb <- function(user,
   
   if(save_processed) write_csv(cb, out_cb_dir)
   
-  if(build_type == "hb_trip_rates"){
+  if(extract_hb_trip_rates_inputs == TRUE){
     
-    if(version_out == "tfn"){
+    if(tfn_or_ntem == "tfn"){
       
       grouping_vars <- c("IndividualID", "p", "SurveyYear", "aws", "gender",
                          "hh_type", "soc", "ns", "tfn_at")
       
       grouping_vars <- colnames(cb)[colnames(cb) %in% grouping_vars]
       
-    } else if (version_out == "ntem"){
+    } else if (tfn_or_ntem == "ntem"){
       
       grouping_vars <- c("IndividualID", "p", "SurveyYear", "aws", "gender",
                          "hh_type", "ntem_at")
@@ -141,7 +134,7 @@ build_cb <- function(user,
     # Remove Air trips
     cb <- filter(cb, main_mode != 8)
     
-    if(version_out == "ntem"){
+    if(tfn_or_ntem == "ntem"){
       
       cb <- filter(cb, SurveyYear %in% 2002:2012)
       
@@ -156,7 +149,6 @@ build_cb <- function(user,
       ungroup()
     
     grouping_vars <- str_subset(grouping_vars, "^p$", negate = TRUE)
-    #grouping_vars <- c(grouping_vars, "W2")
     
     # Every individual must have an observation for each trip purpose
     hb_trip_rates_out <- weighted_trips %>%
@@ -184,3 +176,4 @@ build_cb <- function(user,
   }
   
 }
+

@@ -107,7 +107,7 @@ c_weighted_rates <- function(data, response_weights, tfn_or_ntem){
   
 }
 
-build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
+build_hb_trip_rates <- function(hb_tr_input_csv_dir, tfn_or_ntem){
 
 # Load packages -----------------------------------------------------------
   library_list <- c("dplyr",
@@ -124,37 +124,13 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   
 # Read inputs -------------------------------------------------------------
   
-  # NTS directory
-  y_dir <- "Y:/NTS/"
-  c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
-  nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
-  export_dir <- str_c(nts_dir, "outputs/hb/hb_trip_rates/")
-  
-  # HB Classified Build
-  cb_dir <- str_c(nts_dir, "classified builds/cb_hb_tr_", tfn_or_ntem, ".csv")
-  model_forms_dir <- str_c(nts_dir, "import/hb_trip_rates/model_forms.csv")
-  response_weights_dir <- str_c(nts_dir, "import/hb_trip_rates/hb_response_weights_", tfn_or_ntem, ".csv")
-  
-  # cTripEnd Trip Rates
-  ctripend_dir <- str_c(nts_dir, "import/ctripend/TR_NTEM_TrendSnr1_Year2016_NTEMT1.csv")
+  hb_tr_input <- read_csv(hb_tr_input_csv_dir)
   
   # Read
-  cb <- read_csv(cb_dir)
-  model_forms <- read_csv(model_forms_dir)
-  response_weights <- read_csv(response_weights_dir)
-  ctripend <- read_csv(ctripend_dir)
-  
-  # Export directory
-  out_hb_tr_dir <- str_c(export_dir, "hb_trip_rates_")
-  out_hb_tr_dir <- ifelse(tfn_or_ntem == "tfn", 
-                          str_c(out_hb_tr_dir, "tfn_v2.0.csv"), 
-                          str_c(out_hb_tr_dir, "ntem.csv"))
-  
-  out_plot_dir <- str_c(export_dir, "Reports/", tfn_or_ntem, "_vs_ctripend_trip_rates.png")
-  out_purpose_plot_dir <- str_c(export_dir, "Reports/", tfn_or_ntem, "_vs_ctripend_trip_rates_purposes.png")
-  
-  # Create export directories
-  dir.create(str_c(export_dir, "Reports/"), showWarnings = FALSE)
+  cb <- read_csv(hb_tr_input$hb_tr_input)
+  model_forms <- read_csv(hb_tr_input$model_forms)
+  response_weights <- read_csv(hb_tr_input$response_weights)#
+  ctripend <- read_csv(hb_tr_input$ctripend_dir)
   
 # Pre Processing ----------------------------------------------------------
 
@@ -205,8 +181,6 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   
 # Model Building and predicting -------------------------------------------
   
-  test1 <- build_model(models$mod_form[[1]], models$mod_formula[[1]], models$hb_df[[1]])
-  
   # Build model for each segment
   models <- mutate(models, hb_model = pmap(list(mod_form, mod_formula, hb_df), build_model))
   
@@ -232,7 +206,7 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
 
   unweight_report <- select(unweight_report, P, FTE, PTE, NEET, STU, Above_75, Child)
   
-  write_csv(unweight_report, str_c(export_dir, "Reports/unweighted_trip rates_report_", tfn_or_ntem, ".csv"))
+  write_csv(unweight_report, hb_tr_input$unweighted_report)
   
 # Weighted Regressions ----------------------------------------------------
   
@@ -275,7 +249,7 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   }
   
   # Save HB Trip Rates
-  write_csv(hb_trip_rates, out_hb_tr_dir)
+  write_csv(hb_trip_rates, str_c(hb_tr_input$output_dir, hb_tr_input$output_name, sep =))
   
 # Trip Rates vs cTripEnd Report -------------------------------------------
   
@@ -320,51 +294,51 @@ build_hb_trip_rates <- function(user, drive, tfn_or_ntem){
   
   ylabel <- ifelse(tfn_or_ntem == "tfn", "TfN", "NTEM")
   
-  single_plot <- joined_rates %>%
-    ggplot(aes(x = ctripend_rates, y = trip_rates)) +
-    geom_smooth(method = "lm", se = FALSE, colour = "red", formula = y ~ x) +
-    stat_poly_eq(formula = y ~ x, 
-                 aes(label = paste0(..eq.label..)), 
-                 parse = TRUE,
-                 colour = "red") +
-    stat_poly_eq(formula = y ~ x, 
-                 aes(label = paste0(..rr.label..)), 
-                 parse = TRUE,
-                 colour = "red",
-                 label.y = 0.9) +
-    geom_point() +
-    xlab("CTripEnd Trip Rates") +
-    ylab(str_c(ylabel, " Trip Rates")) +
-    geom_rangeframe() +
-    theme_tufte()
-  
-  png(filename = out_plot_dir,
-      type="cairo",
-      units="in", 
-      width=4, 
-      height=4, 
-      pointsize=12, 
-      res=300)
-  
-  print(single_plot)
-  dev.off()
-  
-  png(filename = out_purpose_plot_dir,
-      type="cairo",
-      units="in", 
-      width=6, 
-      height=12, 
-      pointsize=6, 
-      res=300)
-  
-  purpose_plot <- single_plot +
-    facet_wrap( ~ p , ncol = 2, scales = "free") +
-    geom_blank() +
-    theme(strip.text = element_text(face="bold", size = 12),
-          axis.title.x = element_text(size = 17),
-          axis.title.y = element_text(size = 17))
-  
-  print(purpose_plot)
-  dev.off()
+  #single_plot <- joined_rates %>%
+  #  ggplot(aes(x = ctripend_rates, y = trip_rates)) +
+  #  geom_smooth(method = "lm", se = FALSE, colour = "red", formula = y ~ x) +
+  #  stat_poly_eq(formula = y ~ x, 
+  #               aes(label = paste0(..eq.label..)), 
+  #               parse = TRUE,
+  #               colour = "red") +
+  #  stat_poly_eq(formula = y ~ x, 
+  #               aes(label = paste0(..rr.label..)), 
+  #               parse = TRUE,
+  #               colour = "red",
+  #               label.y = 0.9) +
+  #  geom_point() +
+  #  xlab("CTripEnd Trip Rates") +
+  #  ylab(str_c(ylabel, " Trip Rates")) +
+  #  geom_rangeframe() +
+  #  theme_tufte()
+  #
+  #png(filename = out_plot_dir,
+  #    type="cairo",
+  #    units="in", 
+  #    width=4, 
+  #    height=4, 
+  #    pointsize=12, 
+  #    res=300)
+  #
+  #print(single_plot)
+  #dev.off()
+  #
+  #png(filename = out_purpose_plot_dir,
+  #    type="cairo",
+  #    units="in", 
+  #    width=6, 
+  #    height=12, 
+  #    pointsize=6, 
+  #    res=300)
+  #
+  #purpose_plot <- single_plot +
+  #  facet_wrap( ~ p , ncol = 2, scales = "free") +
+  #  geom_blank() +
+  #  theme(strip.text = element_text(face="bold", size = 12),
+  #        axis.title.x = element_text(size = 17),
+  #        axis.title.y = element_text(size = 17))
+  #
+  #print(purpose_plot)
+  #dev.off()
   
 }

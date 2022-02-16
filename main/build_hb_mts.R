@@ -30,6 +30,8 @@ build_hb_mts <- function(user, drive, tfn_or_ntem){
   # Tfn lu read
   tfn_lu_dir <- str_c(nts_dir, "lookups/tfn_traveller_type.csv")
   
+  
+  
   # Read
   cb <- read_csv(cb_dir)
   tfn_lu <- read_csv(tfn_lu_dir)

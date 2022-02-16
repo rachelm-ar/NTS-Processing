@@ -275,3 +275,24 @@ lu_ntem_main_mode <- function(df){
               filter_na = TRUE)
   
 }
+
+lu_agg_gor_from <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "agg_gor_from---TripOrigGOR_B02ID",
+              keys = "TripOrigGOR_B02ID",
+              id = "agg_gor_from",
+              variable_expansion = "TripOrigGOR_B02ID")
+  
+}
+
+lu_agg_gor_to <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "agg_gor_to---TripDestGOR_B02ID",
+              keys = "TripDestGOR_B02ID",
+              id = "agg_gor_to",
+              variable_expansion = "TripDestGOR_B02ID")
+  
+}
+

@@ -1,6 +1,4 @@
-build_ub <- function(username = user,
-                     extract_version,
-                     drive){
+build_ub <- function(ub_input_csv_dir){
   
   # Load libraries
   library_list <- c("stringr",
@@ -14,26 +12,17 @@ build_ub <- function(username = user,
   
 # Paths -------------------------------------------------------------------
 
-  nts_c_dir <- str_c("C:/Users/", username, "/Documents/NTS_C/")
-  
-  import_dir <- str_c(nts_c_dir, "UKDA-7553-tab/tab/")
-  
-  nts_dir <- ifelse(drive == "C", nts_c_dir, "Y:/NTS/")
-  
-  ub_columns_dir <- str_c(nts_c_dir, "import/ub_columns/extraction_cols_", extract_version , ".csv")
-
-  # Export dir
-  export_dir <- str_c(nts_c_dir, "unclassified builds/ub_", extract_version, ".csv")
+  input_csv <- read_csv(input_csv_dir)
 
 # Read, Select and Join -------------------------------------------
   
   # Read ub columns
-  ub_columns <- read_csv(ub_columns_dir)
+  ub_columns <- read_csv(input_csv$ub_columns_input_csv)
   
   # Table paths
   variable_list <- colnames(ub_columns)
   variable_path <- str_replace(variable_list, "cols", "special_2002-2019_protect.tab")
-  variable_path <- str_c(import_dir, variable_path)
+  variable_path <- str_c(input_csv$nts_raw_dir, variable_path, sep = "\\")
 
   # Convert ub columns df to list
   extraction_variables <- map(variable_list, pull, .data = ub_columns)
@@ -48,6 +37,6 @@ build_ub <- function(username = user,
   ub <- reduce(ub_tables, left_join)
   
   # Write output
-  write_csv(ub, export_dir)
+  write_csv(ub, str_c(input_csv$output_dir, input_csv$output_name, sep = "\\"))
   
 }
