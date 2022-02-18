@@ -25,7 +25,7 @@ build_hb_trip_rates(input_csv = "I:/NTS/import/hb_tr_input.csv")
 
 # HB Time Mode Split ------------------------------------------------------
 
-build_hb_mts(input_csv <- "I:/NTS/import/hb_mts_input.csv",
+build_hb_mts(input_csv = "I:/NTS/import/hb_mts_input.csv",
              seg_max = 300)
 
 # NHB Trip Rates and Time Splits ------------------------------------------
