@@ -24,7 +24,7 @@ cb_preprocess <- function(ub, cb_version){
   
 }
 
-build_cb <- function(cb_input_csv_dir, tfn_or_ntem = "tfn", save_processed, extract_hb_trip_rates_inputs){
+build_cb <- function(input_csv){
   
   library_list <- c("dplyr",
                     "stringr",
@@ -36,21 +36,30 @@ build_cb <- function(cb_input_csv_dir, tfn_or_ntem = "tfn", save_processed, extr
   
   # Directories -------------------------------------------------------------
    
-  cb_input <- read_csv(cb_input_csv_dir)
+  # Read input csv
+  input_csv <- read_csv(input_csv)
+  input_csv <- transpose_input_csv(input_csv)
   
-  # Exports
-  dir.create(cb_input$output_dir, showWarnings = FALSE)
+  # classified build write dir
+  cb_output_dir <- str_c(input_csv$cb_save_dir,
+                         "\\",
+                         input_csv$cb_name,
+                         ".csv")
   
-  out_cb_dir <- str_c(cb_input$output_dir, cb_input$output_name)
+  # hb trip rates build write dir
+  hb_trip_rates_output_dir <- str_c(input_csv$hb_trip_rates_save_dir,
+                                    "\\",
+                                    input_csv$hb_trip_rates_build_name,
+                                    ".csv")
   
-  out_hb_tr_dir <- str_c(cb_input$hb_trip_rates_inputs_dir, "hb_tr_input_", sep = "\\")
-  out_hb_tr_dir <- str_c(out_hb_tr_dir, tfn_or_ntem, ".csv")
-  
-  out_hb_weights_dir <- str_c(cb_input$hb_trip_rates_inputs_dir, "hb_tr_response_weights_", sep = "\\")
-  out_hb_weights_dir <- str_c(out_hb_weights_dir, tfn_or_ntem, ".csv")
+  # hb trip rates response weights write dir
+  hb_trip_rates_weights_output_dir <- str_c(input_csv$hb_trip_rates_save_dir,
+                                            "\\",
+                                            input_csv$hb_trip_rates_response_weights_name,
+                                            ".csv")
   
   # Unclassified build
-  ub <- read_csv(cb_input$ub_csv_dir)
+  ub <- read_csv(input_csv$ub_csv_dir)
   
   # Audit 1
   nts_audit <- define_nts_audit_params(ub)
@@ -102,78 +111,52 @@ build_cb <- function(cb_input_csv_dir, tfn_or_ntem = "tfn", save_processed, extr
   
   cb <- mutate(cb, weighted_trips = W5xHH * W2 * JJXSC)
   
-  if(tfn_or_ntem == "ntem"){
-    
-    cb <- cb %>% 
-      lu_ntem_at() %>%
-      lu_ntem_aws() %>% 
-      lu_ntem_main_mode()
-    
-  }
+  write_csv(cb, cb_output_dir)
   
-  if(save_processed) write_csv(cb, out_cb_dir)
+
+# HB Trip Rates inputs from CB --------------------------------------------
   
-  if(extract_hb_trip_rates_inputs == TRUE){
+  grouping_vars <- c("IndividualID", "p", "SurveyYear", "aws", "gender",
+                     "hh_type", "soc", "ns", "tfn_at")
+  
+  grouping_vars <- colnames(cb)[colnames(cb) %in% grouping_vars]
+  
+  # Remove Air and Van trips
+  hb_trip_rates_input <- filter(cb, !main_mode %in% c(4, 8))
     
-    if(tfn_or_ntem == "tfn"){
-      
-      grouping_vars <- c("IndividualID", "p", "SurveyYear", "aws", "gender",
-                         "hh_type", "soc", "ns", "tfn_at")
-      
-      grouping_vars <- colnames(cb)[colnames(cb) %in% grouping_vars]
-      
-    } else if (tfn_or_ntem == "ntem"){
-      
-      grouping_vars <- c("IndividualID", "p", "SurveyYear", "aws", "gender",
-                         "hh_type", "ntem_at")
-      
-      grouping_vars <- colnames(cb)[colnames(cb) %in% grouping_vars]
-      
-    }
+  # Weight trips by short walk and calculate weekly trips
+  weighted_trips <- hb_trip_rates_input %>%
+    filter(p %in% 1:8,
+           W1 == 1) %>%
+    group_by_at(grouping_vars) %>%
+    summarise(weekly_trips = sum(JJXSC)) %>%
+    ungroup()
+  
+  # Remove purpose from grouping vars
+  grouping_vars <- str_subset(grouping_vars, "^p$", negate = TRUE)
     
-    # Remove Air trips
-    cb <- filter(cb, main_mode != 8)
+  # Every individual must have an observation for each trip purpose
+  hb_trip_rates_out <- weighted_trips %>%
+    complete(nesting(!!!dplyr::syms(grouping_vars)),
+             p = 1:8,
+             fill = list(weekly_trips = 0)) %>% 
+    ungroup()
     
-    if(tfn_or_ntem == "ntem"){
+  write_csv(hb_trip_rates_out, hb_trip_rates_output_dir)
+    
+  response_weights <- cb %>% 
+    filter(p %in% 1:8,
+           W1 == 1) %>%
+    select(IndividualID, p, SurveyYear, W5xHH, JJXSC, W2) %>% 
+    mutate(trips = 1) %>% 
+    complete(nesting(IndividualID, SurveyYear),
+             p = 1:8,
+             fill = list(W5xHH = 0, trips = 0, JJXSC = 0, W2 = 0)) %>% 
+    group_by(p, SurveyYear) %>% 
+    summarise(r_weights = sum(W5xHH*JJXSC*W2)/sum(trips*JJXSC*W2),
+              count = sum(trips)) %>% 
+    ungroup()
       
-      cb <- filter(cb, SurveyYear %in% 2002:2012)
-      
-    }
-    
-    # Weight trips by short walk and calculate weekly trips
-    weighted_trips <- cb %>%
-      filter(p %in% 1:8,
-             W1 == 1) %>%
-      group_by_at(grouping_vars) %>%
-      summarise(weekly_trips = sum(JJXSC)) %>%
-      ungroup()
-    
-    grouping_vars <- str_subset(grouping_vars, "^p$", negate = TRUE)
-    
-    # Every individual must have an observation for each trip purpose
-    hb_trip_rates_out <- weighted_trips %>%
-      complete(nesting(!!!dplyr::syms(grouping_vars)),
-               p = 1:8,
-               fill = list(weekly_trips = 0))
-    
-    write_csv(hb_trip_rates_out, out_hb_tr_dir)
-    
-    response_weights <- cb %>% 
-      filter(p %in% 1:8,
-             W1 == 1) %>%
-      select(IndividualID, p, SurveyYear, W5xHH, JJXSC, W2) %>% 
-      mutate(trips = 1) %>% 
-      complete(nesting(IndividualID, SurveyYear),
-               p = 1:8,
-               fill = list(W5xHH = 0, trips = 0, JJXSC = 0, W2 = 0)) %>% 
-      group_by(p, SurveyYear) %>% 
-      summarise(r_weights = sum(W5xHH*JJXSC*W2)/sum(trips*JJXSC*W2),
-                count = sum(trips)) %>% 
-      ungroup()
-      
-    write_csv(response_weights, out_hb_weights_dir)
-    
-  }
+    write_csv(response_weights, hb_trip_rates_weights_output_dir)
   
 }
-

@@ -295,4 +295,3 @@ lu_agg_gor_to <- function(df){
               variable_expansion = "TripDestGOR_B02ID")
   
 }
-

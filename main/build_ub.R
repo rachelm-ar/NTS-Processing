@@ -1,4 +1,4 @@
-build_ub <- function(ub_input_csv_dir){
+build_ub <- function(input_csv){
   
   # Load libraries
   library_list <- c("stringr",
@@ -10,14 +10,21 @@ build_ub <- function(ub_input_csv_dir){
   
   library_c(library_list)
   
-# Paths -------------------------------------------------------------------
-
-  input_csv <- read_csv(input_csv_dir)
-
-# Read, Select and Join -------------------------------------------
+# Directories -----------------------------------------------------
+  
+  input_csv <- read_csv(input_csv)
+  input_csv <- transpose_input_csv(input_csv)
   
   # Read ub columns
-  ub_columns <- read_csv(input_csv$ub_columns_input_csv)
+  ub_columns <- read_csv(input_csv$ub_columns_csv_dir)
+  
+  # save directory
+  ub_output_dir <- str_c(input_csv$ub_save_dir,
+                         "\\",
+                         input_csv$ub_name,
+                         ".csv")
+  
+# Read, Select and Join -------------------------------------------
   
   # Table paths
   variable_list <- colnames(ub_columns)
@@ -37,6 +44,6 @@ build_ub <- function(ub_input_csv_dir){
   ub <- reduce(ub_tables, left_join)
   
   # Write output
-  write_csv(ub, str_c(input_csv$output_dir, input_csv$output_name, sep = "\\"))
+  write_csv(ub, ub_output_dir)
   
 }

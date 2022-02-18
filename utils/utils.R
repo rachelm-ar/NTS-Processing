@@ -1,3 +1,12 @@
+# Transpose Input csv to wide format --------------------------------------
+transpose_input_csv <- function(csv){
+  
+  csv %>%
+    select(input, value) %>%
+    pivot_wider(names_from = "input", values_from = "value")
+  
+}
+
 # Create NTS C Folder in C Drive ------------------------------------------
 create_nts_c <- function(user = Sys.info()[[6]]){
   

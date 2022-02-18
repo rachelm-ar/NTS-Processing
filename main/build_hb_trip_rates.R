@@ -59,13 +59,9 @@ process_newdata <- function(new_data, aws, tfn_or_ntem){
     
     new_data <- mutate(new_data, gender = factor(1))
     
-    if(tfn_or_ntem == "tfn"){
-      
-      new_data <- mutate(new_data, soc = factor(2))
-      
-    }
+    new_data <- mutate(new_data, soc = factor(2))
     
-  } else if(aws %in% 4:6 & tfn_or_ntem == "tfn"){
+  } else if(aws %in% 4:6){
     
     new_data <- mutate(new_data, soc = factor(2))
     
@@ -83,17 +79,9 @@ infil_p_aws <- function(data, purpose, age_work_status){
   
 }
 
-c_weighted_rates <- function(data, response_weights, tfn_or_ntem){
+c_weighted_rates <- function(data, response_weights){
   
-  if(tfn_or_ntem == "tfn"){
-    
-    year_grouping <- c("p", "aws", "gender", "hh_type", "soc", "ns", "tfn_at")
-    
-  } else if (tfn_or_ntem == "ntem"){
-    
-    year_grouping <- c("p", "aws", "gender", "hh_type", "ntem_at")
-    
-  }
+  year_grouping <- c("p", "aws", "gender", "hh_type", "soc", "ns", "tfn_at")
   
   response_weights <- response_weights %>% 
     mutate(SurveyYear = factor(SurveyYear))
@@ -107,7 +95,7 @@ c_weighted_rates <- function(data, response_weights, tfn_or_ntem){
   
 }
 
-build_hb_trip_rates <- function(hb_tr_input_csv_dir, tfn_or_ntem){
+build_hb_trip_rates <- function(input_csv){
 
 # Load packages -----------------------------------------------------------
   library_list <- c("dplyr",
@@ -124,39 +112,46 @@ build_hb_trip_rates <- function(hb_tr_input_csv_dir, tfn_or_ntem){
   
 # Read inputs -------------------------------------------------------------
   
-  hb_tr_input <- read_csv(hb_tr_input_csv_dir)
+  input_csv <- read_csv(input_csv)
+  input_csv <- transpose_input_csv(input_csv)
   
   # Read
-  cb <- read_csv(hb_tr_input$hb_tr_input)
-  model_forms <- read_csv(hb_tr_input$model_forms)
-  response_weights <- read_csv(hb_tr_input$response_weights)#
-  ctripend <- read_csv(hb_tr_input$ctripend_dir)
+  cb <- read_csv(input_csv$hb_tr_build_csv_dir)
+  model_forms <- read_csv(input_csv$hb_tr_model_forms_csv_dir)
+  response_weights <- read_csv(input_csv$hb_tr_reponse_weights_csv_dir)
+  ctripend <- read_csv(input_csv$ctrip_end_tr_csv_dir)
+
+  # unweighted report dir
+  unweighted_output_dir <- str_c(input_csv$hb_tr_save_dir,
+                                 "\\Reports\\",
+                                 input_csv$hb_tr_unweighted_report_name,
+                                 "_",
+                                 input_csv$hb_tr_version,
+                                 ".csv")
+  
+  # hb trip rates
+  hb_tr_output_dir <- str_c(input_csv$hb_tr_save_dir,
+                            "\\",
+                            input_csv$hb_tr_name,
+                            "_",
+                            input_csv$hb_tr_version,
+                            ".csv")
+      
+  dir.create(str_c(input_csv$hb_tr_save_dir,"\\Reports\\"), showWarnings = FALSE, recursive = TRUE)
   
 # Pre Processing ----------------------------------------------------------
 
-  if(tfn_or_ntem == "tfn"){
-    
-    # Combine AT 1 & 2
-    cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
-    
-    # Combine AT 7 & 8
-    cb <- mutate(cb, tfn_at = ifelse(tfn_at == 7, 8, tfn_at))
-    
-    # Define covars for age work status groups
-    worker_covars <- c("gender", "hh_type", "soc", "ns", "tfn_at", "SurveyYear")
-    child_covars <- c("hh_type", "ns", "tfn_at", "SurveyYear")
-    non_worker_covars <- c("gender", "hh_type", "ns", "tfn_at", "SurveyYear")
-    
-  } else if(tfn_or_ntem == "ntem"){
-    
-    cb <- filter(cb, SurveyYear %in% 2002:2012)
-    
-    worker_covars <- c("gender", "hh_type", "ntem_at", "SurveyYear")
-    child_covars <- c("hh_type", "ntem_at", "SurveyYear")
-    non_worker_covars <- c("gender", "hh_type", "ntem_at", "SurveyYear")
-    
-  }
-
+  # Combine AT 1 & 2
+  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
+  
+  # Combine AT 7 & 8
+  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 7, 8, tfn_at))
+  
+  # Define covars for age work status groups
+  worker_covars <- c("gender", "hh_type", "soc", "ns", "tfn_at", "SurveyYear")
+  child_covars <- c("hh_type", "ns", "tfn_at", "SurveyYear")
+  non_worker_covars <- c("gender", "hh_type", "ns", "tfn_at", "SurveyYear")
+  
   # Define glm formulas for age work status groups
   worker_formula <- str_c("weekly_trips ~ ", str_c(worker_covars, collapse = " + "))
   child_formula <- str_c("weekly_trips ~ ", str_c(child_covars, collapse = " + "))
@@ -191,7 +186,7 @@ build_hb_trip_rates <- function(hb_tr_input_csv_dir, tfn_or_ntem){
   models <- mutate(models, new_data = map2(new_data, hb_model, add_predictions))
   
   # Process data to fill in missing classifications. i.e. gender for children
-  models <- mutate(models, new_data = map2(new_data, aws, process_newdata, tfn_or_ntem))
+  models <- mutate(models, new_data = map2(new_data, aws, process_newdata))
   
 # Un-weighted Regressions Report ------------------------------------------
   
@@ -206,7 +201,7 @@ build_hb_trip_rates <- function(hb_tr_input_csv_dir, tfn_or_ntem){
 
   unweight_report <- select(unweight_report, P, FTE, PTE, NEET, STU, Above_75, Child)
   
-  write_csv(unweight_report, hb_tr_input$unweighted_report)
+  write_csv(unweight_report, unweighted_output_dir)
   
 # Weighted Regressions ----------------------------------------------------
   
@@ -215,84 +210,63 @@ build_hb_trip_rates <- function(hb_tr_input_csv_dir, tfn_or_ntem){
     mutate(new_data = pmap(list(new_data, p, aws), infil_p_aws))
   
   models2 <- models2 %>%
-    mutate(new_data = map(new_data, c_weighted_rates, response_weights, tfn_or_ntem))
+    mutate(new_data = map(new_data, c_weighted_rates, response_weights))
 
   hb_trip_rates <- models2 %>% 
     pull(new_data) %>% 
     bind_rows() %>% 
     rename(trip_rates = trips)
   
-  if(tfn_or_ntem == "ntem"){
-    
-    hb_trip_rates <- hb_trip_rates %>% 
-      lu_ntem_tt() %>%
-      select(p, ntem_tt, ntem_at, trip_rates) %>% 
-      arrange(p, ntem_tt, ntem_at)
-    
-  } else if(tfn_or_ntem == "tfn"){
-    
-    hb_trip_rates <- hb_trip_rates %>%
-      filter(tfn_at == 2) %>% 
-      mutate(tfn_at = factor(1)) %>%
-      bind_rows(hb_trip_rates)
-    
-    hb_trip_rates <- hb_trip_rates %>%
-      filter(tfn_at == 8) %>% 
-      mutate(tfn_at = factor(7)) %>%
-      bind_rows(hb_trip_rates)
-    
-    hb_trip_rates <- hb_trip_rates %>%
-      lu_tt() %>% 
-      select(p, tfn_tt, ntem_tt, tfn_at, trip_rates) %>% 
-      arrange(p, tfn_tt, ntem_tt, tfn_at)
-    
-  }
+  hb_trip_rates <- hb_trip_rates %>%
+    filter(tfn_at == 2) %>% 
+    mutate(tfn_at = factor(1)) %>%
+    bind_rows(hb_trip_rates)
   
+  hb_trip_rates <- hb_trip_rates %>%
+    filter(tfn_at == 8) %>% 
+    mutate(tfn_at = factor(7)) %>%
+    bind_rows(hb_trip_rates)
+  
+  hb_trip_rates <- hb_trip_rates %>%
+    lu_tt() %>% 
+    select(p, tfn_tt, ntem_tt, tfn_at, trip_rates) %>% 
+    arrange(p, tfn_tt, ntem_tt, tfn_at)
+ 
   # Save HB Trip Rates
-  write_csv(hb_trip_rates, str_c(hb_tr_input$output_dir, hb_tr_input$output_name, sep =))
+  write_csv(hb_trip_rates, hb_tr_output_dir)
   
-# Trip Rates vs cTripEnd Report -------------------------------------------
+# Trip Rates vs cTripEnd Report (no need) -------------------------------------------
   
-  if(tfn_or_ntem == "tfn"){
-    
-    hb_trip_rates <- hb_trip_rates %>%
-      rename(area_type = tfn_at) %>% 
-      group_by(p, ntem_tt, area_type) %>%
-      summarise(trip_rates = mean(trip_rates)) %>% 
-      ungroup()
-    
-  } else if(tfn_or_ntem == "ntem"){
-    
-    hb_trip_rates <- rename(hb_trip_rates, area_type = ntem_at)
-    
-  }
-  
-  ctripend <- ctripend %>% 
-    rename(p = h,
-           ntem_tt = s,
-           area_type = r,
-           ctripend_rates = TripRates)
-  
-  joined_rates <- hb_trip_rates %>% 
-    mutate(area_type = as.double(area_type)) %>% 
-    left_join(ctripend)
-  
-  joined_rates <- joined_rates %>%
-    mutate(p = case_when(
-      p == 1 ~ "Commute",
-      p == 2 ~ "Business",
-      p == 3 ~ "Education",
-      p == 4 ~ "Shopping",
-      p == 5 ~ "PB",
-      p == 6 ~ "Leisure",
-      p == 7 ~ "Visit Friends",
-      p == 8 ~ "Holiday/Day Trip"
-    ))
-  
-  joined_rates <- joined_rates %>%
-    mutate(p = factor(p, levels = c("Commute", "Business", "Education", "Shopping", "PB", "Leisure", "Visit Friends", "Holiday/Day Trip")))
-  
-  ylabel <- ifelse(tfn_or_ntem == "tfn", "TfN", "NTEM")
+  #hb_trip_rates <- hb_trip_rates %>%
+  #  rename(area_type = tfn_at) %>% 
+  #  group_by(p, ntem_tt, area_type) %>%
+  #  summarise(trip_rates = mean(trip_rates)) %>% 
+  #  ungroup()
+  #
+  #ctripend <- ctripend %>% 
+  #  rename(p = h,
+  #         ntem_tt = s,
+  #         area_type = r,
+  #         ctripend_rates = TripRates)
+  #
+  #joined_rates <- hb_trip_rates %>% 
+  #  mutate(area_type = as.double(area_type)) %>% 
+  #  left_join(ctripend)
+  #
+  #joined_rates <- joined_rates %>%
+  #  mutate(p = case_when(
+  #    p == 1 ~ "Commute",
+  #    p == 2 ~ "Business",
+  #    p == 3 ~ "Education",
+  #    p == 4 ~ "Shopping",
+  #    p == 5 ~ "PB",
+  #    p == 6 ~ "Leisure",
+  #    p == 7 ~ "Visit Friends",
+  #    p == 8 ~ "Holiday/Day Trip"
+  #  ))
+  #
+  #joined_rates <- joined_rates %>%
+  #  mutate(p = factor(p, levels = c("Commute", "Business", "Education", "Shopping", "PB", "Leisure", "Visit Friends", "Holiday/Day Trip")))
   
   #single_plot <- joined_rates %>%
   #  ggplot(aes(x = ctripend_rates, y = trip_rates)) +
