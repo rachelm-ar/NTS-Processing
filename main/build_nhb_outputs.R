@@ -1,9 +1,4 @@
-drive = "C"
-user = user
-trip_rate = TRUE
-time_split = TRUE
-
-extract_nhb <- function(drive, user, trip_rate, time_split){
+build_nhb_outputs <- function(input_csv, trip_rate, time_split){
   
   library_list <- c("dplyr",
                     "stringr",
@@ -12,28 +7,46 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
   
   library_c(library_list)
   
-  # Directories -------------------------------------------------------------
+# Directories and read in -------------------------------------------------
   
-  y_dir <- "Y:/NTS/"
-  c_dir <- str_c("C:/Users/", user, "/Documents/NTS_C/")
-  nts_dir <- ifelse(drive == "Y", y_dir, c_dir)
-  
-  ctripend_dir <- str_c(nts_dir, "import/ctripend/")
-  cb_dir <- str_c(nts_dir, "classified builds/cb_tfn.csv")
-  
-  export_dir <- str_c(nts_dir, "outputs/nhb/")
-  
-  # Read in -----------------------------------------------------------------
+  # Read and transpose input csv
+  input_csv <- read_csv(input_csv)
+  input_csv <- transpose_input_csv(input_csv)
   
   # Classified build
-  cb <- read_csv(cb_dir)
+  cb <- read_csv(input_csv$cb_csv_dir)
   
   # NTEM nhb trip rates
-  tr_control <- read_csv(str_c(ctripend_dir, "/IgammaNMHM/IgammaNMHM.csv"))
+  tr_control <- read_csv(str_c(input_csv$ctripend_dir, "/IgammaNMHM/IgammaNMHM.csv"))
   
   # NTEM nhb time split
-  ts_control <- read_csv(str_c(ctripend_dir, "/IRHOdmnr/IRHOdmnr_Final.csv"))
+  ts_control <- read_csv(str_c(input_csv$ctripend_dir, "/IRHOdmnr/IRHOdmnr_Final.csv"))
   
+  # write nhb trip rates dir
+  trip_rates_output_dir <- str_c(input_csv$nhb_trip_rates_save_dir,
+                                 "\\",
+                                 input_csv$nhb_trip_rates_name,
+                                 "_",
+                                 input_csv$nhb_trip_rates_version,
+                                 ".csv")
+  
+  # write nhb trip rates dir
+  time_splits_output_dir <- str_c(input_csv$nhb_time_splits_save_dir, 
+                                  "\\",
+                                  input_csv$nhb_time_splits_name,
+                                  "_",
+                                  input_csv$nhb_time_splits_version,
+                                  ".csv")
+  
+  # Time splits report
+  time_splits_report_dir <- str_c(input_csv$nhb_trip_rates_save_dir, 
+                                  "\\Reports\\nhb_time_split_report",
+                                  "_",
+                                  input_csv$nhb_time_splits_version,
+                                  ".csv")
+  
+  dir.create(str_c(input_csv$nhb_trip_rates_save_dir, "\\Reports\\"), showWarnings = FALSE, recursive = TRUE)
+
   # Pre-processing ----------------------------------------------------------
 
   # Classified build columns and weights
@@ -67,17 +80,13 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
   # Remove air
   cb <- filter(cb, main_mode != 8)
   
-  # Aggregate car & van
-  cb <- mutate(cb, main_mode = ifelse(main_mode == 3, 4, main_mode))
+  # Remove van
+  cb <- filter(cb, main_mode != 4)
   
   # Aggregate light rail and surface rail
   cb <- mutate(cb, main_mode = ifelse(main_mode == 7, 6, main_mode))
   
-  # Aggregate Area Type 1 & 2
-  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
-  
-  # Aggregate Area Type 7 & 8
-  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 8, 7, tfn_at))
+  ### CTripEnd preprocessing
   
   # NHB trip rates renaming
   tr_old_vars <- c("N", "M", "H", "HBM", "Gamma")
@@ -118,7 +127,7 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
     mutate(trip_group = cumsum(start_flag)) %>%
     ungroup()
   
-  # If Individuals last trip is HB outbound then remove
+  # Trip chaining must start at first HB outbound trip
   tour_groups <- filter(tour_groups, trip_group != 0)
   
   # NHB Trip Rates ----------------------------------------------------------
@@ -162,17 +171,25 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
       mutate(nhb_trip_rate = nhb_trips/hb_trips) %>% 
       filter(!is.na(hb_purpose))
     
-    # Manual fix
+    # Manual fix - why?
     nhb_trip_rates <- nhb_trip_rates %>%
       filter(hb_purpose != 99)
     
     # Infill 0 for missing segments
     nhb_trip_rates <- nhb_trip_rates %>%
       complete(nhb_purpose = c(11, 12, 13, 14, 15, 16, 18),
-               nhb_mode = c(1, 2, 4, 5, 6),
-               hb_purpose = c(1, 2, 3, 4, 5, 6, 8),
-               hb_mode = c(1, 2, 4, 5, 6),
+               nhb_mode = c(1, 2, 3, 5, 6),
+               hb_purpose = c(1:6, 8),
+               hb_mode = c(1, 2, 3, 5, 6),
                fill = list(nhb_trips = 0, hb_trips = 0, nhb_trip_rate = 0))
+    
+    # Check against NTEM rates (IgammaNHBH)
+    ntem_comparison <- nhb_trip_rates %>%
+      left_join(tr_control, by=c('hb_purpose', 'hb_mode', 'nhb_purpose', 'nhb_mode')) %>% 
+      filter(hb_mode !=3, nhb_mode != 3)
+    
+    lm(nhb_trip_rate ~ cte_tr, data = ntem_comparison) %>%
+      summary()
     
     nhb_trip_rates <- nhb_trip_rates %>% 
       rename(nhb_p = nhb_purpose,
@@ -180,16 +197,8 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
              p = hb_purpose,
              m = hb_mode)
     
-    # Check against NTEM rates (IgammaNHBH)
-    ntem_comparison <- nhb_trip_rates %>%
-      filter(nhb_mode != 4, hb_mode != 4) %>% 
-      left_join(tr_control, by=c('hb_purpose', 'hb_mode', 'nhb_purpose', 'nhb_mode'))
-    
-    lm(nhb_trip_rate ~ cte_tr, data = ntem_comparison) %>%
-      summary()
-    
     # Write out
-    write_csv(nhb_trip_rates, str_c(export_dir, "nhb_trip_rates.csv"))
+    write_csv(nhb_trip_rates, trip_rates_output_dir)
     
   }  
   
@@ -265,30 +274,19 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
       select(p, tfn_at, main_mode, start_time, split) %>% 
       arrange(p, tfn_at, main_mode, start_time)
     
-    nhb_time_split <- bind_rows(seg1_split, seg2_split)
-    
-    # Add tfn area types 1 and 8 back in
-    nhb_time_split <- nhb_time_split %>%
-      filter(tfn_at == 2) %>% 
-      mutate(tfn_at = 1) %>% 
-      bind_rows(nhb_time_split)
-    
-    nhb_time_split <- nhb_time_split %>%
-      filter(tfn_at == 7) %>% 
-      mutate(tfn_at = 8) %>% 
-      bind_rows(nhb_time_split)
+    nhb_time_splits <- bind_rows(seg1_split, seg2_split)
     
     # Post process
-    nhb_time_split <- nhb_time_split %>%
+    nhb_time_splits <- nhb_time_splits %>%
       rename(nhb_p = p,
              m = main_mode,
              tp = start_time)
     
     # Write out
-    write_csv(nhb_time_split, str_c(export_dir, "nhb_time_splits.csv"))
+    write_csv(nhb_time_splits, time_splits_output_dir)
     
-    ts_comparison <- nhb_time_split %>% 
-      filter(m != 4) %>% 
+    ts_comparison <- nhb_time_splits %>% 
+      filter(m != 3) %>% 
       left_join(ts_control)
     
     lm(split ~ cte_ts, data = ts_comparison) %>% 
@@ -315,7 +313,7 @@ extract_nhb <- function(drive, user, trip_rate, time_split){
       mutate(seg1_prop = seg1/total * 100,
              seg2_prop = seg2/total * 100)
     
-    write_csv(c_report_out, str_c(export_dir, "Reports/time_split_proportions.csv"))
+    write_csv(c_report_out, time_splits_report_dir)
     
   }
   
