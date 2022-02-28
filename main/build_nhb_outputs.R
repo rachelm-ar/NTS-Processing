@@ -108,30 +108,6 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
   ts_control <- ts_control %>%
     filter(!m %in% c(3,4))
     
-  # Trip Grouping -----------------------------------------------------------
-  
-  # TODO: This should be picked up in CB from now on, renders this pointless
-  # Discard finals trips in travel diary which are outbound
-  cb <- cb %>%
-    group_by(IndividualID) %>% 
-    filter(!(TripID == max(TripID) & TripPurpFrom_B01ID == 23)) %>% 
-    ungroup()
-  
-  # Start a trip when from home and end when to home
-  tour_groups <- cb %>%
-    arrange(IndividualID, TripID) %>%
-    group_by(IndividualID) %>%
-    mutate(start_flag = case_when(TripPurpFrom_B01ID == 23 ~ 1,
-                                  TRUE ~ 0)) %>%
-    mutate(end_flag = case_when(TripPurpTo_B01ID == 23 ~ 1,
-                                TRUE ~ 0)) %>%
-    mutate(trip_group = cumsum(start_flag)) %>%
-    ungroup()
-  
-  # TODO: Ln 133 is still required after CB trip chaining added
-  # Trip chaining must start at first HB outbound trip
-  tour_groups <- filter(tour_groups, trip_group != 0)
-  
   # NHB Trip Rates ----------------------------------------------------------
   
   if(trip_rate){

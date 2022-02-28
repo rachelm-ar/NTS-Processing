@@ -134,6 +134,9 @@ build_cb <- function(input_csv){
     mutate(trip_type = case_when(start_flag & !end_flag ~ 'frh',
                                  end_flag & !start_flag ~ 'toh',
                                  TRUE ~ 'nhb'))
+  
+  # No zero tour groups, start with first outbound
+  cb <- filter(cb, trip_group != 0)
 
   # Export
   write_csv(cb, cb_output_dir)
