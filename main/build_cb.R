@@ -111,6 +111,31 @@ build_cb <- function(input_csv){
   
   cb <- mutate(cb, weighted_trips = W5xHH * W2 * JJXSC)
   
+  # Trip Grouping -----------------------------------------------------------
+  
+  # Discard finals trips in travel diary which are outbound
+  cb <- cb %>%
+    group_by(IndividualID) %>% 
+    filter(!(TripID == max(TripID) & TripPurpFrom_B01ID == 23)) %>% 
+    ungroup()
+  
+  # Start a trip when from home and end when to home
+  cb <- cb %>%
+    arrange(IndividualID, TripID) %>%
+    group_by(IndividualID) %>%
+    mutate(start_flag = case_when(TripPurpFrom_B01ID == 23 ~ 1,
+                                  TRUE ~ 0)) %>%
+    mutate(end_flag = case_when(TripPurpTo_B01ID == 23 ~ 1,
+                                TRUE ~ 0)) %>%
+    mutate(trip_group = cumsum(start_flag)) %>%
+    ungroup()
+  
+  cb <- cb %>%
+    mutate(trip_type = case_when(start_flag & !end_flag ~ 'frh',
+                                 end_flag & !start_flag ~ 'toh',
+                                 TRUE ~ 'nhb'))
+
+  # Export
   write_csv(cb, cb_output_dir)
   
 

@@ -110,6 +110,7 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
     
   # Trip Grouping -----------------------------------------------------------
   
+  # TODO: This should be picked up in CB from now on, renders this pointless
   # Discard finals trips in travel diary which are outbound
   cb <- cb %>%
     group_by(IndividualID) %>% 
@@ -127,6 +128,7 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
     mutate(trip_group = cumsum(start_flag)) %>%
     ungroup()
   
+  # TODO: Ln 133 is still required after CB trip chaining added
   # Trip chaining must start at first HB outbound trip
   tour_groups <- filter(tour_groups, trip_group != 0)
   
