@@ -12,7 +12,7 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   input_csv <- transpose_input_csv(input_csv)
   
   # Read Classified build
-  cb <- read_csv(input_csv$cb_csv_dir)
+  cb_in <- read_csv(input_csv$cb_csv_dir)
   
   # hb mts long dir
   hb_mts_long_output_dir <- str_c(input_csv$hb_mts_save_dir,
@@ -43,7 +43,7 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   
   # Pre Processing ---------------------------------------------------------
   
-  cb <- cb %>%
+  cb <- cb_in %>%
     rename(m = main_mode,
            tp = start_time)
   
@@ -61,6 +61,15 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   
   # Remove na area type
   cb <- filter(cb, !is.na(tfn_at))
+  
+  # TODO: Test only, do not let this hit prod - this filtering should be in CB
+  # Thinking is that an escorter records escorts + actual trips of escorts, breaking tps
+  # Remove escort trips
+  escort_ps <- c(17:22)
+  cb <- cb %>%
+    filter(!TripPurpFrom_B01ID %in% escort_ps) %>%
+    filter(!TripPurpTo_B01ID %in% escort_ps)
+  # TODO: Flag before and after - how many are we throwing away?
   
   # Ntem tt to tfn tt lookup
   ntem_to_tfn_tt_lu <- tfn_lu %>% 
@@ -85,6 +94,11 @@ build_hb_mts <- function(input_csv, seg_max = 300){
     pull() %>%
     sort()
   
+  # TODO: Test check & remove
+  # Filter to from home only
+  cb <- cb %>%
+    filter(trip_type=='frh')
+  
   # Aggregate 
   agg_all <- cb %>%
     select(p, tfn_at, ntem_tt, tp, m, weighted_trips) %>%
@@ -102,7 +116,8 @@ build_hb_mts <- function(input_csv, seg_max = 300){
              fill = list(trips = 0)) %>%
     left_join(ntem_to_hh_type_lu) %>% 
     select(p, tfn_at, ntem_tt, hh_type, tp, m, trips) %>% 
-    arrange(p, tfn_at, ntem_tt, hh_type) 
+    arrange(p, tfn_at, ntem_tt, hh_type) %>%
+    ungroup()
   
   # level 1 : purpose, area_type, ntem_tt
   # level 2: purpose, area_type, hh_type
@@ -119,6 +134,8 @@ build_hb_mts <- function(input_csv, seg_max = 300){
     group_by(p, hh_type) %>%
     mutate(count_seg3 = sum(trips)) %>%
     ungroup()
+  
+  sum(agg_all$trips)
   
   # First seg calculation
   seg1_split <- counts %>%
@@ -222,7 +239,8 @@ build_hb_mts <- function(input_csv, seg_max = 300){
     mutate(total = seg1 + seg2 + seg3) %>% 
     mutate(seg1_prop = seg1/total * 100,
            seg2_prop = seg2/total * 100,
-           seg3_prop = seg3/total * 100)
+           seg3_prop = seg3/total * 100) %>%
+    mutate(sample_threshold = seg_max)
   
   write_csv(c_report_out, hb_mts_report_dir)
   

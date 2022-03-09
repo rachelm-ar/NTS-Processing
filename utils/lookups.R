@@ -102,6 +102,7 @@ lu_nhb_purpose_hb_leg <- function(df){
   
 }
 
+
 # Other variables ---------------------------------------------------------
 
 lu_gender <- function(df){
