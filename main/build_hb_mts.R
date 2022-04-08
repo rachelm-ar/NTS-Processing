@@ -43,6 +43,7 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   
   # Pre Processing ---------------------------------------------------------
   
+  # TODO: Testing tp = frh time not start time
   cb <- cb_in %>%
     rename(m = main_mode,
            tp = start_time)
@@ -62,14 +63,9 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   # Remove na area type
   cb <- filter(cb, !is.na(tfn_at))
   
-  # TODO: Test only, do not let this hit prod - this filtering should be in CB
-  # Thinking is that an escorter records escorts + actual trips of escorts, breaking tps
-  # Remove escort trips
-  escort_ps <- c(17:22)
+  # Remove trips below .3 miles
   cb <- cb %>%
-    filter(!TripPurpFrom_B01ID %in% escort_ps) %>%
-    filter(!TripPurpTo_B01ID %in% escort_ps)
-  # TODO: Flag before and after - how many are we throwing away?
+    filter(!TripDisIncSW < .3)
   
   # Ntem tt to tfn tt lookup
   ntem_to_tfn_tt_lu <- tfn_lu %>% 
@@ -93,11 +89,6 @@ build_hb_mts <- function(input_csv, seg_max = 300){
     distinct(tfn_at) %>%
     pull() %>%
     sort()
-  
-  # TODO: Test check & remove
-  # Filter to from home only
-  cb <- cb %>%
-    filter(trip_type=='frh')
   
   # Aggregate 
   agg_all <- cb %>%

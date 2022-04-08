@@ -24,7 +24,31 @@ cb_preprocess <- function(ub, cb_version){
   
 }
 
-build_cb <- function(input_csv){
+classify_tours <- function(cb){
+
+  cb <- cb %>%
+    arrange(IndividualID, TripID) %>% # IndividualID, TripID
+    group_by(IndividualID) %>%
+    mutate(start_flag = case_when(TripPurpFrom_B01ID == 23 ~ 1,
+                                  TRUE ~ 0)) %>%
+    mutate(end_flag = case_when(TripPurpTo_B01ID == 23 ~ 1,
+                                TRUE ~ 0)) %>%
+    mutate(trip_group = cumsum(start_flag)) %>%
+    mutate(end_group = cumsum(end_flag)) %>%
+    ungroup()
+  
+}
+
+count_broken_trips <- function(cb){
+  bt <- cb %>%
+    filter(TripPurpTo_B01ID == 23) %>%
+    filter(end_group > trip_group) %>%
+    count()
+  
+  return(bt)
+}
+
+build_cb <- function(input_csv, reclassify_escorts=FALSE){
   
   library_list <- c("dplyr",
                     "stringr",
@@ -70,55 +94,31 @@ build_cb <- function(input_csv){
   ub <- cb_preprocess(ub_in, version)
   
   # Check classifications
-  #  Audit report only - delete from prod]
-  all_c <- ub %>%
-    group_by(TripPurpFrom_B01ID, TripPurpTo_B01ID) %>%
-    count()
-  
+
   
   # Classify Purposes -------------------------------------------------------
+  if(reclassify_escorts){
+    # Remove trips which are home to 'escort home' and 'escort home' to home
+    ub <- ub %>%
+      filter(!(TripPurpFrom_B01ID == 23 & TripPurpTo_B01ID == 17), # 11,438 records
+             !(TripPurpFrom_B01ID == 17 & TripPurpTo_B01ID == 23)) # 24,810 records
 
-  # Remove Just-Walk trips 17, Other non-escort, and other escort 
-  # ub <- ub %>%
-  #  filter(TripPurpose_B01ID != 17,
-  #         !TripPurpTo_B01ID %in% c(16: 22))
-
-  # Remove trips which are home to 'escort home' and 'escort home' to home
-  # Out until we figure out how to remove them holistically
-  ub <- ub %>%
-    filter(!(TripPurpFrom_B01ID == 23 & TripPurpTo_B01ID == 17), # 11,438 records
-           !(TripPurpFrom_B01ID == 17 & TripPurpTo_B01ID == 23)) # 24,810 records
+    # Redefine Escort Home trips as home
+    ub <- ub %>%
+      mutate(TripPurpTo_B01ID = ifelse(TripPurpTo_B01ID == 17, 23, TripPurpTo_B01ID),
+             TripPurpFrom_B01ID = ifelse(TripPurpFrom_B01ID == 17, 23, TripPurpFrom_B01ID))
+  }
   
-  # Remove all escort trips, retain pure purpose only
-  # escort_p = c(17:22)
-  # ub <- ub %>%
-  #   filter(!(TripPurpFrom_B01ID == 23 & TripPurpTo_B01ID %in% escort_p) &
-  #          !(TripPurpFrom_B01ID %in% escort_p & TripPurpTo_B01ID == 23))
-  
-  # escort_p = c(17:22)
-  # ub <- ub %>%
-  #   filter(!(TripPurpFrom_B01ID %in% escort_p) &
-  #           !(TripPurpTo_B01ID %in% escort_p))
-  
-  # TODO: Remove duplicate escort trips
-  # TODO: Catch trips starting from non-home home
-  
-  # Redefine Escort Home trips as home
-  ub <- ub %>%
-    mutate(TripPurpTo_B01ID = ifelse(TripPurpTo_B01ID == 17, 23, TripPurpTo_B01ID),
-           TripPurpFrom_B01ID = ifelse(TripPurpFrom_B01ID == 17, 23, TripPurpFrom_B01ID))
-
-
   # Define trip purposes
   ub <- ub %>%
     lu_trip_origin() %>%
     lu_hb_purpose() %>%
     lu_nhb_purpose() %>%
     lu_nhb_purpose_hb_leg() %>%
+    lu_agg_purpose() %>%
     mutate(p = ifelse(trip_origin == "hb", hb_purpose, nhb_purpose))
 
   # Classify Other variables ------------------------------------------------
-  
   cb <- ub %>%
     lu_gender() %>%
     lu_aws() %>%
@@ -136,82 +136,63 @@ build_cb <- function(input_csv){
   
   # Trip Grouping -----------------------------------------------------------
   
+  before_to <- cb %>% group_by(TripPurpTo_B01ID) %>% count()
+  before_from <- cb %>% group_by(TripPurpFrom_B01ID) %>% count()
   
-  eighteensub <- cb %>%
-    filter(SurveyYear == 2018)
-  
-  write_csv(eighteensub, '18_sub.csv')
-  
-  # Diary subset
-  diary <- eighteensub %>%
-    select(SurveyYear, IndividualID, TravelWeekDay_B01ID, TripID, TripPurpFrom_B01ID,
-           TripPurpTo_B01ID, trip_origin, hb_purpose, nhb_purpose, nhb_purpose_hb_leg,
-           main_mode, start_time, end_time, weighted_trips) %>%
-    arrange(IndividualID, TripID) %>%
-    group_by(IndividualID) %>%
-    mutate(start_flag = case_when(TripPurpFrom_B01ID == 23 ~ 1,
-                                  TRUE ~ 0)) %>%
-    mutate(end_flag = case_when(TripPurpTo_B01ID == 23 ~ 1,
-                                TRUE ~ 0)) %>%
-    mutate(trip_group = cumsum(start_flag)) %>%
-    ungroup()
- 
-  
-  # Native mutant trips
-  nmt <- diary %>%
-    group_by(IndividualID, trip_group) %>%
-    mutate(tour_count = sum(start_flag) + sum(end_flag)) %>%
-    mutate(record = row_number()) %>%
-    ungroup()
-    
-  nmt_summary <- nmt %>%
-    group_by(tour_count) %>%
-    count()
-  
-  write_csv(nmt_summary, 'nmt_summary.csv')
-  
-  # Purpose audits
-  pfrom <- diary %>%
-    filter(start_flag == 1) %>%
-    group_by(TripPurpFrom_B01ID, start_time) %>%
-    count()
-  
-  write_csv(pfrom, 'pfrom.csv')
-  
-  pto <- diary %>%
-    filter(end_flag == 1) %>%
-    group_by(TripPurpTo_B01ID, start_time) %>%
-    count()
-  
-  write_csv(pto, 'pto.csv')
-  
-  offending_tours <- nmt %>%
-    filter(tour_count != 2)
-  
-  write_csv(offending_tours, 'offending_tours.csv')
-  
-  
-  # Main code - remove diary work
-  
-  # Discard finals trips in travel diary which are outbound
-  
-  # cb <- cb %>%
-  #  group_by(IndividualID) %>% 
-  #  filter(!(TripID == max(TripID) & TripPurpFrom_B01ID == 23)) %>% 
-  #  ungroup()
-  
-  # Start a trip when from home and end when to home
+  # Correct purpose
+  # TODO: Needs to be tested thoroughly
   cb <- cb %>%
-    arrange(IndividualID, TripID) %>%
-    group_by(IndividualID) %>%
-    mutate(start_flag = case_when(TripPurpFrom_B01ID == 23 ~ 1,
-                                  TRUE ~ 0)) %>%
-    mutate(end_flag = case_when(TripPurpTo_B01ID == 23 ~ 1,
-                                TRUE ~ 0)) %>%
-    mutate(trip_group = cumsum(start_flag)) %>%
+    arrange(SurveyYear, HouseholdID, IndividualID, DayID, TripID) %>%
+    mutate(cr_indi = lead(IndividualID, n=1)) %>%
+    mutate(cr_trip = lead(TripID, n=1)) %>%
+    mutate(to_purp = lead(TripPurpTo_B01ID, n=1)) %>%
+    mutate(TripPurpTo_B01ID = case_when(
+      IndividualID==cr_indi & TripID+1==cr_trip ~ TripPurpTo_B01ID,
+      TRUE ~ to_purp))
+  
+  after_to <- cb %>% group_by(TripPurpTo_B01ID) %>% count()
+  after_from <- cb %>% group_by(TripPurpFrom_B01ID) %>% count()
+  
+  cb <- cb %>% select(-cr_indi, -cr_trip, -to_purp)
+  
+  # Reclassify trips to home to pick up multiple return home legs and remove them
+  cb <- classify_tours(cb)
+  broken_trips <- count_broken_trips(cb)
+  
+  cb <- classify_tours(cb)
+  cb <- cb %>% filter(!(trip_group == 0 & end_group > 0))
+  cb <- classify_tours(cb)
+  cb <- cb %>% filter(!end_group > trip_group)
+  broken_trips <- count_broken_trips(cb)
+  
+  # Find out what the allocated aggregate purpose is (masks escorts)
+  tour_classifications <- cb %>%
+    select(IndividualID, trip_group, agg_purpose) %>%
+    # Remove to home as an option
+    filter(agg_purpose != 99) %>%
+    group_by(IndividualID, trip_group) %>%
+    # Count records by allocated purpose
+    mutate(purp_count = n()) %>%
+    ungroup() %>%
+    group_by(IndividualID, trip_group) %>%
+    # Pick the most frequent
+    filter(purp_count == max(purp_count)) %>%
+    # This will leave lots tied on 1 or 2, add a count of records
+    mutate(rnum = row_number()) %>%
+    # Pick the later of the 2
+    filter(rnum == max(rnum)) %>%
+    mutate(tour_p = agg_purpose) %>%
+    # Remove derived columns to clear for join
+    select(-agg_purpose, -rnum) %>%
+    # Should be 1 record per group
     ungroup()
   
-  test <- head(cb)
+  # TODO: Add tour correction
+  #process tours
+
+  cb <- cb %>%
+    left_join(tour_classifications,
+              by = c("IndividualID", "trip_group"))
   
   # Allocate the purpose people left the house on, tour start time, last tour trip start time
   first_trips <- cb %>%
@@ -219,28 +200,29 @@ build_cb <- function(input_csv){
     group_by(IndividualID, trip_group) %>%
     mutate(frh_tp = start_time) %>%
     mutate(frh_p = hb_purpose) %>%
+    mutate(frh_mode = main_mode) %>%
     ungroup() %>%
-    select(IndividualID, trip_group, frh_p, frh_tp)
-  
-  # TODO: Last trips - classifiy to home purpose only
+    select(IndividualID, trip_group, frh_mode, frh_p, frh_tp)
   
   cb <- cb %>%
     left_join(first_trips,
               by = c("IndividualID", "trip_group"))
+  
+  # Count tours
+  cb <- cb %>%
+    group_by(IndividualID, trip_group) %>%
+    mutate(tour_count = sum(start_flag) + sum(end_flag)) %>%
+    mutate(tour_record = row_number()) %>%
+    ungroup()
   
   # Name trip types
   cb <- cb %>%
     mutate(trip_type = case_when(start_flag & !end_flag ~ 'frh',
                                  end_flag & !start_flag ~ 'toh',
                                  TRUE ~ 'nhb'))
-  
-  # No zero tour groups, start with first outbound
-  # TODO: This is just a result of poor tour classification, fix that not this, it leaves too many loose trips
-  # cb <- filter(cb, trip_group != 0)
 
   # Export
   write_csv(cb, cb_output_dir)
-  write_csv(cb, 'C:/Users/genie/Downloads/cb_tfn.csv')
   
 
 # HB Trip Rates inputs from CB --------------------------------------------

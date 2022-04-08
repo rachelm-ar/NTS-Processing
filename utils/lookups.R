@@ -102,6 +102,15 @@ lu_nhb_purpose_hb_leg <- function(df){
   
 }
 
+lu_agg_purpose <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "agg_purpose---TripPurpose_B01ID",
+              keys = "TripPurpose_B01ID",
+              id = "agg_purpose",
+              variable_expansion = "TripPurpose_B01ID")
+  
+}
 
 # Other variables ---------------------------------------------------------
 
