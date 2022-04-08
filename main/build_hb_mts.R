@@ -43,7 +43,6 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   
   # Pre Processing ---------------------------------------------------------
   
-  # TODO: Testing tp = frh time not start time
   cb <- cb_in %>%
     rename(m = main_mode,
            tp = start_time)
@@ -62,10 +61,6 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   
   # Remove na area type
   cb <- filter(cb, !is.na(tfn_at))
-  
-  # Remove trips below .3 miles
-  cb <- cb %>%
-    filter(!TripDisIncSW < .3)
   
   # Ntem tt to tfn tt lookup
   ntem_to_tfn_tt_lu <- tfn_lu %>% 
@@ -124,9 +119,8 @@ build_hb_mts <- function(input_csv, seg_max = 300){
     ungroup() %>%
     group_by(p, hh_type) %>%
     mutate(count_seg3 = sum(trips)) %>%
-    ungroup()
-  
-  sum(agg_all$trips)
+    ungroup() %>%
+    mutate(total_trips = sum(trips))
   
   # First seg calculation
   seg1_split <- counts %>%
@@ -220,18 +214,21 @@ build_hb_mts <- function(input_csv, seg_max = 300){
     bind_rows(counts) %>% 
     arrange(p, tfn_at, ntem_tt, hh_type, tp, m)
   
+  total_trips = c_report$total_trips[1]
+  
   c_report_out <- c_report %>% 
     distinct(p, tfn_at, ntem_tt, hh_type, count_seg1, count_seg2, count_seg3) %>% 
     group_by(p) %>% 
     summarise(seg1 = sum(count_seg1 > seg_max),
               seg2 = sum((count_seg1 < seg_max & count_seg2 > seg_max)),
-              seg3 = sum((count_seg2 < seg_max & count_seg3 > seg_max))) %>% 
+              seg3 = sum((count_seg2 < seg_max & count_seg3 > seg_max))) %>%
     ungroup() %>% 
     mutate(total = seg1 + seg2 + seg3) %>% 
     mutate(seg1_prop = seg1/total * 100,
            seg2_prop = seg2/total * 100,
            seg3_prop = seg3/total * 100) %>%
-    mutate(sample_threshold = seg_max)
+    mutate(sample_threshold = seg_max,
+           total_trips = total_trips)
   
   write_csv(c_report_out, hb_mts_report_dir)
   
