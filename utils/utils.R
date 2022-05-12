@@ -1,4 +1,4 @@
-# Transpose Input csv to wide format --------------------------------------
+# Transpose Input csv to wide format -------------------------------------------
 transpose_input_csv <- function(csv){
   
   csv %>%
@@ -7,7 +7,7 @@ transpose_input_csv <- function(csv){
   
 }
 
-# Create NTS C Folder in C Drive ------------------------------------------
+# Create NTS C Folder in C Drive -----------------------------------------------
 create_nts_c <- function(user = Sys.info()[[6]]){
   
   main_dir <- paste0("C:/Users/", user, "/Documents/NTS_D/")
@@ -42,8 +42,8 @@ create_nts_c <- function(user = Sys.info()[[6]]){
   
   # Lookups Copy
   
-  lookups_y <- list.files("Y:/NTS/lookups", recursive = TRUE)
-  lookups_y <- paste0("Y:/NTS/lookups/", lookups_y)
+  lookups_y <- list.files("D:/NTS/lookups", recursive = TRUE)
+  lookups_y <- paste0("D:/NTS/lookups/", lookups_y)
 
   dir.create(paste0(main_dir, "lookups/ntem/"), showWarnings = FALSE, recursive = TRUE)
   
@@ -53,7 +53,7 @@ create_nts_c <- function(user = Sys.info()[[6]]){
 
 create_nts_c()
 
-# Install (if needed) and load libraries --------
+# Install (if needed) and load libraries ---------------------------------------
 
 library_c <- function(packages_list) {
   "

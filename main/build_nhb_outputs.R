@@ -1,4 +1,6 @@
-build_nhb_outputs <- function(input_csv, trip_rate, time_split){
+# Main function ----------------------------------------------------------------
+build_nhb_outputs <- function(input_csv, trip_rate, time_split, 
+                              seg_max = 300){
   
   library_list <- c("dplyr",
                     "stringr",
@@ -7,8 +9,7 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
   
   library_c(library_list)
   
-# Directories and read in -------------------------------------------------
-  
+  # Directories and read in ----------------------------------------------------
   # Read and transpose input csv
   input_csv <- read_csv(input_csv)
   input_csv <- transpose_input_csv(input_csv)
@@ -40,53 +41,33 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
   
   # Time splits report
   time_splits_report_dir <- str_c(input_csv$nhb_trip_rates_save_dir, 
-                                  "\\Reports\\nhb_time_split_report",
+                                  "\\reports\\nhb_time_split_report",
                                   "_",
                                   input_csv$nhb_time_splits_version,
                                   ".csv")
   
-  dir.create(str_c(input_csv$nhb_trip_rates_save_dir, "\\Reports\\"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(str_c(input_csv$nhb_trip_rates_save_dir, "\\reports\\"), showWarnings = FALSE, recursive = TRUE)
 
-  # Pre-processing ----------------------------------------------------------
+  # Pre-processing -------------------------------------------------------------
+  # set purpose [p] for nhb_trip_rate calculation
+  cb <- escort_trips(cb, 1) # embed escort trips to main purpose
 
-  # Classified build columns and weights
-  retain_cols <- c("IndividualID", 
-                   "soc", 
-                   "ns", 
-                   "TripID", 
-                   "TravelWeekDay_B01ID", 
-                   "main_mode", 
-                   "TripPurpFrom_B01ID",
-                   "TripPurpTo_B01ID", 
-                   "TripStart_B01ID", 
-                   "TripEnd_B01ID",
-                   "hb_purpose", 
-                   "nhb_purpose", 
-                   "trip_weights",
-                   "tfn_at",
-                   "start_time",
-                   "trip_origin",
-                   "p")
+  # combine light & heavy rail
+  cb <- data_filter(cb, hb_only = FALSE, remove_van = FALSE, remove_air = FALSE, 
+                    aggregate_rail = TRUE)
+
+  # area Types
+  ats_list <- cb %>% 
+    distinct(tfn_at) %>%
+    pull() %>%
+    sort()
   
-  cb <- cb %>%
-    filter(W1 == 1) %>% 
-    mutate(trip_weights = W5xHH * W2 * JJXSC) %>%
-    select(one_of(retain_cols))
+  #set mode & purpose list for nhb_output
+  modes_list <- c(1:3,5,6)
+  p_list_hb  <- c(1:6,8)
+  p_list_nhb <- c(11:16,18)
   
-  # Remove visiting friends
-  cb <- cb %>% 
-    filter(hb_purpose != 7, nhb_purpose != 17)
-  
-  # Remove air
-  cb <- filter(cb, main_mode != 8)
-  
-  # Remove van
-  cb <- filter(cb, main_mode != 4)
-  
-  # Aggregate light rail and surface rail
-  cb <- mutate(cb, main_mode = ifelse(main_mode == 7, 6, main_mode))
-  
-  ### CTripEnd preprocessing
+  ### CTripEnd pre-processing ###
   
   # NHB trip rates renaming
   tr_old_vars <- c("N", "M", "H", "HBM", "Gamma")
@@ -107,58 +88,55 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
   
   ts_control <- ts_control %>%
     filter(!m %in% c(3,4))
-    
-  # NHB Trip Rates ----------------------------------------------------------
   
+  ### end of CTripEnd section ###
+    
+  # NHB Trip Rates -------------------------------------------------------------
   if(trip_rate){
     
-    # HB trips
-    hb_trips <- tour_groups %>%
-      select(IndividualID, hb_purpose, main_mode, trip_group, start_flag, trip_weights) %>%
-      filter(start_flag == 1) %>%
-      rename(hb_mode = main_mode)
+    # HB_fr trips
+    hb_trips <- cb %>%
+      filter(trip_direction == "hb_fr", start_time %in% c(1:6)) %>%
+      select(IndividualID, p, main_mode, trip_group, weighted_trips) %>%
+      rename(hb_mode = main_mode, hb_purpose = p)
     
     # NHB trips
-    nhb_trips <- tour_groups %>%
-      select(IndividualID, nhb_purpose, main_mode, trip_group, start_flag, end_flag, trip_weights) %>%
-      filter(start_flag == 0 & end_flag == 0) %>%
-      rename(nhb_mode = main_mode)
+    nhb_trips <- cb %>%
+      filter(trip_direction == "nhb", , start_time %in% c(1:6)) %>%
+      select(IndividualID, p, main_mode, trip_group, weighted_trips) %>%
+      rename(nhb_mode = main_mode, nhb_purpose = p)
     
-    # HB outwards
-    hb_leg_info <- hb_trips %>%
-      select(IndividualID, hb_purpose, hb_mode, trip_group)
-    
-    # NHB trips connected with HB outward
-    nhb_w_hb <- nhb_trips %>%
-      left_join(hb_leg_info, by=c("IndividualID", "trip_group"))
+    # link NHB trips to HB outward
+    nhb_trips <- nhb_trips %>%
+      left_join(hb_trips, by=c("IndividualID", "trip_group"), suffix = c("","_hb")) %>%
+      select(!c("weighted_trips_hb"))
     
     # Group and sum out the identifiers and the people
-    hb_totals <- hb_trips %>%
+    hb_trips <- hb_trips %>%
       group_by(hb_purpose, hb_mode) %>%
-      summarise(hb_trips = sum(trip_weights, na.rm=TRUE)) %>%
+      summarise(hb_trips = sum(weighted_trips, na.rm=TRUE)) %>%
       ungroup()
     
-    nhb_totals <- nhb_w_hb %>%
+    nhb_trips <- nhb_trips %>%
       group_by(nhb_purpose, nhb_mode, hb_purpose, hb_mode) %>%
-      summarise(nhb_trips = sum(trip_weights, na.rm=TRUE)) %>%
+      summarise(nhb_trips = sum(weighted_trips, na.rm=TRUE)) %>%
       ungroup()
     
     # Turn into trip rate (nhb by p/m/nhbp/nhbm divided by hb by p/m)
-    nhb_trip_rates <- nhb_totals %>%
-      left_join(hb_totals, by=c('hb_purpose', 'hb_mode')) %>%
+    nhb_trip_rates <- nhb_trips %>%
+      left_join(hb_trips, by=c('hb_purpose', 'hb_mode')) %>%
       mutate(nhb_trip_rate = nhb_trips/hb_trips) %>% 
       filter(!is.na(hb_purpose))
     
-    # Manual fix - why?
+    # remove invalid purposes (p7 & p17 are excluded)
     nhb_trip_rates <- nhb_trip_rates %>%
-      filter(hb_purpose != 99)
+      filter(hb_purpose %in% p_list_hb, hb_mode %in% modes_list,
+             nhb_purpose %in% p_list_nhb, nhb_mode %in% modes_list)
     
     # Infill 0 for missing segments
     nhb_trip_rates <- nhb_trip_rates %>%
-      complete(nhb_purpose = c(11, 12, 13, 14, 15, 16, 18),
-               nhb_mode = c(1, 2, 3, 5, 6),
-               hb_purpose = c(1:6, 8),
-               hb_mode = c(1, 2, 3, 5, 6),
+      complete(nhb_purpose = p_list_nhb, nhb_mode = modes_list,
+               hb_purpose = p_list_hb, hb_mode = modes_list,
                fill = list(nhb_trips = 0, hb_trips = 0, nhb_trip_rate = 0))
     
     # Check against NTEM rates (IgammaNHBH)
@@ -170,47 +148,33 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
       summary()
     
     nhb_trip_rates <- nhb_trip_rates %>% 
-      rename(nhb_p = nhb_purpose,
-             nhb_m = nhb_mode,
-             p = hb_purpose,
-             m = hb_mode)
+      rename(nhb_p = nhb_purpose, nhb_m = nhb_mode,
+             p = hb_purpose, m = hb_mode) %>%
+      arrange(nhb_p, nhb_m, p, m)
     
     # Write out
     write_csv(nhb_trip_rates, trip_rates_output_dir)
     
   }  
   
+  # NHB Time split -------------------------------------------------------------
   if(time_split){
-    
-    # Filter for nhb trips
+    # filter for nhb trips
     ts_nhb_trips <- cb %>% 
-      filter(trip_origin == "nhb", p != 99)
-    
-    # Modes
-    modes_list <- cb %>% 
-      distinct(main_mode) %>% 
-      pull() %>% 
-      sort()
-    
-    # Area Types
-    ats_list <- cb %>% 
-      distinct(tfn_at) %>%
-      pull() %>%
-      sort()
-    
-    # Aggregate 
+      filter(trip_direction == "nhb", start_time %in% c(1:6), 
+             p %in% p_list_nhb, tfn_at %in% ats_list, main_mode %in% modes_list)
+
+    # aggregate 
     agg_all <- ts_nhb_trips %>%
-      select(p, tfn_at, start_time, main_mode, trip_weights) %>%
+      select(p, tfn_at, start_time, main_mode, weighted_trips) %>%
       group_by(p, tfn_at, start_time, main_mode) %>%
-      summarise(trips = sum(trip_weights)) %>%
+      summarise(trips = sum(weighted_trips, na.rm=TRUE)) %>%
       ungroup()
     
-    # Infill for all combinations
+    # infill for all combinations
     agg_all <- agg_all %>% 
-      complete(p = c(11, 12, 13, 14, 15, 16, 18),
-               tfn_at = ats_list,
-               start_time = 1:6,
-               main_mode = modes_list,
+      complete(p = p_list_nhb, tfn_at = ats_list,
+               start_time = c(1:6), main_mode = modes_list,
                fill = list(trips = 0)) %>%
       select(p, tfn_at, main_mode, start_time, trips) %>% 
       arrange(p, tfn_at, main_mode, start_time) 
@@ -226,7 +190,7 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
     
     # First seg calculation
     seg1_split <- counts %>%
-      filter(count_seg1 >= 300) %>%
+      filter(count_seg1 >= seg_max) %>%
       group_by(p, tfn_at, main_mode) %>%
       mutate(split = trips/sum(trips)) %>%
       ungroup() %>% 
@@ -246,7 +210,7 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
 
     # Seg 2 filter and join infill
     seg2_split <- counts %>%
-      filter(count_seg1 < 300, count_seg2 >= 300) %>%
+      filter(count_seg1 < seg_max, count_seg2 >= seg_max) %>%
       distinct(p, tfn_at, main_mode) %>%
       left_join(seg2_infill_split) %>% 
       select(p, tfn_at, main_mode, start_time, split) %>% 
@@ -256,15 +220,14 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
     
     # Post process
     nhb_time_splits <- nhb_time_splits %>%
-      rename(nhb_p = p,
-             m = main_mode,
-             tp = start_time)
+      rename(nhb_p = p, nhb_m = main_mode, tp = start_time) %>%
+      arrange(nhb_p, tfn_at, nhb_m, tp)
     
     # Write out
     write_csv(nhb_time_splits, time_splits_output_dir)
     
     ts_comparison <- nhb_time_splits %>% 
-      filter(m != 3) %>% 
+      filter(nhb_m != 3) %>% 
       left_join(ts_control)
     
     lm(split ~ cte_ts, data = ts_comparison) %>% 
@@ -284,8 +247,8 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split){
     c_report_out <- c_report %>% 
       distinct(p, tfn_at, main_mode, count_seg1, count_seg2) %>% 
       group_by(p) %>% 
-      summarise(seg1 = sum(count_seg1 > 300),
-                seg2 = sum((count_seg1 < 300 & count_seg2 > 300))) %>% 
+      summarise(seg1 = sum(count_seg1 >= seg_max),
+                seg2 = sum((count_seg1 < seg_max & count_seg2 >= seg_max))) %>% 
       ungroup() %>% 
       mutate(total = seg1 + seg2) %>% 
       mutate(seg1_prop = seg1/total * 100,

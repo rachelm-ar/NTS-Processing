@@ -1,4 +1,4 @@
-# Model type based on form specified in model_forms.csv
+# Supporting functions ---------------------------------------------------------
 build_model <- function(mod_form, mod_formula, hb_df){
   
   if(mod_form == "nb"){
@@ -19,20 +19,17 @@ build_model <- function(mod_form, mod_formula, hb_df){
                    dist = "negbin")
     
   }
-  
-  
 }
 
 extract_levels <- function(hb_model, mod_form){
   
   if(mod_form == "nb"){
-    new_levels <- hb_model$xlevels
     
+    new_levels <- hb_model$xlevels
     
   } else {
     
     new_levels <- hb_model$levels
-    
   }
   
   new_levels %>% 
@@ -51,24 +48,24 @@ add_predictions <- function(new_data, hb_model){
   
 }
 
-process_newdata <- function(new_data, aws, tfn_or_ntem){
+# this code is to manually assign gender & soc to children & none-working age 
+# (updated with new soc4 for aws (1,4,5,6)
+# needs an automated function to assign soc/gender from the lu_tt
+add_soc_gender <- function(new_data, aws, tfn_or_ntem){
   
-  # Add SOC & gender for children
-  # Add SOC for non working
+  # add soc & gender for children (soc 4 & gender 1)
+  # add soc for non working (soc 4)
   if(aws == 1){
     
     new_data <- mutate(new_data, gender = factor(1))
     
-    new_data <- mutate(new_data, soc = factor(2))
+    new_data <- mutate(new_data, soc = factor(4))
     
   } else if(aws %in% 4:6){
     
-    new_data <- mutate(new_data, soc = factor(2))
-    
+    new_data <- mutate(new_data, soc = factor(4))
   }
-  
   new_data
-  
 }
 
 infil_p_aws <- function(data, purpose, age_work_status){
@@ -76,7 +73,6 @@ infil_p_aws <- function(data, purpose, age_work_status){
   data %>% 
     mutate(p = purpose,
            aws = age_work_status)
-  
 }
 
 c_weighted_rates <- function(data, response_weights){
@@ -95,9 +91,10 @@ c_weighted_rates <- function(data, response_weights){
   
 }
 
+# Main function ----------------------------------------------------------------
 build_hb_trip_rates <- function(input_csv){
 
-# Load packages -----------------------------------------------------------
+  # Load packages --------------------------------------------------------------
   library_list <- c("dplyr",
                     "stringr",
                     "readr",
@@ -110,12 +107,11 @@ build_hb_trip_rates <- function(input_csv){
   
   library_c(library_list)
   
-# Read inputs -------------------------------------------------------------
-  
+  # Read inputs ----------------------------------------------------------------
   input_csv <- read_csv(input_csv)
   input_csv <- transpose_input_csv(input_csv)
   
-  # Read
+  # read csv
   cb <- read_csv(input_csv$hb_tr_build_csv_dir)
   model_forms <- read_csv(input_csv$hb_tr_model_forms_csv_dir)
   response_weights <- read_csv(input_csv$hb_tr_reponse_weights_csv_dir)
@@ -123,7 +119,7 @@ build_hb_trip_rates <- function(input_csv){
 
   # unweighted report dir
   unweighted_output_dir <- str_c(input_csv$hb_tr_save_dir,
-                                 "\\Reports\\",
+                                 "\\reports\\",
                                  input_csv$hb_tr_unweighted_report_name,
                                  "_",
                                  input_csv$hb_tr_version,
@@ -137,30 +133,29 @@ build_hb_trip_rates <- function(input_csv){
                             input_csv$hb_tr_version,
                             ".csv")
       
-  dir.create(str_c(input_csv$hb_tr_save_dir,"\\Reports\\"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(str_c(input_csv$hb_tr_save_dir,"\\reports\\"), showWarnings = FALSE, recursive = TRUE)
   
-# Pre Processing ----------------------------------------------------------
-
-  # Combine AT 1 & 2
+  # Pre Processing -------------------------------------------------------------
+  # combine AT 1 & 2
   cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
   
-  # Combine AT 7 & 8
+  # combine AT 7 & 8
   cb <- mutate(cb, tfn_at = ifelse(tfn_at == 7, 8, tfn_at))
   
-  # Define covars for age work status groups
+  # define covars for age work status groups
   worker_covars <- c("gender", "hh_type", "soc", "ns", "tfn_at", "SurveyYear")
   child_covars <- c("hh_type", "ns", "tfn_at", "SurveyYear")
   non_worker_covars <- c("gender", "hh_type", "ns", "tfn_at", "SurveyYear")
   
-  # Define glm formulas for age work status groups
+  # define glm formulas for age work status groups
   worker_formula <- str_c("weekly_trips ~ ", str_c(worker_covars, collapse = " + "))
   child_formula <- str_c("weekly_trips ~ ", str_c(child_covars, collapse = " + "))
   non_worker_formula <- str_c("weekly_trips ~ ", str_c(non_worker_covars, collapse = " + "))
   
-  # Convert co-variates to factors
+  # convert co-variates to factors
   cb <- mutate(cb, across(all_of(worker_covars), ~ factor(.)))
   
-  # Join formulas based on trip purpose and age work status
+  # join formulas based on trip purpose and age work status
   models <- model_forms %>%
     mutate(mod_formula = case_when(
       aws == 1 & mod_form == "nb" ~ child_formula,
@@ -171,26 +166,24 @@ build_hb_trip_rates <- function(input_csv){
       aws %in% 4:6 & mod_form != "nb" ~ str_c(non_worker_formula, " | 1"),
     ))
   
-  # Filter for corresponding segment
+  # filter for corresponding segment: hb_df = 8p x 6aws = 48 segments
   models <- mutate(models, hb_df = map2(p, aws, function(x, y) filter(cb, p == x, aws == y)))
   
-# Model Building and predicting -------------------------------------------
-  
-  # Build model for each segment
+  # Model Building and predicting ----------------------------------------------
+  # build model for each segment
   models <- mutate(models, hb_model = pmap(list(mod_form, mod_formula, hb_df), build_model))
   
-  # Extract new levels and combine crosswise to build new data set for prediction
+  # extract new levels and combine crosswise to build new data set for prediction
   models <- mutate(models, new_data = map2(hb_model, mod_form, extract_levels))
   
-  # Add predictions for the new data set
+  # add predictions for the new data set
   models <- mutate(models, new_data = map2(new_data, hb_model, add_predictions))
   
-  # Process data to fill in missing classifications. i.e. gender for children
-  models <- mutate(models, new_data = map2(new_data, aws, process_newdata))
+  # infill in missing classifications. i.e. gender for children
+  models <- mutate(models, new_data = map2(new_data, aws, add_soc_gender))
   
-# Un-weighted Regressions Report ------------------------------------------
-  
-  # Same format as ATKINS/AECOM 2016 Report
+  # Un-weighted Regressions Report ---------------------------------------------
+  # same format as ATKINS/AECOM 2016 Report
   unweight_report <- models %>%
     mutate(trip_rate = map(new_data, function(x) x %>% summarise(trip_rate = mean(trips)))) %>%
     unnest(cols = trip_rate) %>%
@@ -203,24 +196,24 @@ build_hb_trip_rates <- function(input_csv){
   
   write_csv(unweight_report, unweighted_output_dir)
   
-# Weighted Regressions ----------------------------------------------------
-  
-  # Add purpose and age work status back in
-  models2 <- models %>%
+  # Weighted Regressions -------------------------------------------------------
+  # add purpose and age work status back in
+  models_w <- models %>%
     mutate(new_data = pmap(list(new_data, p, aws), infil_p_aws))
   
-  models2 <- models2 %>%
+  models_w <- models_w %>%
     mutate(new_data = map(new_data, c_weighted_rates, response_weights))
 
-  hb_trip_rates <- models2 %>% 
+  hb_trip_rates <- models_w %>% 
     pull(new_data) %>% 
     bind_rows() %>% 
-    rename(trip_rates = trips)
+    rename(trip_rate = trips)
   
+  # copy trip_rates from at 2 & 8 to at 1 & 7
   hb_trip_rates <- hb_trip_rates %>%
     filter(tfn_at == 2) %>% 
     mutate(tfn_at = factor(1)) %>%
-    bind_rows(hb_trip_rates)
+    bind_rows(hb_trip_rates) #duplicate everything from at2 and create at1
   
   hb_trip_rates <- hb_trip_rates %>%
     filter(tfn_at == 8) %>% 
@@ -229,11 +222,20 @@ build_hb_trip_rates <- function(input_csv){
   
   hb_trip_rates <- hb_trip_rates %>%
     lu_tt() %>% 
-    select(p, tfn_tt, ntem_tt, tfn_at, trip_rates) %>% 
+    select(p, tfn_tt, ntem_tt, tfn_at, trip_rate) %>% 
     arrange(p, tfn_tt, ntem_tt, tfn_at)
  
-  # Save HB Trip Rates
+  # save HB Trip Rates
   write_csv(hb_trip_rates, hb_tr_output_dir)
+  
+  
+  #cleanse database
+  models2 <- 0
+  gc()
+  
+  #out <- cb %>%
+  #  group_by(SurveyYear) %>%
+  #  summarise(trip = sum(weekly_trips))
   
 # Trip Rates vs cTripEnd Report (no need) -------------------------------------------
   
