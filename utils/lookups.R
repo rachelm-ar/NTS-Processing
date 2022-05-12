@@ -12,7 +12,7 @@ join_lookup <- function(df, lookup_csv, keys, id,
                         filter_id = FALSE, 
                         filter_na = FALSE,
                         variable_expansion = FALSE,
-                        lookup_dir = "I:/NTS/lookups/"){
+                        lookup_dir = "D:/NTS/lookups/"){
 
   # Read in lookup csv
   lookup <- read_csv(str_c(lookup_dir, lookup_csv, ".csv"))
@@ -60,7 +60,38 @@ join_lookup <- function(df, lookup_csv, keys, id,
   
 }
 
-# Trip Purposes -----------------------------------------------------------
+# New trip purpose definition - NN ---------------------------------------------
+lu_direction <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "trip_direction---TripPurpFrom_B01ID--TripPurpTo_B01ID",
+              keys = c("TripPurpFrom_B01ID","TripPurpTo_B01ID"),
+              id = "trip_direction",
+              variable_expansion = c("TripPurpFrom_B01ID","TripPurpTo_B01ID"))
+  
+}
+
+lu_purpose <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "trip_purpose---MainMode_B11ID--TripPurpFrom_B01ID--TripPurpTo_B01ID",
+              keys = c("MainMode_B11ID", "TripPurpFrom_B01ID", "TripPurpTo_B01ID"),
+              id = "trip_purpose",
+              variable_expansion = c("MainMode_B11ID", "TripPurpFrom_B01ID", "TripPurpTo_B01ID"))
+  
+}
+
+lu_occupant <- function(df){
+  
+  join_lookup(df = df,
+              lookup_csv = "veh_occupant---MainMode_B11ID",
+              keys = c("MainMode_B11ID"),
+              id = "occupant",
+              variable_expansion = c("MainMode_B11ID"))
+  
+}
+
+# Trip Purposes ----------------------------------------------------------------
 
 lu_trip_origin <- function(df){
   
@@ -102,17 +133,7 @@ lu_nhb_purpose_hb_leg <- function(df){
   
 }
 
-lu_agg_purpose <- function(df){
-  
-  join_lookup(df = df,
-              lookup_csv = "agg_purpose---TripPurpose_B01ID",
-              keys = "TripPurpose_B01ID",
-              id = "agg_purpose",
-              variable_expansion = "TripPurpose_B01ID")
-  
-}
-
-# Other variables ---------------------------------------------------------
+# Other variables --------------------------------------------------------------
 
 lu_gender <- function(df){
   
@@ -124,26 +145,26 @@ lu_gender <- function(df){
   
 }
 
-lu_aws <- function(df){
+lu_aws <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "aws--Age_B01ID---EcoStat_B01ID",
               keys = c("Age_B01ID", "EcoStat_B01ID"),
               id = "aws",
-              filter_na = TRUE,
+              filter_na = filter_na,
               variable_expansion = c("Age_B01ID", "EcoStat_B01ID"))
   
 }
 
-lu_hh_type <- function(df){
+lu_hh_type <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "hh_type--HHoldNumAdults---NumCarVan",
               keys = c("HHoldNumAdults", "NumCarVan"),
               id = "hh_type",
-              variable_expansion = c("HHoldNumAdults", "NumCarVan"),
-              filter_na = TRUE)
-  
+              variable_expansion = c("HHoldNumAdults", "NumCarVan"), #NumCarVan originally
+              filter_na = filter_na)
+
 }
 
 lu_tt <- function(df){
@@ -170,68 +191,68 @@ lu_ntem_tt <- function(df){
               id = "ntem_tt")
 }
 
-lu_soc <- function(df){
+lu_soc <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "soc---XSOC2000_B02ID--Age_B01ID--EcoStat_B01ID",
               keys = c("XSOC2000_B02ID", "Age_B01ID", "EcoStat_B01ID"),
               id = "soc",
               variable_expansion = c("XSOC2000_B02ID", "Age_B01ID", "EcoStat_B01ID"),
-              filter_na = TRUE)
+              filter_na = filter_na)
   
 }
 
-lu_main_mode <- function(df){
+lu_main_mode <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "main_mode---MainMode_B11ID",
               keys = "MainMode_B11ID",
               id = "main_mode",
               variable_expansion = "MainMode_B11ID",
-              filter_na = TRUE)
+              filter_na = filter_na)
   
 }
 
-lu_stage_mode <- function(df){
+lu_stage_mode <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "stage_mode---StageMode_B11ID",
               keys = "StageMode_B11ID",
               id = "stage_mode",
               variable_expansion = "StageMode_B11ID",
-              filter_na = TRUE)
+              filter_na = filter_na)
   
 }
 
-lu_start_time <- function(df){
+lu_start_time <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "start_time---TravelWeekDay_B01ID--TripStart_B01ID",
               keys = c("TravelWeekDay_B01ID", "TripStart_B01ID"),
               id = "start_time",
               variable_expansion = c("TravelWeekDay_B01ID", "TripStart_B01ID"),
-              filter_na = TRUE)
+              filter_na = filter_na)
   
 }
 
-lu_end_time<- function(df){
+lu_end_time<- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "end_time---TravelWeekDay_B01ID--TripEnd_B01ID",
               keys = c("TravelWeekDay_B01ID","TripEnd_B01ID"),
               id = "end_time",
               variable_expansion = c("TravelWeekDay_B01ID", "TripEnd_B01ID"),
-              filter_na = TRUE)
+              filter_na = filter_na)
   
 }
 
-lu_tfn_at <- function(df){
+lu_tfn_at <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "tfn_at---PSUPSect",
               keys = "PSUPSect",
               id = "tfn_at",
-              filter_na = TRUE)
+              filter_na = filter_na)
   
 }
 
@@ -264,25 +285,25 @@ lu_ntem_at <- function(df){
   
 }
 
-lu_ntem_aws <- function(df){
+lu_ntem_aws <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "ntem_aws--Age_B01ID---EcoStat_B01ID",
               keys = c("Age_B01ID", "EcoStat_B01ID"),
               id = "ntem_aws",
-              filter_na = TRUE,
+              filter_na = filter_na,
               variable_expansion = c("Age_B01ID", "EcoStat_B01ID"))
   
 }
 
-lu_ntem_main_mode <- function(df){
+lu_ntem_main_mode <- function(df, filter_na = TRUE){
   
   join_lookup(df = df,
               lookup_csv = "ntem_main_mode---MainMode_B11ID",
               keys = "MainMode_B11ID",
               id = "ntem_main_mode",
               variable_expansion = "MainMode_B11ID",
-              filter_na = TRUE)
+              filter_na = filter_na)
   
 }
 
