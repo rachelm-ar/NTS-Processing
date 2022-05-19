@@ -11,24 +11,25 @@ source(paste0(repo_dir, "main/build_hb_mts.R"))
 source(paste0(repo_dir, "main/build_hb_productions.R"))
 source(paste0(repo_dir, "main/build_nhb_outputs.R"))
 source(paste0(repo_dir, "main/build_tld_data.R"))
+source(paste0(repo_dir, "main/build_tld_data.R"))
 
 # Classified build -------------------------------------------------------------
-build_cb(input_csv = "D:/NTS/import/cb_input.csv")
+build_cb(input_csv = "I:/NTS/import/cb_input.csv")
 
 # HB Trip Rates ----------------------------------------------------------------
-build_hb_trip_rates(input_csv = "D:/NTS/import/hb_tr_input.csv")
+build_hb_trip_rates(input_csv = "I:/NTS/import/hb_tr_input.csv")
 
 # HB Mode Time Split & Phis ----------------------------------------------------
-build_hb_mts(input_csv = "D:/NTS/import/hb_mts_input.csv",
+build_hb_mts(input_csv = "I:/NTS/import/hb_mts_input.csv",
              seg_max = 300)
 
 # NHB Trip Rates and Time Splits -----------------------------------------------
-build_nhb_outputs(input_csv = "D:/NTS/import/nhb_input.csv",
+build_nhb_outputs(input_csv = "I:/NTS/import/nhb_input.csv",
                   trip_rate = TRUE, time_split = TRUE, seg_max = 300)
 
 
 # Build TLD and Occupancy ----------------------------------------------------
-build_tld_data(input_csv = "D:/NTS/import/tld_input.csv")
+build_tld_and_co(input_csv = "I:/NTS/import/tld_input.csv")
 
 
 # Version controls -------------------------------------------------------------

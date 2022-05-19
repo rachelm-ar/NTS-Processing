@@ -28,7 +28,7 @@ build_tld_and_co <- function(input_csv){
   # prepare purpose for tld
   cb <- escort_trips(cb, option = 1) # embed escort to main purpose
   cb <- data_filter(cb, hb_only = FALSE, remove_van = FALSE, remove_air = TRUE,
-                    aggregate_rail = TRUE) #filter data
+                    aggregate_rail = FALSE) #filter data
   cb <- cb %>%
     mutate(p = ifelse(trip_direction == "hb_to", -p, p)) #change to_home back to its purpose
   

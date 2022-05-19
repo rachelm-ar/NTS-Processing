@@ -12,7 +12,7 @@ join_lookup <- function(df, lookup_csv, keys, id,
                         filter_id = FALSE, 
                         filter_na = FALSE,
                         variable_expansion = FALSE,
-                        lookup_dir = "D:/NTS/lookups/"){
+                        lookup_dir = "I:/NTS/lookups/"){
 
   # Read in lookup csv
   lookup <- read_csv(str_c(lookup_dir, lookup_csv, ".csv"))
