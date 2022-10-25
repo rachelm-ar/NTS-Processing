@@ -13,10 +13,10 @@ source(paste0(repo_dir, "main/build_nhb_outputs.R"))
 source(paste0(repo_dir, "main/build_tld_data.R"))
 
 # Classified build -------------------------------------------------------------
-build_cb(input_csv = "D:/NTS/import/cb_input.csv")
+build_cb(input_csv = "I:/NTS/import/cb_input.csv")
 
 # HB Trip Rates ----------------------------------------------------------------
-build_hb_trip_rates(input_csv = "D:/NTS/import/hb_tr_input.csv")
+build_hb_trip_rates(input_csv = "I:/NTS/import/hb_tr_input.csv")
 
 # HB Mode Time Split & Phis ----------------------------------------------------
 build_hb_mts(input_csv = "D:/NTS/import/hb_mts_input.csv",

@@ -37,11 +37,7 @@ escort_trips <- function(cb, option = 1) {
 }
 
 # pre-processing
-cb_preprocess <- function(ub, cb_version){
-  # postcodes - checked OK, e.g. AL4 9Y -> AL49, M 16 8 -> M1689
-  cb <- ub %>% 
-    mutate(PSUPSect = str_replace(PSUPSect, "^(.*\\s.).*", "\\1"),
-           PSUPSect = str_replace_all(PSUPSect, " ", ""))
+cb_preprocess <- function(cb, cb_version){
   
   # infill W2 with zero for blank records
   cb <- cb %>%
@@ -126,7 +122,7 @@ build_cb <- function(input_csv){
   # Unclassified build ---------------------------------------------------------
   # table paths
   variable_list <- colnames(ub_columns)
-  variable_path <- str_replace(variable_list, "cols", "special_2002-2019_protect.tab")
+  variable_path <- str_replace(variable_list, "cols", "special_2002-2020_protect.tab")
   variable_path <- str_c(input_csv$nts_raw_dir, variable_path, sep = "\\")
   
   # convert ub columns df to list
@@ -166,7 +162,6 @@ build_cb <- function(input_csv){
     lu_sw_weight() %>% 
     lu_is_north() %>% 
     lu_soc(filter_na = FALSE) %>%
-    lu_tfn_at(filter_na = FALSE) %>% 
     lu_tt()
 
   # embed escort trip [X] to purpose [X]
