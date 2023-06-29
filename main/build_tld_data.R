@@ -35,7 +35,7 @@ build_tld_and_co <- function(input_csv){
   # Build TLD ------------------------------------------------------------------
   # GOR: 1-NE, 2-NW, 3-YH, 4-EM, 5-WM, 6-EAST, 7-LON, 8-SE, 9-SW, 10-WALES, 11-SCOTLAND
   nts <- cb %>%
-    group_by(main_mode, p, tfn_tt, tfn_at, soc, ns, hh_type, gender, aws, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID,
+    group_by(main_mode, p, tfn_tt, soc, ns, hh_type, gender, aws, start_time, TripOrigGOR_B02ID, TripDestGOR_B02ID,
              HHoldOSLAUA_B01ID, TripOrigUA2009_B01ID, TripDestUA2009_B01ID,
              trip_direction, occupant, TripDisIncSW) %>%
     summarise(trips = sum(weighted_trips)) %>%

@@ -39,12 +39,12 @@ escort_trips <- function(cb, option = 1) {
 # pre-processing
 cb_preprocess <- function(ub, cb_version){
   # postcodes - checked OK, e.g. AL4 9Y -> AL49, M 16 8 -> M1689
-  cb <- ub %>% 
-    mutate(PSUPSect = str_replace(PSUPSect, "^(.*\\s.).*", "\\1"),
-           PSUPSect = str_replace_all(PSUPSect, " ", ""))
+  # cb <- ub %>% 
+  #   mutate(PSUPSect = str_replace(PSUPSect, "^(.*\\s.).*", "\\1"),
+  #          PSUPSect = str_replace_all(PSUPSect, " ", ""))
   
   # infill W2 with zero for blank records
-  cb <- cb %>%
+  cb <- ub %>%
     mutate(W2 = as.double(str_replace(W2, " ","0"))) %>%
     mutate(W5xHH = as.double(str_replace(W5xHH, " ","0"))) %>%
     mutate(W2 = ifelse(is.na(W2),0,W2)) %>%
@@ -126,7 +126,7 @@ build_cb <- function(input_csv){
   # Unclassified build ---------------------------------------------------------
   # table paths
   variable_list <- colnames(ub_columns)
-  variable_path <- str_replace(variable_list, "cols", "special_2002-2019_protect.tab")
+  variable_path <- str_replace(variable_list, "cols", "special_2002-2021_protect.tab")
   variable_path <- str_c(input_csv$nts_raw_dir, variable_path, sep = "\\")
   
   # convert ub columns df to list
@@ -166,7 +166,7 @@ build_cb <- function(input_csv){
     lu_sw_weight() %>% 
     lu_is_north() %>% 
     lu_soc(filter_na = FALSE) %>%
-    lu_tfn_at(filter_na = FALSE) %>% 
+    # lu_tfn_at(filter_na = FALSE) %>% 
     lu_tt()
 
   # embed escort trip [X] to purpose [X]
@@ -183,12 +183,12 @@ build_cb <- function(input_csv){
   # filter for aws, gender, hh_type, soc, ns, and tfn_at
   hb_trip_rates_input <- filter(cb, !main_mode %in% c(4, 8),
                                 !is.na(aws), !is.na(gender), !is.na(hh_type),
-                                !is.na(soc), !is.na(ns), !is.na(tfn_at))
+                                !is.na(soc), !is.na(ns))
   
   # define required variables
   # note: 2011 data not used for trip-rate calculation as no valid Postcode sector
   grouping_vars <- c("IndividualID", "p", "SurveyYear", "aws", "gender",
-                     "hh_type", "soc", "ns", "tfn_at")
+                     "hh_type", "soc", "ns")
   
   grouping_vars <- colnames(cb)[colnames(cb) %in% grouping_vars]
   

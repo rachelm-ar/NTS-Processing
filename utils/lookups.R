@@ -12,7 +12,7 @@ join_lookup <- function(df, lookup_csv, keys, id,
                         filter_id = FALSE, 
                         filter_na = FALSE,
                         variable_expansion = FALSE,
-                        lookup_dir = "D:/NTS/lookups/"){
+                        lookup_dir = "I:/NTS/lookups/"){
 
   # Read in lookup csv
   lookup <- read_csv(str_c(lookup_dir, lookup_csv, ".csv"))
@@ -246,15 +246,15 @@ lu_end_time<- function(df, filter_na = TRUE){
   
 }
 
-lu_tfn_at <- function(df, filter_na = TRUE){
+# lu_tfn_at <- function(df, filter_na = TRUE){
   
-  join_lookup(df = df,
-              lookup_csv = "tfn_at---PSUPSect",
-              keys = "PSUPSect",
-              id = "tfn_at",
-              filter_na = filter_na)
+#   join_lookup(df = df,
+#               lookup_csv = "tfn_at---PSUPSect",
+#               keys = "PSUPSect",
+#               id = "tfn_at",
+#               filter_na = filter_na)
   
-}
+# }
 
 lu_sw_weight <- function(df){
   

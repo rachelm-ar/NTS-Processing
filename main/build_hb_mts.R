@@ -142,10 +142,7 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   # filter hb, remove van, air, aggregate rail
   cb <- data_filter(cb, hb_only = TRUE, remove_van = TRUE, remove_air = TRUE, 
                     aggregate_rail = TRUE)
-  
-  # remove na area type & filter diary sample only
-  cb <- cb %>%
-    filter(W1 == 1, !is.na(tfn_at))
+
   
   # rename mode and time period
   cb <- rename(cb, m = main_mode, tp = start_time)
@@ -165,31 +162,25 @@ build_hb_mts <- function(input_csv, seg_max = 300){
     pull() %>% 
     sort()
   
-  # area type depending on ntem or tfn
-  ats_list <- cb %>% 
-    distinct(tfn_at) %>%
-    pull() %>%
-    sort()
-  
   # ntem_tt & hh_type list
   tts_list <- c(1:88)
   hhs_list <- c(1:8)
   
   # aggregate 
   agg_all <- cb %>%
-    select(p, tfn_at, ntem_tt, tp, m, weighted_trips) %>%
-    group_by(p, tfn_at, ntem_tt, tp, m) %>%
+    select(p, ntem_tt, tp, m, weighted_trips) %>%
+    group_by(p, ntem_tt, tp, m) %>%
     summarise(trips = sum(weighted_trips)) %>%
     ungroup()
   
   # infill for all combinations
   agg_all <- agg_all %>% 
-    complete(p = c(1:8), tfn_at = ats_list,
+    complete(p = c(1:8),
              ntem_tt = tts_list, tp = c(1:6),
              m = modes_list, fill = list(trips = 0)) %>%
     left_join(ntem_to_hh_type_lu) %>% 
-    select(p, tfn_at, ntem_tt, hh_type, tp, m, trips) %>% 
-    arrange(p, tfn_at, ntem_tt, hh_type)
+    select(p, ntem_tt, hh_type, tp, m, trips) %>% 
+    arrange(p, ntem_tt, hh_type)
     # no filter at this stage (i.e. include NA) for better sample
 
   # level 1: purpose, area_type, hh_type, ntem_tt
@@ -199,67 +190,46 @@ build_hb_mts <- function(input_csv, seg_max = 300){
 
   # find sample sizes of proposed segmentation
   counts <- agg_all %>%
-    group_by(p, tfn_at, hh_type, ntem_tt) %>%
+    group_by(p, hh_type, ntem_tt) %>%
     mutate(count_seg1 = sum(trips)) %>%
     ungroup() %>%
-    group_by(p, tfn_at, hh_type) %>%
+    group_by(p, hh_type) %>%
     mutate(count_seg2 = sum(trips)) %>%
     ungroup() %>%
-    group_by(p, tfn_at) %>%
-    mutate(count_seg3 = sum(trips)) %>%
-    ungroup() %>%
     group_by(p) %>%
-    mutate(count_seg4 = sum(trips)) %>%
+    mutate(count_seg3 = sum(trips)) %>%
     ungroup()
 
   # seg2 average infill
   seg2_infill <- agg_all %>% 
-    group_by(p, tfn_at, hh_type, tp, m) %>%
+    group_by(p, hh_type, tp, m) %>%
     summarise(trips = sum(trips)) %>%
     ungroup()
   
   seg2_infill_split <- seg2_infill %>% 
-    group_by(p, tfn_at, hh_type) %>% 
+    group_by(p, hh_type) %>% 
     mutate(split = trips/sum(trips)) %>% 
     ungroup() %>% 
     left_join(ntem_to_hh_type_lu) %>% 
-    select(p, tfn_at, ntem_tt, tp, m, split) %>%
-    arrange(p, tfn_at, ntem_tt, tp, m)
+    select(p, ntem_tt, tp, m, split) %>%
+    arrange(p, ntem_tt, tp, m)
   
-  # seg3 average infill (by tfn_at)
+  # seg3 average infill
   seg3_infill <- agg_all %>%
-    group_by(p, tfn_at, tp, m) %>%
-    summarise(trips = sum(trips)) %>%
-    ungroup()
-  
-  seg3_infill_split <- seg3_infill %>%
-    group_by(p, tfn_at) %>%
-    mutate(split = trips/sum(trips)) %>% 
-    ungroup() %>% 
-    mutate(hh_type = 1) %>% #set hh_type to 1 then make a copy to other hhs
-    complete(nesting(p, tfn_at, tp, m), hh_type = hhs_list) %>% 
-    fill(split) %>% 
-    left_join(ntem_to_hh_type_lu) %>% 
-    select(p, tfn_at, ntem_tt, tp, m, split) %>%
-    arrange(p, tfn_at, ntem_tt, tp, m) %>% 
-    ungroup()
-  
-  # seg4 average infill
-  seg4_infill <- agg_all %>%
     group_by(p, tp, m) %>%
     summarise(trips = sum(trips)) %>%
     ungroup()
   
-  seg4_infill_split <- seg4_infill %>%
+  seg3_infill_split <- seg3_infill %>%
     group_by(p) %>%
     mutate(split = trips/sum(trips)) %>% 
     ungroup() %>% 
-    mutate(tfn_at = 1, hh_type = 1) %>% #set tfn_at & hh_type to 1 then make a copy to other ats and hhs
-    complete(nesting(p, tp, m), tfn_at = ats_list, hh_type = hhs_list) %>% 
+    mutate(hh_type = 1) %>% #set hh_type to 1 then make a copy to other hhs
+    complete(nesting(p, tp, m), hh_type = hhs_list) %>% 
     fill(split) %>% 
     left_join(ntem_to_hh_type_lu) %>% 
-    select(p, tfn_at, ntem_tt, tp, m, split) %>%
-    arrange(p, tfn_at, ntem_tt, tp, m) %>% 
+    select(p, ntem_tt, tp, m, split) %>%
+    arrange(p, ntem_tt, tp, m) %>% 
     ungroup()
 
   #write_csv(seg4_infill,"D:/NTS/NTS_weighted_trips_seg4.csv")
@@ -267,44 +237,37 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   # seg1 split calculation
   seg1_split <- counts %>%
     filter(count_seg1 >= seg_max) %>%
-    group_by(p, tfn_at, hh_type, ntem_tt) %>%
+    group_by(p, hh_type, ntem_tt) %>%
     mutate(split = trips/sum(trips)) %>%
     ungroup() %>% 
-    select(p, tfn_at, ntem_tt, tp, m, split) %>% 
-    arrange(p, tfn_at, ntem_tt, tp, m)
+    select(p, ntem_tt, tp, m, split) %>% 
+    arrange(p, ntem_tt, tp, m)
   
   # seg2 filter and join infill
   seg2_split <- counts %>%
     filter(count_seg1 < seg_max & count_seg2 >= seg_max) %>%
-    distinct(p, tfn_at, ntem_tt) %>%
+    distinct(p, ntem_tt) %>%
     left_join(seg2_infill_split)
   
   # seg3 filter and join infill
   seg3_split <- counts %>%
     filter(count_seg1 < seg_max & count_seg2 < seg_max & count_seg3 >= seg_max) %>%
-    distinct(p, tfn_at, ntem_tt) %>%
+    distinct(p, ntem_tt) %>%
     left_join(seg3_infill_split)
-
-  # seg4 filter and join infill
-  seg4_split <- counts %>%
-    filter(count_seg1 < seg_max & count_seg2 < seg_max & count_seg3 < seg_max) %>%
-    distinct(p, tfn_at, ntem_tt) %>%
-    left_join(seg4_infill_split)
 
   # combine finished dataframes
   mts <- bind_rows(seg1_split,
                    seg2_split,
-                   seg3_split,
-                   seg4_split) %>%
-    arrange(p, tfn_at, ntem_tt, tp, m)
+                   seg3_split) %>%
+    arrange(p, ntem_tt, tp, m)
   
   mts_long <- mts %>%
-    filter(!is.na(tfn_at), !is.na(ntem_tt), !is.na(tp)) 
+    filter(!is.na(ntem_tt), !is.na(tp)) 
   
   # long format for tms
   mts_output <- mts_long %>% 
     left_join(ntem_to_tfn_tt_lu) %>% 
-    select(p, tfn_tt, ntem_tt, tfn_at, tp, m, split)
+    select(p, tfn_tt, ntem_tt, tp, m, split)
   
   write_csv(mts_output, hb_mts_long_output_dir)
   
@@ -320,22 +283,20 @@ build_hb_mts <- function(input_csv, seg_max = 300){
   # counts report -----------------------------------------------------------
   c_report <- counts %>% 
     bind_rows(counts) %>% 
-    arrange(p, tfn_at, ntem_tt, hh_type, tp, m) %>%
-    filter(tfn_at %in% ats_list & !is.na(ntem_tt) & !is.na(hh_type))
+    arrange(p, ntem_tt, hh_type, tp, m) %>%
+    filter(!is.na(ntem_tt) & !is.na(hh_type))
 
   c_report_out <- c_report %>% 
-    distinct(p, tfn_at, ntem_tt, hh_type, count_seg1, count_seg2, count_seg3, count_seg4) %>% 
-    group_by(p, tfn_at, ntem_tt) %>% 
+    distinct(p, ntem_tt, hh_type, count_seg1, count_seg2, count_seg3) %>% 
+    group_by(p, ntem_tt) %>% 
     summarise(seg1 = sum(count_seg1 >= seg_max),
               seg2 = sum((count_seg1 < seg_max & count_seg2 >= seg_max)),
-              seg3 = sum((count_seg1 < seg_max & count_seg2 < seg_max & count_seg3 >= seg_max)),
-              seg4 = sum((count_seg1 < seg_max & count_seg2 < seg_max & count_seg3 < seg_max))) %>% 
+              seg3 = sum((count_seg1 < seg_max & count_seg2 < seg_max & count_seg3 >= seg_max))) %>% 
     ungroup() %>% 
-    mutate(total = seg1 + seg2 + seg3 + seg4) %>% 
+    mutate(total = seg1 + seg2 + seg3) %>% 
     mutate(seg1_prop = seg1/total * 100,
            seg2_prop = seg2/total * 100,
-           seg3_prop = seg3/total * 100,
-           seg4_prop = seg4/total * 100)
+           seg3_prop = seg3/total * 100)
 
   write_csv(c_report_out, hb_mts_report_dir)
 

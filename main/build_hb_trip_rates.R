@@ -77,7 +77,7 @@ infil_p_aws <- function(data, purpose, age_work_status){
 
 c_weighted_rates <- function(data, response_weights){
   
-  year_grouping <- c("p", "aws", "gender", "hh_type", "soc", "ns", "tfn_at")
+  year_grouping <- c("p", "aws", "gender", "hh_type", "soc", "ns")
   
   response_weights <- response_weights %>% 
     mutate(SurveyYear = factor(SurveyYear))
@@ -137,15 +137,15 @@ build_hb_trip_rates <- function(input_csv){
   
   # Pre Processing -------------------------------------------------------------
   # combine AT 1 & 2
-  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
+  # cb <- mutate(cb, tfn_at = ifelse(tfn_at == 1, 2, tfn_at))
   
   # combine AT 7 & 8
-  cb <- mutate(cb, tfn_at = ifelse(tfn_at == 7, 8, tfn_at))
+  # cb <- mutate(cb, tfn_at = ifelse(tfn_at == 7, 8, tfn_at))
   
   # define covars for age work status groups
-  worker_covars <- c("gender", "hh_type", "soc", "ns", "tfn_at", "SurveyYear")
-  child_covars <- c("hh_type", "ns", "tfn_at", "SurveyYear")
-  non_worker_covars <- c("gender", "hh_type", "ns", "tfn_at", "SurveyYear")
+  worker_covars <- c("gender", "hh_type", "soc", "ns", "SurveyYear")
+  child_covars <- c("hh_type", "ns", "SurveyYear")
+  non_worker_covars <- c("gender", "hh_type", "ns", "SurveyYear")
   
   # define glm formulas for age work status groups
   worker_formula <- str_c("weekly_trips ~ ", str_c(worker_covars, collapse = " + "))
@@ -208,22 +208,6 @@ build_hb_trip_rates <- function(input_csv){
     pull(new_data) %>% 
     bind_rows() %>% 
     rename(trip_rate = trips)
-  
-  # copy trip_rates from at 2 & 8 to at 1 & 7
-  hb_trip_rates <- hb_trip_rates %>%
-    filter(tfn_at == 2) %>% 
-    mutate(tfn_at = factor(1)) %>%
-    bind_rows(hb_trip_rates) #duplicate everything from at2 and create at1
-  
-  hb_trip_rates <- hb_trip_rates %>%
-    filter(tfn_at == 8) %>% 
-    mutate(tfn_at = factor(7)) %>%
-    bind_rows(hb_trip_rates)
-  
-  hb_trip_rates <- hb_trip_rates %>%
-    lu_tt() %>% 
-    select(p, tfn_tt, ntem_tt, tfn_at, trip_rate) %>% 
-    arrange(p, tfn_tt, ntem_tt, tfn_at)
  
   # save HB Trip Rates
   write_csv(hb_trip_rates, hb_tr_output_dir)

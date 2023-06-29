@@ -55,12 +55,6 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split,
   # combine light & heavy rail
   cb <- data_filter(cb, hb_only = FALSE, remove_van = FALSE, remove_air = FALSE, 
                     aggregate_rail = TRUE)
-
-  # area Types
-  ats_list <- cb %>% 
-    distinct(tfn_at) %>%
-    pull() %>%
-    sort()
   
   #set mode & purpose list for nhb_output
   modes_list <- c(1:3,5,6)
@@ -162,26 +156,26 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split,
     # filter for nhb trips
     ts_nhb_trips <- cb %>% 
       filter(trip_direction == "nhb", start_time %in% c(1:6), 
-             p %in% p_list_nhb, tfn_at %in% ats_list, main_mode %in% modes_list)
+             p %in% p_list_nhb, main_mode %in% modes_list)
 
     # aggregate 
     agg_all <- ts_nhb_trips %>%
-      select(p, tfn_at, start_time, main_mode, weighted_trips) %>%
-      group_by(p, tfn_at, start_time, main_mode) %>%
+      select(p, start_time, main_mode, weighted_trips) %>%
+      group_by(p, start_time, main_mode) %>%
       summarise(trips = sum(weighted_trips, na.rm=TRUE)) %>%
       ungroup()
     
     # infill for all combinations
     agg_all <- agg_all %>% 
-      complete(p = p_list_nhb, tfn_at = ats_list,
+      complete(p = p_list_nhb,
                start_time = c(1:6), main_mode = modes_list,
                fill = list(trips = 0)) %>%
-      select(p, tfn_at, main_mode, start_time, trips) %>% 
-      arrange(p, tfn_at, main_mode, start_time) 
+      select(p, main_mode, start_time, trips) %>% 
+      arrange(p, main_mode, start_time) 
     
     # Find sample sizes of proposed segmentation
     counts <- agg_all %>%
-      group_by(p, tfn_at, main_mode) %>%
+      group_by(p, main_mode) %>%
       mutate(count_seg1 = sum(trips)) %>%
       ungroup() %>%
       group_by(p, main_mode) %>%
@@ -191,11 +185,11 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split,
     # First seg calculation
     seg1_split <- counts %>%
       filter(count_seg1 >= seg_max) %>%
-      group_by(p, tfn_at, main_mode) %>%
+      group_by(p, main_mode) %>%
       mutate(split = trips/sum(trips)) %>%
       ungroup() %>% 
-      select(p, tfn_at, main_mode, start_time, split) %>% 
-      arrange(p, tfn_at, main_mode)
+      select(p, main_mode, start_time, split) %>% 
+      arrange(p, main_mode)
     
     # 2nd Seg average infill
     seg2_infill <- agg_all %>% 
@@ -211,17 +205,17 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split,
     # Seg 2 filter and join infill
     seg2_split <- counts %>%
       filter(count_seg1 < seg_max, count_seg2 >= seg_max) %>%
-      distinct(p, tfn_at, main_mode) %>%
+      distinct(p, main_mode) %>%
       left_join(seg2_infill_split) %>% 
-      select(p, tfn_at, main_mode, start_time, split) %>% 
-      arrange(p, tfn_at, main_mode, start_time)
+      select(p, main_mode, start_time, split) %>% 
+      arrange(p, main_mode, start_time)
     
     nhb_time_splits <- bind_rows(seg1_split, seg2_split)
     
     # Post process
     nhb_time_splits <- nhb_time_splits %>%
       rename(nhb_p = p, nhb_m = main_mode, tp = start_time) %>%
-      arrange(nhb_p, tfn_at, nhb_m, tp)
+      arrange(nhb_p, nhb_m, tp)
     
     # Write out
     write_csv(nhb_time_splits, time_splits_output_dir)
@@ -235,17 +229,11 @@ build_nhb_outputs <- function(input_csv, trip_rate, time_split,
     
     # Counts report
     c_report <- counts %>% 
-      filter(tfn_at %in% c(2, 7)) %>% 
-      mutate(tfn_at = case_when(
-        tfn_at == 2 ~ 1,
-        tfn_at == 7 ~ 8,
-        TRUE ~ as.double(tfn_at)
-      )) %>%
       bind_rows(counts) %>% 
-      arrange(p, tfn_at, main_mode, start_time)
+      arrange(p, main_mode, start_time)
     
     c_report_out <- c_report %>% 
-      distinct(p, tfn_at, main_mode, count_seg1, count_seg2) %>% 
+      distinct(p, main_mode, count_seg1, count_seg2) %>% 
       group_by(p) %>% 
       summarise(seg1 = sum(count_seg1 >= seg_max),
                 seg2 = sum((count_seg1 < seg_max & count_seg2 >= seg_max))) %>% 

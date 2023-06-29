@@ -10,7 +10,7 @@ transpose_input_csv <- function(csv){
 # Create NTS C Folder in C Drive -----------------------------------------------
 create_nts_c <- function(user = Sys.info()[[6]]){
   
-  main_dir <- paste0("C:/Users/", user, "/Documents/NTS_D/")
+  main_dir <- paste0("C:/Users/", user, "/Documents/NTS_C/")
   
   # Unclassified build
   dir.create(paste0(main_dir, "unclassified builds/"), showWarnings = FALSE, recursive = TRUE)
@@ -42,8 +42,8 @@ create_nts_c <- function(user = Sys.info()[[6]]){
   
   # Lookups Copy
   
-  lookups_y <- list.files("D:/NTS/lookups", recursive = TRUE)
-  lookups_y <- paste0("D:/NTS/lookups/", lookups_y)
+  lookups_y <- list.files("I:/NTS/lookups", recursive = TRUE)
+  lookups_y <- paste0("I:/NTS/lookups/", lookups_y)
 
   dir.create(paste0(main_dir, "lookups/ntem/"), showWarnings = FALSE, recursive = TRUE)
   
