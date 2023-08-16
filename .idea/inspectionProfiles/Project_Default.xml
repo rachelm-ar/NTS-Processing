@@ -1,0 +1,65 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyCompatibilityInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ourVersions">
+        <value>
+          <list size="5">
+            <item index="0" class="java.lang.String" itemvalue="3.8" />
+            <item index="1" class="java.lang.String" itemvalue="3.11" />
+            <item index="2" class="java.lang.String" itemvalue="3.12" />
+            <item index="3" class="java.lang.String" itemvalue="3.9" />
+            <item index="4" class="java.lang.String" itemvalue="3.10" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="E266" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N803" />
+          <option value="N802" />
+          <option value="N806" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="dict.values" />
+          <option value="mdlsaturn" />
+          <option value="mdlme2" />
+          <option value="mdlutils" />
+          <option value="mdlgravity" />
+          <option value="tuple.Index" />
+          <option value="tuple.distkm" />
+          <option value="tuple.aflow" />
+          <option value="tuple.nspeed" />
+          <option value="tuple.a" />
+          <option value="tuple.b" />
+          <option value="tuple.links" />
+          <option value="tuple.nnode" />
+          <option value="tuple.demand" />
+          <option value="tuple.ab" />
+          <option value="tuple.orig" />
+          <option value="tuple.dest" />
+          <option value="tuple.link" />
+          <option value="tuple.o" />
+          <option value="tuple.d" />
+          <option value="tuple.spd" />
+          <option value="tuple.vol" />
+          <option value="tuple.name" />
+          <option value="tuple.level" />
+          <option value="tuple.geometry" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
