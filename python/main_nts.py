@@ -257,7 +257,7 @@ class NTS:
         lev_2col, col_type = self._level_to_col(lev_incl), self.luk.col_type
         lev_orig, lev_dest = lev_2col['o'], lev_2col['d']
         seg_incl = self.fun.str_to_list(seg_incl) if seg_incl is not None else []
-        col_used = [lev_orig, lev_dest, 'mode', 'purpose', 'direction', 'period', 'tripdisincsw']
+        col_used = [lev_orig, lev_dest, 'mode', 'purpose', 'direction', 'period', 'trip_dist']
         dfr = dfr[col_used + seg_incl + ['trips']].copy()
         dfr = self.fun.rename_cols(dfr, self._agg_ruc(col_type), self._agg_mode(col_type), self._agg_purpose(col_type), seg_incl, 'ruc_orig')
         # write output
@@ -274,7 +274,7 @@ class NTS:
             dfr = dfr.loc[msk_orig | msk_dest]
             if isinstance(inc_list, dict):
                 dfr = dfr.set_index([lev_orig, lev_dest]).rename(index=dct).reset_index()
-        dfr['purpose'], dfr['trip_kms'] = self._update_nhb(dfr, col_type), dfr['trips'].mul(dfr['tripdisincsw'])
+        dfr['purpose'], dfr['total_dist'] = self._update_nhb(dfr, col_type), dfr['trips'].mul(dfr['trip_dist'])
         self._to_csv(dfr, 'NTS_trip_length', False)
 
     def _trip_rates(self, dfr: pd.DataFrame, mode: List = None, lev_incl: str = 'county',
@@ -285,12 +285,9 @@ class NTS:
         lev_2col, col_type = self._level_to_col(lev_incl), self.luk.col_type
         seg_incl = self.fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = [lev_2col['h'], 'mode', 'purpose', 'direction', 'period']
-        col_used = col_used + ['tripdisincsw'] if inc_dist else col_used
+        col_used = col_used + ['trip_dist'] if inc_dist else col_used
         dfr = dfr[col_used + seg_incl + ['individualid', 'w2', 'trips']].copy()
-        if 'ruc_2011' in seg_incl:
-            dfr = dfr.set_index('ruc_2011').rename(index=self._agg_ruc(col_type)).reset_index()
-        dfr = dfr.set_index('purpose').rename(index=self._agg_purpose(col_type)).reset_index()
-        dfr = dfr.set_index('mode').rename(index=self._agg_mode(col_type)).reset_index()
+        dfr = self.fun.rename_cols(dfr, self._agg_ruc(col_type), self._agg_mode(col_type), self._agg_purpose(col_type), seg_incl, 'ruc_2011')
         # calculate trip-rates
         pop = dfr.groupby([lev_2col['h'], 'individualid'] + seg_incl)['w2'].mean().fillna(0).reset_index()
         pop = pop.groupby([lev_2col['h']] + seg_incl)['w2'].sum().reset_index()
@@ -319,10 +316,7 @@ class NTS:
         seg_incl = self.fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = [lev_2col['h'], 'mode', 'purpose', 'period']
         dfr = dfr[col_used + seg_incl + ['individualid', 'direction', 'tour', 'trips']].copy()
-        if 'ruc_2011' in seg_incl:
-            dfr = dfr.set_index('ruc_2011').rename(index=self._agg_ruc(col_type)).reset_index()
-        dfr = dfr.set_index('purpose').rename(index=self._agg_purpose(col_type)).reset_index()
-        dfr = dfr.set_index('mode').rename(index=self._agg_mode(col_type)).reset_index()
+        dfr = self.fun.rename_cols(dfr, self._agg_ruc(col_type), self._agg_mode(col_type), self._agg_purpose(col_type), seg_incl, 'ruc_2011')
         # from home
         frh = dfr.loc[dfr['direction'] == 'hb_fr'].sort_values(['individualid', 'tour'])
         toh = dfr.loc[dfr['direction'] == 'hb_to', ['individualid', 'tour', 'period', 'trips']]
@@ -353,10 +347,9 @@ class NTS:
         lev_orig, lev_dest = lev_2col['o'], lev_2col['d']
         seg_incl = self.fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = [lev_orig, lev_dest, 'mode', 'purpose', 'direction', 'period', 'occupant']
-        col_used = col_used + ['tripdisincsw'] if inc_dist else col_used
+        col_used = col_used + ['trip_dist'] if inc_dist else col_used
         dfr = dfr[col_used + seg_incl + ['trips']].copy()
-        dfr = dfr.set_index('purpose').rename(index=self._agg_purpose(col_type)).reset_index()
-        dfr = dfr.set_index('mode').rename(index=self._agg_mode(col_type)).reset_index()
+        dfr = self.fun.rename_cols(dfr, self._agg_ruc(col_type), self._agg_mode(col_type), self._agg_purpose(col_type), seg_incl, 'ruc_2011', update_ruc=False)
         dfr = dfr.groupby(col_used + seg_incl)[['trips']].sum(col_type).reset_index()
         # write output
         uti.log_stderr(f' .. write output')
@@ -383,7 +376,7 @@ class NTS:
         lev_prod, lev_orig, lev_dest = lev_2col['h'], lev_2col['o'], lev_2col['d']
         seg_incl = self.fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = [lev_prod, lev_orig, lev_dest, 'surveyyear', 'individualid', 'tripid', 'tour', 'mode',
-                    'purpose', 'direction', 'period', 'tripdisincsw']
+                    'purpose', 'direction', 'period', 'trip_dist']
         dfr = dfr[col_used + seg_incl + ['w2', 'trips']].copy()
         # dfr = dfr.loc[~dfr['surveyyear'].isin([2020, 2021])].copy()
         dfr.rename(columns={'w2': 'freq', 'trips': 'trip'}, inplace=True)
@@ -399,7 +392,7 @@ class NTS:
         act = dfr.groupby([lev_prod, 'tour_id'])[['freq', 'trip']].sum()
         self._to_csv(act, f'NTS_activity_{lev_incl}')
 
-        col_grby = [lev_orig, lev_dest, 'mode', 'purpose', 'direction', 'period', 'tripdisincsw']
+        col_grby = [lev_orig, lev_dest, 'mode', 'purpose', 'direction', 'period', 'trip_dist']
         dfr = dfr.groupby(col_grby)[['freq', 'trip']].sum()
         dfr = dfr.sort_index().reset_index()
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
@@ -528,8 +521,8 @@ class Function:
     def __init__(self):
         """ NTS supporting functions """
     @staticmethod
-    def rename_cols(dfr, ruc_dict, mode_dict, purpose_dict, seg_incl, ruc_col):
-        if ruc_col in seg_incl:
+    def rename_cols(dfr, ruc_dict, mode_dict, purpose_dict, seg_incl, ruc_col, update_ruc: bool = True):
+        if update_ruc:
             dfr[ruc_col].replace(ruc_dict, inplace=True)
         dfr['purpose'].replace(purpose_dict, inplace=True)
         dfr['mode'].replace(mode_dict, inplace=True)
