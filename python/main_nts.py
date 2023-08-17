@@ -28,7 +28,7 @@ class NTS:
         5. specify geographical level that results are to be produced for each output type [lev_incl]
         """
 
-    def __init__(self):
+    def __init__(self, nts_fldr):
         # input specs
         self.cur_path = os.path.dirname(os.path.realpath(__file__))
         self.err_indx = True
@@ -38,7 +38,7 @@ class NTS:
         self.luk = Lookup(int)
 
         # nts-specific specs
-        self.nts_fldr = r'D:\NTS\7553tab_2021\tab'
+        self.nts_fldr = nts_fldr
         self.nts_file = {'household': 'household_special_2002-2021_protect.tab',
                          'individual': 'individual_special_2002-2021_protect.tab',
                          'day': 'day_special_2002-2021_protect.tab',
@@ -118,8 +118,9 @@ class NTS:
         for col in ['w2', 'w5', 'w5xhh', 'jjxsc', 'tripdisincsw', 'triptravtime', 'numcarvan']:
             dfr[col] = dfr[col].str.replace(' ', '0').astype(float) if self._is_object(dfr[col]) else dfr[col]
 
-        dfr['trips'] = dfr['w2'].mul(dfr['w5xhh']).mul(dfr['jjxsc'])
+        dfr['trips'] = dfr['w2'] * dfr['w5xhh'] * dfr['jjxsc']
         dfr['tripdisincsw'] = dfr['tripdisincsw'] * self.m2k_fact
+        dfr.rename(columns={'tripdisincsw': 'tripdisincsw_km'}, inplace=True)
 
         # address incorrectly reported purpose, update preceding leg
         # dfr['trippurpto_b01id'] = np.where(mask, dfr['trippurpfrom_b01id'].shift(-1), dfr['trippurpto_b01id'])
@@ -903,4 +904,4 @@ class Lookup:
 
 # main application
 if __name__ == '__main__':
-    NTS()
+    NTS(r"E:\NTS\UKDA-7553-tab\tab")
