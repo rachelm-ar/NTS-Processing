@@ -28,7 +28,7 @@ class NTS:
         5. specify geographical level that results are to be produced for each output type [lev_incl]
         """
 
-    def __init__(self, nts_fldr):
+    def __init__(self, nts_fldr, out_fldr):
         # input specs
         self.cur_path = os.path.dirname(os.path.realpath(__file__))
         self.err_indx = True
@@ -63,7 +63,7 @@ class NTS:
                          'individual': ['HouseholdID', 'IndividualID'],
                          'day': ['HouseholdID', 'IndividualID', 'DayID']
                          }
-        self.out_fldr = r'D:\NTS\NoTEM\nts_data\2002_2021'
+        self.out_fldr = out_fldr
 
         # import & pre-process
         self._exist()
@@ -904,4 +904,4 @@ class Lookup:
 
 # main application
 if __name__ == '__main__':
-    NTS(r"E:\NTS\UKDA-7553-tab\tab")
+    NTS(r"E:\NTS\UKDA-7553-tab\tab", r"E:\NTS\cb")
