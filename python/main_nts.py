@@ -119,8 +119,7 @@ class NTS:
             dfr[col] = dfr[col].str.replace(' ', '0').astype(float) if self._is_object(dfr[col]) else dfr[col]
 
         dfr['trips'] = dfr['w2'] * dfr['w5xhh'] * dfr['jjxsc']
-        dfr['tripdisincsw'] = dfr['tripdisincsw'] * self.m2k_fact
-        dfr.rename(columns={'tripdisincsw': 'tripdisincsw_km'}, inplace=True)
+        dfr['trip_dist'] = dfr['tripdisincsw'] * self.m2k_fact
 
         # address incorrectly reported purpose, update preceding leg
         # dfr['trippurpto_b01id'] = np.where(mask, dfr['trippurpfrom_b01id'].shift(-1), dfr['trippurpto_b01id'])
