@@ -259,11 +259,7 @@ class NTS:
         seg_incl = self.fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = [lev_orig, lev_dest, 'mode', 'purpose', 'direction', 'period', 'tripdisincsw']
         dfr = dfr[col_used + seg_incl + ['trips']].copy()
-        if 'ruc_orig' in seg_incl:
-            dfr = dfr.set_index('ruc_orig').rename(index=self._agg_ruc(col_type)).reset_index()
-        dfr = dfr.set_index('purpose').rename(index=self._agg_purpose(col_type)).reset_index()
-        dfr = dfr.set_index('mode').rename(index=self._agg_mode(col_type)).reset_index()
-        dfr = dfr.groupby(col_used + seg_incl)[['trips']].sum().reset_index()
+        dfr = self.fun.rename_cols(dfr, self._agg_ruc(col_type), self._agg_mode(col_type), self._agg_purpose(col_type), seg_incl, 'ruc_orig')
         # write output
         uti.log_stderr(f' .. write output')
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
@@ -419,10 +415,7 @@ class NTS:
         seg_incl = self.fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = [lev_2col['h'], 'purpose']
         dfr = dfr[col_used + seg_incl + ['mode', 'direction', 'individualid', 'w2', 'trips']].copy()
-        if 'ruc_2011' in seg_incl:
-            dfr = dfr.set_index('ruc_2011').rename(index=self._agg_ruc(col_type)).reset_index()
-        dfr = dfr.set_index('purpose').rename(index=self._agg_purpose(col_type)).reset_index()
-        dfr = dfr.set_index('mode').rename(index=self._agg_mode(col_type)).reset_index()
+        dfr = self.fun.rename_cols(dfr, self._agg_ruc(col_type), self._agg_mode(col_type), self._agg_purpose(col_type), seg_incl, 'ruc_2011')
         # calculate trip-rates
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
         dfr = dfr.loc[(dfr['direction'].isin(['hb_fr'])) & (dfr['mode'].isin(mode))]
@@ -534,6 +527,13 @@ class NTS:
 class Function:
     def __init__(self):
         """ NTS supporting functions """
+    @staticmethod
+    def rename_cols(dfr, ruc_dict, mode_dict, purpose_dict, seg_incl, ruc_col):
+        if ruc_col in seg_incl:
+            dfr[ruc_col].replace(ruc_dict, inplace=True)
+        dfr['purpose'].replace(purpose_dict, inplace=True)
+        dfr['mode'].replace(mode_dict, inplace=True)
+        return dfr
 
     @staticmethod
     def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None) -> Union[pd.DataFrame, bool]:
