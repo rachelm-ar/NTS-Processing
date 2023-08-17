@@ -63,7 +63,6 @@ class NTS:
                          'individual': ['HouseholdID', 'IndividualID'],
                          'day': ['HouseholdID', 'IndividualID', 'DayID']
                          }
-        self.lad_2sec: Union[pd.DataFrame, str] = r'D:\NTS\NoTEM\lookups\NTS_lad_to_county.csv'
         self.out_fldr = r'D:\NTS\NoTEM\nts_data\2002_2021'
 
         # import & pre-process
@@ -84,7 +83,6 @@ class NTS:
     def _exist(self):
         uti.log_stderr('\nCheck file existence')
         self.err_indx = uti.exist_path(self.nts_fldr, self.err_indx)
-        self.err_indx = uti.exist_file(self.lad_2sec, self.err_indx)
         for col in self.nts_file:
             self.err_indx = uti.exist_file(f'{self.nts_fldr}\\{self.nts_file[col]}', self.err_indx)
         os.makedirs(self.out_fldr, exist_ok=True)
@@ -93,8 +91,6 @@ class NTS:
 
     def _read_nts(self) -> pd.DataFrame:
         uti.log_stderr('\nImport NTS data')
-        # import lookup data
-        self.lad_2sec = self.fun.csv_to_dfr(self.lad_2sec)
         # import NTS data
         dfr: Union[Dict, pd.DataFrame] = {}
         pool = mp.Pool(self.num_cpus)
@@ -135,7 +131,7 @@ class NTS:
         dfr['triporigcounty_b01id'] = np.where(mask, dfr['tripdestcounty_b01id'].shift(), dfr['triporigcounty_b01id'])
         dfr['triporiggor_b02id'] = np.where(mask, dfr['tripdestgor_b02id'].shift(), dfr['triporiggor_b02id'])
 
-        # infill tripstart_b01id, tripstart_b01id = tripend_b01id - 100 * int(triptravtime / 60)
+        # infill tripstart_b01id = tripend_b01id - 100 * int(triptravtime / 60)
         uti.log_stderr(' .. infill [tripstart_b01id]')
         if self.luk.col_type is str:
             dfr['fill'] = dfr['tripend_b01id'].apply(lambda x: int(x.split('-')[0]))
@@ -161,27 +157,22 @@ class NTS:
         dfr['hh_type'] = self._lookup(dfr, self.luk.hh_type())
         dfr['soc'] = self._lookup(dfr, self.luk.x_soc())
         dfr['ns'] = self._lookup(dfr, self.luk.ns_sec())
-        # address issue with aws = [2, 3] (fte/pte) but ns-sec = 4 (unemployed)
-        # move to ns-sec 5 (not classified)
+        # issue with aws = fte/pte but ns-sec = unemployed, set ns-sec = not classified
         dfr['ns'] = np.where((dfr['ns'] == 4) & (dfr['aws'].isin([2, 3])), 5, dfr['ns'])
 
         # create traveller type
-        uti.log_stderr(f' .. create traveller types')
-        col_type = ['aws', 'gender', 'hh_type', 'soc', 'ns']
-        dct_type = dfr.groupby(col_type)[['trips']].sum().reset_index()
-        dct_type['trips'] = 1
-        dct_type.loc[(dct_type == 0).any(axis=1), 'trips'] = 0
-        dct_type = dct_type.set_index(['trips'] + col_type).sort_index().reset_index()
-        dct_type['trips'] = dct_type['trips'].cumsum()
-        dct_type = dct_type.set_index(col_type).to_dict()['trips']
-        dfr['tt'] = self.fun.dfr_to_tuple(dfr, col_type)
-        dfr = dfr.set_index('tt').rename(index=dct_type).reset_index()
+        dfr['tt'] = self._traveller_type(dfr, ['aws', 'gender', 'hh_type', 'soc', 'ns'])
 
         # address invalid records in the database
         uti.log_stderr(f' .. address invalid records')
-        sec_dict = self.fun.dfr_to_dict(self.lad_2sec, 'lad11', 'county_id')
-        dfr['fill'] = dfr['hholdoslaua_b01id'].apply(lambda x: sec_dict[x])
-        dfr['hholdcounty_b01id'] = self._fill_record(dfr, 'hholdcounty_b01id', 'fill')
+        col_base, col_target = 'hholdoslaua_b01id', 'hholdcounty_b01id'
+        sec_dict = dfr.loc[self._mask_invalid(dfr, col_target)]
+        sec_dict = sec_dict.groupby([col_base, col_target])['trips'].sum().reset_index()
+        sec_dict = sec_dict.loc[sec_dict.groupby([col_base])['trips'].agg(pd.Series.idxmax)]
+        sec_dict = sec_dict.set_index(col_base).to_dict()[col_target]
+
+        dfr['fill'] = dfr[col_base].apply(lambda x: sec_dict[x])
+        dfr[col_target] = self._fill_record(dfr, col_target, 'fill')
 
         # address invalid hhold/triporig_ua_b01id
         dfr['hholdua_b01id'] = self._fill_record(dfr, 'hholdua2009_b01id', 'hholdua1998_b01id')
@@ -191,7 +182,7 @@ class NTS:
         dfr.drop(columns='fill', inplace=True)
         dfr['hholdareatype_b01id'] = self._fill_record(dfr, 'hholdareatype2_b01id', 'hholdareatype1_b01id')
         dfr['triporigareatype_b01id'] = self._fill_record(dfr, 'triporigareatype2_b01id', 'triporigareatype1_b01id')
-        dfr['ruc_orig'] = self._infer_ruc(dfr, 'county')
+        dfr['ruc_orig'] = self._infill_ruc(dfr, 'county')
 
         # populate tour
         def fr_home(x):
@@ -203,19 +194,30 @@ class NTS:
         dfr['tour'] = dfr.groupby('individualid')['tour'].cumsum()
         return dfr
 
-    def _infer_ruc(self, dfr: pd.DataFrame, level: str = 'county') -> np.ndarray:
+    def _traveller_type(self, dfr: pd.DataFrame, col_list: List) -> pd.Series:
+        # TODO: to be finalised once tfn_tt is decided
+        uti.log_stderr(f' .. traveller_type = {col_list}')
+        dct = dfr.groupby(col_list)[['trips']].sum().reset_index()
+        dct['trips'] = 1
+        dct.loc[(dct == 0).any(axis=1), 'trips'] = 0
+        dct = dct.set_index(['trips'] + col_list).sort_index().reset_index()
+        dct['trips'] = dct['trips'].cumsum()
+        dct = dct.set_index(col_list).to_dict()['trips']
+        out = self.fun.dfr_to_tuple(dfr, col_list)
+        return out.apply(lambda x: dct[x])
+
+    def _mask_invalid(self, dfr: pd.DataFrame, col_name: str) -> pd.Series:
+        # exclude invalid records for masking purpose
+        return (~dfr[col_name].str.lower().isin(['dead', 'dna', '0', 0]) if self.luk.col_type is str
+                else ~dfr[col_name].isin([-8, -9, -10, 0]))
+
+    def _infill_ruc(self, dfr: pd.DataFrame, level: str = 'county') -> np.ndarray:
         # use household data to derive ruc2011 based on [county, area_type]
         col_used = [f'hhold{level}_b01id', 'hholdareatype_b01id']
         col_type = self.luk.col_type
         dct = self._write_stats(dfr, col_used + ['ruc_2011']).reset_index()
-        col_name = 'hholdareatype_b01id'
-        mask = (~dct[col_name].str.lower().isin(['dead', 'dna', '0', 0]) if col_type is str
-                else ~dct[col_name].isin([-8, -10, 0]))
-        dct = dct.loc[mask].reset_index(drop=True)
-        dct['sum'] = dct.groupby(col_used)['trips'].transform('sum')
-        dct['sum'] = dct['trips'].div(dct['sum']).fillna(0)
-        dct.sort_values(by=col_used + ['sum'], ascending=True, inplace=True)
-        dct = dct.drop_duplicates(col_used, keep='last').reset_index(drop=True)
+        dct = dct.loc[self._mask_invalid(dfr, 'hholdareatype_b01id')]
+        dct = dct.loc[dct.groupby(col_used)['trips'].agg(pd.Series.idxmax)]
 
         # create dictionary {[county, area_type]: ruc}
         for col in col_used:
@@ -507,7 +509,7 @@ class NTS:
         self._write_stats(dfr, ['hh_type', 'hholdnumadults', 'numcarvan'], 'NTS_ub_hhold')
         self._write_stats(dfr, ['soc', 'xsoc2000_b02id', 'age_b01id', 'ecostat_b01id'], 'NTS_ub_soc')
         self._write_stats(dfr, ['ns', 'nssec_b03id'], 'NTS_ub_ns')
-        self._write_stats(dfr, ['hh_type', 'gender', 'aws', 'soc', 'ns'], 'NTS_ub_trips_by_tt')
+        self._write_stats(dfr, ['tt', 'aws', 'gender', 'hh_type', 'soc', 'ns'], 'NTS_ub_trips_by_tt')
 
     def _to_csv(self, dfr: pd.DataFrame, csv_name: str, index: bool = True):
         dfr.to_csv(fr'{self.out_fldr}\{csv_name}.csv', index=index)
@@ -536,18 +538,18 @@ class Function:
     @staticmethod
     def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None) -> Union[pd.DataFrame, bool]:
         uti.log_stderr(f' .. read {csv_file}')
-        _, _, _, sep_type = uti.split_file(csv_file)
-        sep_type = '\t' if sep_type.lower() == '.tab' else ','
+        _, _, _, csv_extn = uti.split_file(csv_file)
+        csv_extn = '\t' if csv_extn.lower() == '.tab' else ','
         if col_incl is not None:
             col_incl = list(col_incl.lower()) if isinstance(col_incl, str) else [key.lower() for key in col_incl]
         # dfr_data = dd.read_csv(csv_file, assume_missing=True, low_memory=False)
-        dfr = pd.read_csv(csv_file, sep=sep_type, low_memory=False)
+        dfr = pd.read_csv(csv_file, sep=csv_extn, low_memory=False)
         dfr = dfr.rename(columns={key: key.lower().strip() for key in dfr.columns})
         try:
             dfr = dfr[col_incl] if col_incl is not None else dfr
             dfr = dfr.fillna('0')
         except KeyError as err:
-            uti.log_stderr(f' .. {err} of {csv_file}')
+            uti.log_stderr(f'    error with {csv_file}: {err}')
             dfr = False
         return dfr
 
