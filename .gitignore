@@ -40,3 +40,5 @@ vignettes/*.pdf
 *.Rproj
 
 python/__pycache__*
+*.xml
+*.iml
