@@ -1,24 +1,48 @@
 from typing import Dict, List
 import mdlfunction as fun
+import pandas as pd
 
 
 class Lookup:
     def __init__(self, col_type: type = int):
         self.nts_dtype = col_type
+        # main mode - trip & stage table
+        self.mmd_11id = {
+            'swak': {1: 'walk, less than 1 mile'},
+            'walk': {2: 'walk, 1 mile or more'},
+            'bike': {3: 'bicycle'},
+            'car_d': {5: 'private car: driver', 7: 'motorcycle / scooter / moped: driver',
+                      11: 'other private transport'},
+            'car_p': {6: 'private car: passenger', 8: 'motorcycle / scooter / moped: passenger',
+                      20: 'taxi', 21: 'minicab'},
+            'van_d': {9: 'van / lorry: driver'},
+            'van_p': {10: 'van / lorry: passenger'},
+            'bus_d': {},
+            'bus_p': {4: 'private (hire) bus', 12: 'london stage bus', 13: 'other stage bus',
+                      14: 'coach / express bus', 15: 'excursion / tour bus', 22: 'other public transport'},
+            'rail_l': {16: 'london underground', 18: 'light rail'},
+            'rail_s': {17: 'surface rail'},
+            'air': {19: 'air'},
+            'na': {23: 'na (public)', 24: 'na (private)', 25: 'na', -8: 'na', 0: '0'}
+        }
+
         # trip purpose
         self.tpp_01id = {
             'com': {1: 'work', 18: 'escort work'},
             'emb': {2: 'in course of work', 19: 'escort in course of work'},
             'edu': {3: 'education', 20: 'escort education'},
             'shp': {4: 'food shopping', 5: 'non food shopping', 21: 'escort shopping / personal business'},
-            'peb': {6: 'personal business medical', 7: 'personal business eat / drink', 8: 'personal business other',
-                    16: 'other non-escort', 17: 'escort home', 22: 'other escort'},
+            'peb': {6: 'personal business medical', 7: 'personal business eat / drink', 8: 'personal business other'},
             'soc': {9: 'eat / drink with friends', 11: 'other social', 12: 'entertain /  public activity',
-                    13: 'sport: participate'},
-            'vis': {10: 'visit friends'},
-            'hol': {14: 'holiday: base', 15: 'day trip / just walk'},
+                    13: 'sport: participate', },  # 16: 'other non-escort', 22: 'other escort'
+            'vis': {10: 'visit friends'},  # 17: 'escort home'
+            'hol': {14: 'holiday: base'},
+            'jwk': {15: 'day trip / just walk'},
+            'esc': {17: 'escort home', 16: 'other non-escort', 22: 'other escort'},
             'hom': {23: 'home'}
         }
+        # trip purpose included in analysis
+        self.inc_purp = [val for key in self.tpp_01id for val in self.tpp_01id[key] if key not in ['hom', 'esc']]
 
         # weekday & weekend
         self.wkd_01id = {
@@ -67,7 +91,7 @@ class Lookup:
             'dna': {-8: 'na', -9: 'dna', -10: 'dead', 0: '0'}
         }
 
-        # standard occupational classification
+        # standard occupational classification (individual)
         self.soc_02id = {
             'hig': {1: 'managers and senior officials', 2: 'professional occupations',
                     3: 'associate professional and technical occupations'},
@@ -77,7 +101,7 @@ class Lookup:
             'dna': {-8: 'na', -9: 'dna'}
         }
 
-        # national statistics - social economic classification
+        # national statistics - social economic classification (individual)
         self.sec_03id = {
             'ns1': {1: 'managerial and professional occupations'},
             'ns2': {2: 'intermediate occupations and small employers'},
@@ -87,22 +111,91 @@ class Lookup:
             'dna': {-9: 'dna'}
         }
 
-        # main mode
-        self.mmd_01id = {
-            'walk': {1: 'walk, less than 1 mile', 2: 'walk, 1 mile or more'},
-            'bike': {3: 'bicycle'},
-            'car_d': {5: 'private car: driver', 7: 'motorcycle / scooter / moped: driver',
-                      11: 'other private transport'},
-            'car_p': {6: 'private car: passenger', 8: 'motorcycle / scooter / moped: passenger',
-                      20: 'taxi', 21: 'minicab'},
-            'van_d': {9: 'van / lorry: driver'},
-            'van_p': {10: 'van / lorry: passenger'},
-            'bus_d': {4: 'private (hire) bus'},
-            'bus_p': {12: 'london stage bus', 13: 'other stage bus', 14: 'coach / express bus',
-                      15: 'excursion / tour bus', 22: 'other public transport'},
-            'rail_l': {16: 'london underground', 18: 'light rail'},
-            'rail_s': {17: 'surface rail'},
-            'air': {19: 'air'}
+        # individual income 2002
+        self.i02_01id = {
+            0.5: {1: 'Less than £1,000'},
+            1.5: {2: '£1,000 - £1,999'},
+            2.5: {3: '£2,000 - £2,999'},
+            3.5: {4: '£3,000 - £3,999'},
+            4.5: {5: '£4,000 - £4,999'},
+            5.5: {6: '£5,000 - £5,999'},
+            6.5: {7: '£6,000 - £6,999'},
+            7.5: {8: '£7,000 - £7,999'},
+            8.5: {9: '£8,000 - £8,999'},
+            9.5: {10: '£9,000 - £9,999'},
+            11.3: {11: '£10,000 - £12,499'},
+            13.8: {12: '£12,500 - £14,999'},
+            16.3: {13: '£15,000 - £17,499'},
+            18.8: {14: '£17,500 - £19,999'},
+            22.5: {15: '£20,000 - £24,999'},
+            27.5: {16: '£25,000 - £29,999'},
+            32.5: {17: '£30,000 - £34,999'},
+            37.5: {18: '£35,000 - £39,999'},
+            45.0: {19: '£40,000 - £49,999'},
+            55.0: {20: '£50,000 - £59,999'},
+            65.0: {21: '£60,000 - £69,999'},
+            72.5: {22: '£70,000 - £74,999'},
+            87.5: {23: '£75,000 to £99,999'},
+            112.5: {24: '£100,000 to £124,999'},
+            137.5: {25: '£125,000 to £149,999'},
+            150: {26: '£150,000 or more'},
+            -1: {-8: 'NA', 0: 'NA'},
+            0: {-9: 'DNA (under 16)'}
+        }
+
+        # income HHIncome2002_B02ID
+        self.i02_02id = {
+            1: {1: 'Less than £25,000'},
+            2: {2: '£25,000 to £49,999'},
+            3: {3: '£50,000 and over'},
+            0: {-8: 'NA'}
+        }
+
+        # SIC1992 codes
+        self.s92_02id = {
+            'e13': {1: 'A - Agriculture, hunting and forestry', 2: 'B - Fishing'},
+            'e10': {3: 'C - Mining and quarrying', 4: 'D - Manufacturing',
+                    5: 'E - Electricity, gas and water supply', 6: 'F - Construction'},
+            'e07/09/10': {7: 'G - Wholesale and retail trade; repair of motor vehicles, '
+                             'motorcycles and personal and household goods'},
+            'e06/07/11': {8: 'H - Hotels and restaurants'},
+            'e09/10/12/14': {9: 'I - Transport, storage and communication'},
+            'e09/14': {10: 'J - Financial intermediation'},
+            'e09/12/14': {11: 'K - Real estate, renting and business activities'},
+            'e14': {12: 'L - Public administration and defence; compulsory social security',
+                    16: 'P - Private households with employed persons',
+                    17: 'Q - Extra-territorial organisations and bodies',
+                    18: 'Workplace outside UK (Pre 2002)'},
+            'e03/04/05': {13: 'M - Education'},
+            'e08/09': {14: 'N - Health and social work'},
+            'e12/14': {15: 'O - Other community, social and personal service activities'},
+            'na': {-8: 'na'},
+            'child': {-9: 'dna'}
+        }
+
+        # SIC2007 codes
+        self.s07_02id = {
+            'e13': {1: 'A - Agriculture, forestry and fishing'},
+            'e10': {2: 'B - Mining and quarrying', 3: 'C - Manufacturing',
+                    4: 'D - Electricity, gas, steam and air conditioning supply',
+                    5: 'E - Water supply; sewerage, waste management and remediation activities',
+                    6: 'F - Construction'},
+            'e07/09/10': {7: 'G - Wholesale and retail trade; repair of motor vehicles and motorcycles'},
+            'e09/10/12/14': {8: 'H - Transportation and storage',
+                             10: 'J - Information and communication'},
+            'e06/07/11': {9: 'I - Accommodation and food service activities'},
+            'e09/14': {11: 'K - Financial and insurance activities'},
+            'e09/12/14': {12: 'L - Real estate activities',
+                          13: 'M - Professional, scientific and technical activities',
+                          14: 'N - Administrative and support service activities'},
+            'e14': {15: 'O - Public administration and defence; compulsory social security',
+                    20: 'T - Activities of households as employers',
+                    21: 'U - Activities of extraterritorial organisations and bodies'},
+            'e03/04/05': {16: 'P - Education'},
+            'e08/09': {17: 'Q - Human health and social work activities'},
+            'e12/14': {18: 'R - Arts, entertainment and recreation', 19: 'S - Other service activities'},
+            'na': {-8: 'na'},
+            'child': {-9: 'dna'}
         }
 
         # settlement ruc 2011
@@ -145,7 +238,7 @@ class Lookup:
 
         # convert specs to either key or values
         self.set_01id = self.dct_to_specs(self.set_01id, col_type)
-        self.mmd_01id = self.dct_to_specs(self.mmd_01id, col_type)
+        self.mmd_11id = self.dct_to_specs(self.mmd_11id, col_type)
         self.tpp_01id = self.dct_to_specs(self.tpp_01id, col_type)
         self.age_01id = self.dct_to_specs(self.age_01id, col_type)
         self.sex_01id = self.dct_to_specs(self.sex_01id, col_type)
@@ -155,25 +248,44 @@ class Lookup:
         self.soc_02id = self.dct_to_specs(self.soc_02id, col_type)
         self.sec_03id = self.dct_to_specs(self.sec_03id, col_type)
         self.at2_01id = self.dct_to_specs(self.at2_01id, col_type)
+        self.i02_01id = self.dct_to_specs(self.i02_01id, col_type)
+        self.i02_02id = self.dct_to_specs(self.i02_02id, col_type)
+        self.s07_02id = self.dct_to_specs(self.s07_02id, col_type)
+        self.s92_02id = self.dct_to_specs(self.s92_02id, col_type)
 
-        self.nhb_trip = (self.tpp_01id['com'] + self.tpp_01id['emb'] + self.tpp_01id['edu'] +
-                         self.tpp_01id['shp'] + self.tpp_01id['peb'] + self.tpp_01id['soc'] +
-                         self.tpp_01id['vis'] + self.tpp_01id['hol'])
+    def gender(self) -> Dict:
+        # gender
+        age_01id, sex_01id = self.age_01id, self.sex_01id
+        out_dict = {'col': ['sex_b01id', 'age_b01id'],
+                    'typ': [self.nts_dtype, self.nts_dtype],
+                    'log': 'gender',
+                    'val': {1: fun.product(sex_01id['male'] + sex_01id['female'], age_01id['child']),  # child
+                            2: fun.product(sex_01id['male'], age_01id['adult'] + age_01id['elder']),  # male
+                            3: fun.product(sex_01id['female'], age_01id['adult'] + age_01id['elder'])  # female
+                            },
+                    'out': {1: 'child', 2: 'male', 3: 'female'}  # for output
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
 
     def hh_type(self) -> Dict:
         # household type
         out_dict = {'col': ['hholdnumadults', 'numcarvan'],
                     'typ': [int, int],
-                    'out': 'hh_type',
-                    'val': {1: [(1, 0)],
+                    'log': 'hh_type',
+                    'val': {1: [(1, 0)],  # 1 adult with 0 car
                             2: fun.product([1], range(1, 10)),  # 1 adult with 1+ cars
-                            3: [(2, 0)],
-                            4: [(2, 1)],
+                            3: [(2, 0)],  # 2 adults with 0 car
+                            4: [(2, 1)],  # 2 adults with 1 car
                             5: fun.product([2], range(2, 10)),  # 2 adults with 2+ cars
-                            6: fun.product(range(3, 11), [0]),
-                            7: fun.product(range(3, 11), [1]),
+                            6: fun.product(range(3, 11), [0]),  # 3+ adults with 0 car
+                            7: fun.product(range(3, 11), [1]),  # 3+ adults with 1 car
                             8: fun.product(range(3, 11), range(2, 10))  # 3+ adults with 2+ cars
-                            }}
+                            },
+                    'out': {1: '1 adult with 0 car', 2: '1 adult with 1+ cars', 3: '2 adults with 0 car',
+                            4: '2 adults with 1 car', 5: '2 adults with 2+ cars', 6: '3+ adults with 0 car',
+                            7: '3+ adults with 1 car', 8: '3+ adults with 2+ cars'}
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
@@ -183,18 +295,20 @@ class Lookup:
         eco_over = eco_01id['fte'] + eco_01id['pte'] + eco_01id['stu'] + eco_01id['unm']
         out_dict = {'col': ['age_b01id', 'ecostat_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
-                    'out': 'aws',
+                    'log': 'aws',
                     'val': {1: fun.product(age_01id['child'], eco_01id['dna']),  # child
                             2: fun.product(age_01id['adult'], eco_01id['fte']),  # fte
                             3: fun.product(age_01id['adult'], eco_01id['pte']),  # pte
                             4: fun.product(age_01id['adult'], eco_01id['stu']),  # student
                             5: fun.product(age_01id['adult'], eco_01id['unm']),  # unemployed
                             6: fun.product(age_01id['elder'], eco_over + eco_01id['dna']),  # over 75
-                            }}
+                            },
+                    'out': {1: 'child', 2: 'fte', 3: 'pte', 4: 'student', 5: 'neet', 6: '75+'}
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def x_soc(self) -> Dict:
+    def soc(self) -> Dict:
         # soc
         soc_02id, age_01id, eco_01id = self.soc_02id, self.age_01id, self.eco_01id
         all_xsoc = soc_02id['hig'] + soc_02id['med'] + soc_02id['low'] + soc_02id['dna']
@@ -203,7 +317,7 @@ class Lookup:
         all_ecos = emp_ecos + eco_01id['stu'] + eco_01id['unm'] + eco_01id['dna']
         out_dict = {'col': ['xsoc2000_b02id', 'age_b01id', 'ecostat_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype, self.nts_dtype],
-                    'out': 'soc',
+                    'log': 'soc',
                     'val': {1: fun.product(soc_02id['hig'], age_01id['adult'], emp_ecos),  # high skill
                             2: fun.product(soc_02id['med'], age_01id['adult'], emp_ecos),  # med skill
                             3: fun.product(soc_02id['low'], age_01id['adult'], emp_ecos),  # low skill
@@ -211,34 +325,52 @@ class Lookup:
                                 fun.product(all_xsoc, age_01id['adult'], eco_01id['unm']) +  # unemployed
                                 fun.product(all_xsoc, age_01id['child'], all_ecos) +  # children
                                 fun.product(all_xsoc, age_01id['elder'], all_ecos))  # over 75
-                            }}
+                            },
+                    'out': {1: '1. high skilled', 2: '2. medium skilled', 3: '3. low skilled', 4: '4. other'}
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def sic(self, sic_year: str = '2007') -> Dict:
+        out_dict = {'col': f'sic{sic_year}_b02id', 'typ': self.nts_dtype, 'log': f'sic{sic_year}',
+                    'val': eval(f'self.s{sic_year[2:]}_02id')}
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
     def ns_sec(self) -> Dict:
         # ns-sec
-        out_dict = {'col': ['nssec_b03id'],
-                    'typ': [self.nts_dtype],
-                    'out': 'ns-sec',
+        out_dict = {'col': 'nssec_b03id', 'typ': self.nts_dtype, 'log': 'ns-sec',
                     'val': {1: self.sec_03id['ns1'],  # ns-sec 1
                             2: self.sec_03id['ns2'],  # ns-sec 2
                             3: self.sec_03id['ns3'],  # ns-sec 3
                             4: self.sec_03id['ns4'],  # ns-sec 4
                             5: self.sec_03id['ns5'] + self.sec_03id['dna'],  # ns-sec 5
-                            }}
+                            },
+                    'out': {1: '1. professional', 2: '2. technical', 3: '3. routine', 4: '4. unemployed',
+                            5: '5. not classified'}
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def ntem_at(self, col_name: str) -> Dict:
+    def income(self, col_name: str) -> Dict:
+        # household or individual income
+        level = col_name.split('_')[1][1:]
+        out_dict = {'col': col_name, 'typ': self.nts_dtype, 'log': 'income',
+                    'val': eval(f'self.i02_{level}')}
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def at_ntem(self, col_name: str) -> Dict:
         # ntem area type
-        out_dict = {'col': col_name,
-                    'typ': self.nts_dtype,
-                    'out': 'ntem_at',
-                    'val': self.at2_01id}
+        out_dict = {'col': f'{col_name}areatype_b01id', 'typ': self.nts_dtype, 'log': 'ntem_at',
+                    'val': self.at2_01id,
+                    'out': {1: 'inner london', 2: 'outer london', 3: 'metropolitan', 4: 'urban big',
+                            5: 'urban large', 6: 'urban medium', 7: 'urban small', 8: 'rural'}
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def tfn_tt(self, col_list: List) -> Dict:
+    def tt_tfn(self, col_list: List, out_type: str = 'tfn') -> Dict:
         # tfn traveller type
         def _dct_value(idx: int) -> List:
             try:
@@ -257,36 +389,105 @@ class Lookup:
                 par_dict.update({idx: val for idx, val in enumerate(fun.product(*args), idx_init)})
                 return par_dict
 
-        # tt = [aws, gender, hh_type, soc, ns]
-        par_dict = {'aws': self.aws(), 'gender': self.gender(), 'hh_type': self.hh_type(),
-                    'soc': self.x_soc(), 'ns': self.ns_sec()}
-        aws, gen, hh = _dct_value(0), _dct_value(1), _dct_value(2)
-        soc, ns = _dct_value(3), _dct_value(4)
+        # tt = [gender, aws, hh_type, soc, ns]
+        par_dict = {'gender': self.gender(), 'aws': self.aws(), 'hh_type': self.hh_type(),
+                    'soc': self.soc(), 'ns': self.ns_sec()}
+        gen, aws, hh = _dct_value(0), _dct_value(1), _dct_value(2)
+        soc, sec = _dct_value(3), _dct_value(4)
 
-        # child: aws=1, gender=1, hh=1-8, soc=4, ns=5
+        # child: gender=1, aws=1, hh=1-8, soc=4, ns=1-5
         par_dict = {}
-        par_dict = _dct_update(aws[0], gen[0], hh, soc[-1], ns[-1])
-        # fte/pte: aws=2-3, gender=2-3, hh=1-8, soc=1-3, ns=1-3 & 5
-        par_dict = _dct_update(aws[1], gen[1:], hh, soc[:3], ns[:3] + [ns[-1]])
-        par_dict = _dct_update(aws[2], gen[1:], hh, soc[:3], ns[:3] + [ns[-1]])
-        # stu/unm/retired: aws=4-6, gender=2-3, hh=1-8, soc=4, ns=1-5
-        par_dict = _dct_update(aws[3], gen[1:], hh, soc[-1], ns)
-        par_dict = _dct_update(aws[4], gen[1:], hh, soc[-1], ns)
-        par_dict = _dct_update(aws[5], gen[1:], hh, soc[-1], ns)
+        par_dict = _dct_update(gen[0], aws[0], hh, soc[-1], sec)
+        if out_type == 'tfn':
+            for g in gen[1:]:
+                # fte/pte: gender=2-3, aws=2-3, hh=1-8, soc=1-3, ns=1-3,5
+                par_dict = _dct_update([g], aws[1:3], hh, soc[:3], sec[:3] + sec[-1:])
+                # student: gender=2-3, aws=4, (hh=1-2, soc=4, ns=5) & (hh=3-8, soc=4, ns=1-5)
+                par_dict = _dct_update([g], [4], hh[:2], soc[-1], [5])
+                par_dict = _dct_update([g], [4], hh[2:], soc[-1], sec)
+                # unemployed: gender=2-3, aws=5, (hh=1-8, soc=4, ns=4) & (hh=3-8, soc=4, ns=1-5)
+                par_dict = _dct_update([g], [5], hh[:2], soc[-1], [4])
+                par_dict = _dct_update([g], [5], hh[2:], soc[-1], sec)
+                # over 75 gender=2-3, aws=6, hh=1-8, soc=4, ns=1-5
+                par_dict = _dct_update([g], [6], hh, soc[-1], sec)
+        else:
+            # fte/pte: gender=2-3, aws=2-6, hh=1-8
+            par_dict = _dct_update(gen[1:], aws[1:], hh)
 
         return self.val_to_key(par_dict)
 
-    def settlement(self) -> Dict:
+    def tt_to_dfr(self, tfn_type: List, out_type: str = 'tfn') -> pd.DataFrame:
+        dfr = self.tt_tfn(tfn_type, out_type)
+        dfr = pd.DataFrame.from_dict({val: key for key, val in dfr.items()}, orient='index')
+        dfr.rename(columns={key: val for key, val in enumerate(tfn_type)}, inplace=True)
+        dfr = dfr.reset_index(drop=False).rename(columns={'index': 'tt'})
+        return dfr
+
+    def at_tfn(self, col_type: str) -> Dict:
+        # test new area types that based on ruc, ntem & gor
+        # col_type: hhold, triporig, tripdest
+        # 1: 'north east', 2: 'north west', 3: 'yorkshire and the humber', 4: 'east midlands',
+        # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south east', 9: 'south west',
+        # 10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
+        set_list = [val for key in self.set_01id for val in self.set_01id[key]]
+        at2_list = [val for key in self.at2_01id for val in self.at2_01id[key]]
+        at2_xlon = [val for key in self.at2_01id for val in self.at2_01id[key] if val not in self.at2_01id[1]]
+        eng_list = [1, 2, 3, 4, 5, 6, 7, 8, 9]  # england only
+        out_dict = {'col': [f'{col_type}gor_b02id', f'{col_type}areatype_b01id', 'settlement2011ew_b01id'],
+                    'typ': [self.nts_dtype, self.nts_dtype, str],
+                    'log': 'tfn_at',
+                    'val': {1: fun.product([7], self.at2_01id[1], set_list),  # inner london
+                            2: (fun.product([7], at2_xlon, set_list) +  # outer london + major (east, se)
+                                fun.product([6, 8], at2_list, self.set_01id['major'])),
+                            3: fun.product([2, 4], at2_list, self.set_01id['major']),  # major (nw + em)
+                            4: fun.product([5], at2_list, self.set_01id['major']),  # major (wm)
+                            5: fun.product([1, 3], at2_list, self.set_01id['major']),  # major (ne + yh)
+                            6: fun.product(eng_list, at2_list, self.set_01id['minor']),  # minor
+                            7: fun.product([8], at2_list, self.set_01id['city']),  # city (se)
+                            8: fun.product([9], at2_list, self.set_01id['city']),  # city (sw)
+                            9: fun.product([6], at2_list, self.set_01id['city']),  # city (east)
+                            10: fun.product([5], at2_list, self.set_01id['city']),  # city (wm)
+                            11: fun.product([2], at2_list, self.set_01id['city']),  # city (nw)
+                            12: fun.product([4], at2_list, self.set_01id['city']),  # city (em)
+                            13: fun.product([1, 3], at2_list, self.set_01id['city']),  # city (ne + yh)
+                            14: fun.product(eng_list, at2_list, self.set_01id['town']),  # town
+                            15: fun.product(eng_list, at2_list, self.set_01id['village']),  # village
+                            16: fun.product([10], at2_list, set_list),  # wales
+                            17: fun.product([11], at2_list, set_list)  # scotland
+                            }
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def settlement(self, col_type: str) -> Dict:
         # ruc 2011 to area type
-        out_dict = {'col': 'settlement2011ew_b01id',
+        out_dict = {'col': f'{col_type}ruc2011_b01id',
                     'typ': str,
-                    'out': 'ruc_2011',
+                    'log': f'{col_type}ruc_2011',
                     'val': {1: self.set_01id['major'],
                             2: self.set_01id['minor'],
                             3: self.set_01id['city'],
                             4: self.set_01id['town'],
                             5: self.set_01id['village']
-                            }}
+                            },
+                    'out': {1: 'major conurbation', 2: 'minor conurbation', 3: 'city & town',
+                            4: 'town & fringe', 5: 'village'}
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def occupant(self) -> Dict:
+        # occupant
+        mmd_11id = self.mmd_11id
+        out_dict = {'col': ['mainmode_b11id'],
+                    'typ': [self.nts_dtype],
+                    'log': 'occupancy',
+                    'val': {'driver': (mmd_11id['swak'] + mmd_11id['walk'] + mmd_11id['bike'] +
+                                       mmd_11id['car_d'] + mmd_11id['van_d'] + mmd_11id['bus_d']),
+                            'passenger': (mmd_11id['car_p'] + mmd_11id['van_p'] + mmd_11id['bus_p'] +
+                                          mmd_11id['rail_s'] + mmd_11id['rail_l'] + mmd_11id['air'])
+                            }
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
@@ -294,108 +495,86 @@ class Lookup:
         # main mode
         out_dict = {'col': ['mainmode_b11id'],
                     'typ': [self.nts_dtype],
-                    'out': 'main mode',
-                    'val': {1: self.mmd_01id['walk'],  # walk
-                            2: self.mmd_01id['bike'],  # cycle
-                            3: self.mmd_01id['car_d'] + self.mmd_01id['car_p'],  # car driver/passenger
-                            4: self.mmd_01id['van_d'] + self.mmd_01id['van_p'],  # van driver/passenger
-                            5: self.mmd_01id['bus_d'] + self.mmd_01id['bus_p'],  # bus
-                            6: self.mmd_01id['rail_s'],  # surface rail
-                            7: self.mmd_01id['rail_l'],  # light rail/underground
-                            8: self.mmd_01id['air']  # air
-                            }}
-        out_dict['val'] = self.val_to_key(out_dict['val'])
-        return out_dict
-
-    def occupant(self) -> Dict:
-        # occupant
-        mmd_01id = self.mmd_01id
-        out_dict = {'col': ['mainmode_b11id'],
-                    'typ': [self.nts_dtype],
-                    'out': 'occupancy',
-                    'val': {'driver': (mmd_01id['walk'] + mmd_01id['bike'] + mmd_01id['car_d'] +
-                                       mmd_01id['van_d'] + mmd_01id['bus_d']),
-                            'passenger': (mmd_01id['car_p'] + mmd_01id['van_p'] + mmd_01id['bus_p'] +
-                                          mmd_01id['rail_s'] + mmd_01id['rail_l'] + mmd_01id['air'])
-                            }}
+                    'log': 'main mode',
+                    'val': {1: self.mmd_11id['swak'] + self.mmd_11id['walk'],  # walk
+                            2: self.mmd_11id['bike'],  # cycle
+                            3: self.mmd_11id['car_d'] + self.mmd_11id['car_p'],  # car driver/passenger
+                            4: self.mmd_11id['van_d'] + self.mmd_11id['van_p'],  # van driver/passenger
+                            5: self.mmd_11id['bus_d'] + self.mmd_11id['bus_p'],  # bus
+                            6: self.mmd_11id['rail_s'],  # surface rail
+                            7: self.mmd_11id['rail_l'],  # light rail/underground
+                            8: self.mmd_11id['air']  # air
+                            },
+                    'out': {1: 'walk', 2: 'cycle', 3: 'car', 4: 'van', 5: 'bus', 6: 'surface rail',
+                            7: 'light rail', 8: 'air'}
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
     def purpose(self) -> Dict:
         # trip purpose
         tpp_01id, end_home = self.tpp_01id, self.tpp_01id['hom']
-        all_trip = self.nhb_trip + end_home
-        out_dict = {'col': ['trippurpfrom_b01id', 'trippurpto_b01id'],
-                    'typ': [self.nts_dtype, self.nts_dtype],
-                    'out': 'purpose',
-                    'val': {1: fun.product(all_trip, tpp_01id['com']) + fun.product(tpp_01id['com'], end_home),
-                            2: fun.product(all_trip, tpp_01id['emb']) + fun.product(tpp_01id['emb'], end_home),
-                            3: fun.product(all_trip, tpp_01id['edu']) + fun.product(tpp_01id['edu'], end_home),
-                            4: fun.product(all_trip, tpp_01id['shp']) + fun.product(tpp_01id['shp'], end_home),
-                            5: fun.product(all_trip, tpp_01id['peb']) + fun.product(tpp_01id['peb'], end_home),
-                            6: fun.product(all_trip, tpp_01id['soc']) + fun.product(tpp_01id['soc'], end_home),
-                            7: fun.product(all_trip, tpp_01id['vis']) + fun.product(tpp_01id['vis'], end_home),
-                            8: fun.product(all_trip, tpp_01id['hol']) + fun.product(tpp_01id['hol'], end_home),
-                            }}
+        tpp_from = self.inc_purp + self.tpp_01id['esc'] + end_home
+        all_mode = [val for key in self.mmd_11id for val in self.mmd_11id[key] if key != 'na']
+        non_walk = [val for key in self.mmd_11id for val in self.mmd_11id[key] if key not in ['na', 'swak', 'walk']]
+        out_dict = {'col': ['mainmode_b11id', 'trippurpfrom_b01id', 'trippurpto_b01id'],
+                    'typ': [self.nts_dtype, self.nts_dtype, self.nts_dtype],
+                    'log': 'purpose',
+                    'val': {1: (fun.product(all_mode, tpp_from, tpp_01id['com']) +  # from home/non-home base
+                                fun.product(all_mode, tpp_01id['com'], end_home)),  # return home
+                            2: (fun.product(all_mode, tpp_from, tpp_01id['emb']) +
+                                fun.product(all_mode, tpp_01id['emb'], end_home)),
+                            3: (fun.product(all_mode, tpp_from, tpp_01id['edu']) +
+                                fun.product(all_mode, tpp_01id['edu'], end_home)),
+                            4: (fun.product(all_mode, tpp_from, tpp_01id['shp']) +
+                                fun.product(all_mode, tpp_01id['shp'], end_home)),
+                            5: (fun.product(all_mode, tpp_from, tpp_01id['peb']) +
+                                fun.product(all_mode, tpp_01id['peb'], end_home)),
+                            6: (fun.product(all_mode, tpp_from, tpp_01id['soc']) +
+                                fun.product(all_mode, tpp_01id['soc'], end_home)),
+                            7: (fun.product(all_mode, tpp_from, tpp_01id['vis']) +
+                                fun.product(all_mode, tpp_01id['vis'], end_home)),
+                            8: (fun.product(all_mode, tpp_from, tpp_01id['hol']) +
+                                fun.product(all_mode, tpp_01id['hol'], end_home) +
+                                fun.product(non_walk, tpp_from, tpp_01id['jwk']) +
+                                fun.product(non_walk, tpp_01id['jwk'], end_home))
+                            },
+                    'out': {1: 'commute', 2: 'employer business', 3: 'education', 4: 'shopping',
+                            5: 'personal business', 6: 'social', 7: 'visit friends', 8: 'holiday'}
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def time_start(self) -> Dict:
-        # trip start time
-        wkd_01id, ttp_01id = self.wkd_01id, self.ttp_01id
-        week_end = ttp_01id['am'] + ttp_01id['ip'] + ttp_01id['pm'] + ttp_01id['op'] + ttp_01id['na']
-        out_dict = {'col': ['travelweekday_b01id', 'tripstart_b01id'],
-                    'typ': [self.nts_dtype, self.nts_dtype],
-                    'out': 'start time',
-                    'val': {1: fun.product(wkd_01id['wkd'], ttp_01id['am']),
-                            2: fun.product(wkd_01id['wkd'], ttp_01id['ip']),
-                            3: fun.product(wkd_01id['wkd'], ttp_01id['pm']),
-                            4: fun.product(wkd_01id['wkd'], ttp_01id['op']),
-                            5: fun.product(wkd_01id['sat'], week_end),
-                            6: fun.product(wkd_01id['sun'], week_end)
-                            }}
-        out_dict['val'] = self.val_to_key(out_dict['val'])
-        return out_dict
-
-    def time_end(self) -> Dict:
-        # trip end time
+    def period(self, ttp_type: str = 'start') -> Dict:
+        # trip start/end time
         wkd_01id, ttp_01id = self.wkd_01id, self.ttp_01id
         all_24hr = ttp_01id['am'] + ttp_01id['ip'] + ttp_01id['pm'] + ttp_01id['op'] + ttp_01id['na']
-        out_dict = {'col': ['travelweekday_b01id', 'tripend_b01id'],
+        out_dict = {'col': ['travelweekday_b01id', f'trip{ttp_type}_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
-                    'out': 'end time',
+                    'log': f'trip {ttp_type} time',
                     'val': {1: fun.product(wkd_01id['wkd'], ttp_01id['am']),
                             2: fun.product(wkd_01id['wkd'], ttp_01id['ip']),
                             3: fun.product(wkd_01id['wkd'], ttp_01id['pm']),
                             4: fun.product(wkd_01id['wkd'], ttp_01id['op']),
                             5: fun.product(wkd_01id['sat'], all_24hr),
                             6: fun.product(wkd_01id['sun'], all_24hr)
-                            }}
+                            },
+                    'out': {1: 'AM peak', 2: 'Inter-peak', 3: 'PM peak', 4: 'Off-peak', 5: 'Saturday', 6: 'Sunday'}
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
     def direction(self) -> Dict:
         # direction of travel, hb_fr, hb_to, nhb
+        nhb_purp = self.inc_purp + self.tpp_01id['esc']
         out_dict = {'col': ['trippurpfrom_b01id', 'trippurpto_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
-                    'out': 'direction',
-                    'val': {'hb_fr': fun.product(self.tpp_01id['hom'], self.nhb_trip),
-                            'hb_to': fun.product(self.nhb_trip, self.tpp_01id['hom']),
-                            'nhb': fun.product(self.nhb_trip, self.nhb_trip)
-                            }}
-        out_dict['val'] = self.val_to_key(out_dict['val'])
-        return out_dict
-
-    def gender(self) -> Dict:
-        # gender
-        age_01id, sex_01id = self.age_01id, self.sex_01id
-        out_dict = {'col': ['sex_b01id', 'age_b01id'],
-                    'typ': [self.nts_dtype, self.nts_dtype],
-                    'out': 'gender',
-                    'val': {1: fun.product(sex_01id['male'] + sex_01id['female'], age_01id['child']),  # child
-                            2: fun.product(sex_01id['male'], age_01id['adult'] + age_01id['elder']),  # male
-                            3: fun.product(sex_01id['female'], age_01id['adult'] + age_01id['elder'])  # female
-                            }}
+                    'log': 'direction',
+                    'val': {'hb_fr': fun.product(self.tpp_01id['hom'], nhb_purp),
+                            'hb_to': fun.product(nhb_purp, self.tpp_01id['hom']),
+                            'nhb': fun.product(nhb_purp, nhb_purp)
+                            }
+                    }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
@@ -407,3 +586,36 @@ class Lookup:
     @staticmethod
     def dct_to_specs(dct: Dict, out: type = int) -> Dict:
         return {key: list(dct[key].keys() if out is int else dct[key].values()) for key in dct}
+
+    def agg_type(self, tfn_type: str = 'tfn') -> Dict:
+        out_dict = {'at': {1: [], 2: [], 3: [], 4: [], 5: [], 6: []},
+                    'hh': {1: [], 2: [], 3: []}
+                    }
+        out_dict = self.val_to_key(out_dict)
+        return out_dict
+
+    @staticmethod
+    def fun_aggregate(dfr: pd.DataFrame, col_2agg: List) -> Dict:
+        """
+        aggregation:
+            level 1: p, gen, aws, soc, ns, hh, at
+            level 2: p, gen, aws, soc, ns, hh
+            level 3: p, gen, aws, soc, ns
+            level 4: p, gen, aws, soc
+            level 5: p, gen, aws
+        if pop[xyz] > 300:
+            trip_rate[xyz] = trip[xyz] / pop[xyz]
+        elif pop[xyz, (at)] > 300:
+            trip_rate[xyz, (at)] =
+        elif pop[xyz, (at, hh)] > 300:
+            trip_rate[xyz, (at, hh)] =
+        elif pop[xyz, (at, hh, ns)] > 300:
+            trip_rate[xyz, (at, hh, ns)] =
+        elif pop[xyz, (at, hh, ns, soc)] > 300:
+            trip_rate[xyz, (at, hh, ns, soc)] =
+        else:
+            trip_rate[xyz, (at, hh, ns, soc, aws)] =
+        """
+        out_dict = {'lev1': {}, 'lev2': {}, 'lev3': {}}
+
+        return out_dict

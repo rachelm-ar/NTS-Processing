@@ -1,4 +1,5 @@
 from typing import Union, List, Dict, Any
+import matplotlib.pyplot as plt
 import pandas as pd
 import subprocess
 import itertools as itt
@@ -9,6 +10,7 @@ import os
 
 # filter zero from dataframe
 def dfr_filter_zero(dfr: pd.DataFrame, col_used: Union[List, str]) -> pd.DataFrame:
+    col_used = [col_used] if isinstance(col_used, str) else col_used
     return dfr.loc[(~dfr[col_used].isin([0, '0'])).all(axis=1)].reset_index(drop=True)
 
 
@@ -27,7 +29,8 @@ def dfr_complete(dfr: pd.DataFrame, col_index: Union[List, str, None], col_unsta
 
 
 # import csv to dataframe
-def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None) -> Union[pd.DataFrame, bool]:
+def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None, nts_dtype: type = object
+               ) -> Union[pd.DataFrame, bool]:
     log_stderr(f' .. read {csv_file}')
     _, _, _, csv_extn = split_file(csv_file)
     csv_extn = '\t' if csv_extn.lower() == '.tab' else ','
@@ -38,10 +41,25 @@ def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None) -> Union[pd.Dat
     try:
         dfr = dfr[col_incl] if col_incl is not None else dfr
         dfr = dfr.fillna('0')
+        dfr = dfr.replace(' ', '0')
+        if nts_dtype is int:
+            col_incl = ['w2', 'w5', 'w5xhh', 'tripdisincsw', 'triptravtime', 'hholdoslaua_b01id',
+                        'settlement2011ew_b01id', 'stagedistance', 'stagetime', 'stagefarecost', 'stagecost',
+                        'ticketcost', 'tickettripcost']
+            col_incl = [col for col in dfr.columns if col not in col_incl]
+            try:
+                dfr[col_incl] = dfr[col_incl].astype('int64')
+            except ValueError as err:
+                log_stderr(f'    error with {csv_file}: {err}')
     except KeyError as err:
         log_stderr(f'    error with {csv_file}: {err}')
         dfr = False
     return dfr
+
+
+# create directory
+def mkdir(sub_fldr: str):
+    os.makedirs(sub_fldr, exist_ok=True)
 
 
 # write dataframe to csv
@@ -85,12 +103,41 @@ def str_lower(val: Any) -> Any:
         return val
 
 
-# PRINT STDERR
+# scatter plots
+def plt_scatter(title, x_val, y_val, x_label: str, y_label: str, out_fldr: str):
+    x_label, y_label = x_label.upper(), y_label.upper()
+    plt.rc('font', size=8)
+    plt.grid(True)
+    p_fit = np.polyfit(x_val, y_val, 1)
+    l_fit = np.poly1d(p_fit)
+    y_fit = l_fit(x_val)
+    r_sqr = rsq_calc(y_val, y_fit)
+    v_max = max(1.02 * x_val.max(), 1.02 * max(y_val.max(), y_fit.max()))
+    plt.scatter(x_val, y_val, c='b', marker='.')
+    plt.plot(x_val, y_fit, c='g')
+    plt.ylabel(f'{y_label}', size=8)
+    plt.xlabel(f'{x_label}', size=8)
+    plt.xlim(0, v_max)
+    plt.ylim(0, v_max)
+    plt.title(f'{title} - {y_label} vs. {x_label}', size=10)
+    plt.annotate(f'Slope = {p_fit[0]:.3f}\nIntercept = {p_fit[1]:.3f}\nR2 = {r_sqr:.3f}',
+                 (0.02 * v_max, 0.98 * v_max), ha='left', va='top',
+                 bbox=dict(boxstyle='round', fc='w'), size=8)
+    plt.savefig(f'{out_fldr}\\{title}_{y_label}_vs_{x_label}.png', dpi=300)
+    plt.close()
+
+
+# calculate R2
+def rsq_calc(obs: np.ndarray, est: np.ndarray) -> float:
+    return max(1 - np.sum((est - obs) ** 2) / np.sum((obs - np.mean(obs)) ** 2), 0)
+
+
+# print
 def log_stderr(*args):
     print(*args, file=sys.stderr, flush=True)
 
 
-# SUBPROCESS - SINGLE
+# subprocess - single
 def cmd_single(cmd_list: Union[List, str]):
     cmd_list = cmd_list if type(cmd_list) is list else [cmd_list]
     for ts in cmd_list:
@@ -98,7 +145,7 @@ def cmd_single(cmd_list: Union[List, str]):
         pr.wait()
 
 
-# SUBPROCESS - MULTI (USE WITH CAUTION AS MAY CLASH WITH MULTIPROCESSING)
+# subprocess - multic
 def cmd_multic(cmd_list: List, num_cpus: int = 999):
     num_bloc = int(len(cmd_list) / num_cpus) + 1
     for bl in range(num_bloc):
@@ -110,7 +157,7 @@ def cmd_multic(cmd_list: List, num_cpus: int = 999):
             pr.wait()
 
 
-# EXPAND STRING
+# expand string
 def str_xpanse(str_text: str) -> str:
     str_list = str(str_text).replace(';', ',').replace(' ', '').split(',')
     out_text = ''
@@ -124,7 +171,7 @@ def str_xpanse(str_text: str) -> str:
     return out_text[:-1]
 
 
-# CONVERT STRING TO VALUE
+# string to value
 def str_to_value(str_text: Union[str, int, float]) -> Union[str, int, float]:
     if type(str_text) is str:
         try:
@@ -139,7 +186,7 @@ def str_to_value(str_text: Union[str, int, float]) -> Union[str, int, float]:
     return out_value
 
 
-# CONVERT LIST TO DICTIONARY
+# list to dictionary
 def list_to_dict_item(uni_list: Union[List, Dict], key_start: int = 0) -> Dict:
     if type(uni_list) is not dict:
         uni_dict = {key: item for key, item in enumerate(uni_list, key_start)}
@@ -148,14 +195,14 @@ def list_to_dict_item(uni_list: Union[List, Dict], key_start: int = 0) -> Dict:
     return uni_dict
 
 
-# SPLIT PATH, NAME AND EXTN
+# split filename to path, name, extn
 def split_file(str_file: str) -> List:
     str_path = os.path.dirname(str_file)
     str_name, str_extn = os.path.splitext(str_file.replace('\\', '/').split('/')[-1])
     return [str_file, str_path, str_name, str_extn]
 
 
-# CHECK FILE EXISTENCE
+# file existence
 def exist_file(str_file: str, err_index: bool = True) -> bool:
     if not os.path.isfile(str_file):
         err_index = False
@@ -163,7 +210,7 @@ def exist_file(str_file: str, err_index: bool = True) -> bool:
     return err_index
 
 
-# CHECK PATH EXISTENCE
+# path existence
 def exist_path(str_path: str, err_index: bool = True) -> bool:
     if not os.path.isdir(str_path):
         err_index = False
@@ -171,7 +218,7 @@ def exist_path(str_path: str, err_index: bool = True) -> bool:
     return err_index
 
 
-# REDUCED PRINT
+# reduced print
 def txt_truncate(str_text: str, len_text: int = 50) -> str:
     out_text = str_text[-len_text:]
     pos_text = out_text.find('\\') if out_text.find('\\') > 0 else 0
@@ -179,12 +226,12 @@ def txt_truncate(str_text: str, len_text: int = 50) -> str:
     return out_text
 
 
-# ADD PATH
+# add path
 def add_path(cur_path: str, str_file: str) -> str:
     return f'{cur_path}\\{str_file}' if '\\' not in str_file else str_file
 
 
-# DERIVE DISTANCE BAND
+# derive distance band
 def dist_band(max_dist: float) -> np.ndarray:
     max_dist = int(max_dist + 1)
     num_band = int(max_dist ** 0.51)
@@ -193,6 +240,6 @@ def dist_band(max_dist: float) -> np.ndarray:
     return arr_dist
 
 
-# PRODUCT OF LIST ELEMENTS
+# product function
 def product(*args) -> List:
     return list(itt.product(*args))

@@ -1,8 +1,12 @@
 from mdlbuild import ClassifiedBuild
 from mdloutput import Output
 from mdltriprate import TripRate
-import mdlfunction as fun
 import mdlconfig as cfg
+import multiprocessing as mp
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+mp.freeze_support()
+
 
 # main application
 if __name__ == '__main__':
@@ -10,14 +14,14 @@ if __name__ == '__main__':
     out_fldr = r'D:\NTS\NoTEM\nts_data\2002_2021'
 
     cfg = cfg.Config(out_fldr)
-    ver_build = 5
+    cb_version = '5_test'
 
     # process NTS
-    csv_build = f'{cfg.fld_build}\\{cfg.csv_build}_v{ver_build}.csv'
-    ClassifiedBuild(nts_fldr, out_fldr, ver_build) if not fun.exist_file(csv_build) else None
+    csv_build = f'{cfg.fld_cbuild}\\{cfg.csv_cbuild}_v{cb_version}.csv'
+    ClassifiedBuild(nts_fldr, out_fldr, cb_version, True)
 
     # NTS outputs
-    Output(out_fldr, 5)
+    Output(out_fldr, cb_version)
 
     # trip-rate model
-    TripRate(out_fldr, 5)
+    TripRate(out_fldr, cb_version)
