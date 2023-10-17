@@ -54,11 +54,10 @@ class ClassifiedBuild:
         self.col_incl = {'household': ['SurveyYear', 'HouseholdID', 'HHoldOSLAUA_B01ID', 'HHoldCounty_B01ID',
                                        'HHoldGOR_B02ID', 'Settlement2011EW_B01ID', 'HHoldAreaType1_B01ID',
                                        'HHoldAreaType2_B01ID', 'HHoldUA1998_B01ID', 'HHoldUA2009_B01ID',
-                                       'HHoldNumAdults', 'NumCarVan', 'W1', 'W2', 'W3',
-                                       'HHIncome2002_B01ID', 'HHIncome2002_B02ID'],
+                                       'HHoldNumAdults', 'NumCarVan', 'HHIncome2002_B01ID', 'W1', 'W2', 'W3'],
                          'individual': ['HouseholdID', 'IndividualID', 'Age_B01ID', 'Sex_B01ID', 'EcoStat_B01ID',
                                         'SIC1992_B02ID', 'SIC2007_B02ID', 'XSOC2000_B02ID', 'NSSEC_B03ID',
-                                        'IndIncome2002_B01ID'],
+                                        'IndIncome2002_B01ID', 'HRPRelation_B01ID'],
                          'day': ['HouseholdID', 'IndividualID', 'DayID', 'TravelWeekday_B01ID'],
                          'trip': ['HouseholdID', 'IndividualID', 'DayID', 'TripID', 'MainMode_B11ID',
                                   'TripPurpFrom_B01ID', 'TripPurpTo_B01ID', 'TripStart_B01ID', 'TripEnd_B01ID',
@@ -101,13 +100,13 @@ class ClassifiedBuild:
             nts_data = self._preprocess(nts_data)
             nts_data = self._apply_lookups(nts_data)
             self._summary(nts_data)
+            self._write_cb(nts_data, f'{self.cfg.csv_cbuild}_v{self.cb_version}')
 
             # write affordability c.build to csv
             # nts_data = self._import('stage', nts_data)
-            # nts_data = self._process_stage(nts_data)
-
-            # write classified build
-            self._write_cb(nts_data, f'{self.cfg.csv_cbuild}_v{self.cb_version}')
+            # nts_data = self._preprocess_stage(nts_data)
+            # self._analysis_stage(nts_data, ['surveyyear', 'hholdgor_b02id', 'ns'], 'NTS_hh_income')
+            # self._write_cb(nts_data, f'{self.cfg.csv_cbuild}_pa_v{self.cb_version}')
 
     def _exist(self):
         fun.log_stderr('\nCheck file existence')
@@ -149,17 +148,17 @@ class ClassifiedBuild:
     def _preprocess(self, dfr: pd.DataFrame) -> pd.DataFrame:
         # pre-processing
         fun.log_stderr('\nPre-processing')
-        fun.log_stderr(' .. convert to float')
-        for col in ['w2', 'w5', 'w5xhh', 'tripdisincsw', 'triptravtime']:
-            dfr[col] = dfr[col].str.replace(' ', '0').astype('float64') if self._is_object(dfr[col]) else dfr[col]
-
+        col_type = ['w2', 'w5', 'w5xhh', 'tripdisincsw', 'triptravtime']
+        fun.log_stderr(f' .. {col_type} -> float')
+        dfr[col_type] = dfr[col_type].astype('float64')
+        # weighted trip & distance to km
         dfr['trips'] = dfr['w2'].mul(dfr['w5xhh']).mul(dfr['jjxsc']).fillna(0)
         dfr['trav_dist'] = dfr['tripdisincsw'] * self.m2k_fact
         # sort database
         col_sort = ['surveyyear', 'householdid', 'individualid', 'dayid', 'tripid']
         dfr.sort_values(col_sort, ascending=True, ignore_index=True, inplace=True)
 
-        # reported discontinuous purpose, update [_from] from the preceding [_to] leg
+        # address discontinuous purposes, update [_from] from the preceding [_to] leg
         fun.log_stderr(' .. correct trip sequences')
         mask = (dfr['individualid'] == dfr['individualid'].shift()) & (dfr['tripid'] == dfr['tripid'].shift() + 1)
         dfr.loc[mask, 'trippurpfrom_b01id'] = dfr['trippurpto_b01id'].shift(fill_value=0)
@@ -233,28 +232,43 @@ class ClassifiedBuild:
         dfr['aws'] = self._lookup(dfr, self.luk.aws())
         dfr['gender'] = self._lookup(dfr, self.luk.gender())
         dfr['hh_type'] = self._lookup(dfr, self.luk.hh_type())
-        dfr['soc'] = self._lookup(dfr, self.luk.soc())  # individual soc
-        dfr['ns'] = self._lookup(dfr, self.luk.ns_sec())  # individual ns-sec
-        dfr['ns'] = dfr.groupby('householdid')['ns'].transform('min')  # assume hh_ns = min(ind_ns)
-        # if aws = fte/pte & ns-sec = unemployed, set ns-sec = 5
-        dfr.loc[(dfr['aws'].isin([2, 3])) & (dfr['ns'] == 4), 'ns'] = 5
-        # if aws = 4. stu & hh_type = (1, 2), set ns-sec = 5
-        dfr.loc[(dfr['aws'].isin([4])) & (dfr['hh_type'].isin([1, 2])), 'ns'] = 5
-        # if aws = 5. une & hh_type = (1, 2), set ns-sec = 4
-        dfr.loc[(dfr['aws'].isin([5])) & (dfr['hh_type'].isin([1, 2])), 'ns'] = 4
-
+        # ns-sec
+        dfr['ns_ind'] = self._lookup(dfr, self.luk.ns_sec())  # individual
+        # if aws = 2.fte/3.pte & ns-sec = 4.unemployed -> ns-sec = 5.not classified
+        dfr.loc[(dfr['aws'].isin([2, 3])) & (dfr['ns_ind'] == 4), 'ns_ind'] = 5
+        # if aws = 4.stu -> ns-sec = 5.not classified
+        dfr.loc[(dfr['aws'].isin([4])), 'ns_ind'] = 5
+        # aws = 5.unm, some still have ns-sec so cannot set ns-sec = 4
+        # soc and adjustment
+        dfr['soc'] = self._lookup(dfr, self.luk.soc())  # individual
+        dfr.loc[(dfr['soc'] == 0) & (dfr['ns_ind'].isin([1, 2, 3])), 'soc'] = dfr['ns_ind']
+        dfr.loc[(dfr['soc'] == 0) & (dfr['ns_ind'] == 5), 'soc'] = 3  # move to low skilled
+        dfr.loc[(dfr['soc'] == 3) & (dfr['ns_ind'] == 1), 'ns_ind'] = 2
+        # final household ns-sec
+        dfr['ns'] = self._lookup(dfr, self.luk.hrp()).mul(dfr['ns_ind'])
+        dfr['ns'] = dfr.groupby('householdid')['ns'].transform('max')
+        dfr.loc[dfr['ns'] == 0, 'ns'] = dfr.groupby('householdid')['ns_ind'].transform('min')
+        # sic & incomes
         dfr['sic'] = self._lookup(dfr, self.luk.sic('2007'))
         dfr['sic'] = np.where(dfr['sic'].isin([0, '0']), self._lookup(dfr, self.luk.sic('1992')), dfr['sic'])
-        dfr['income'] = self._lookup(dfr, self.luk.income('hhincome2002_b01id'))
-        dfr['hh_income'] = self._lookup(dfr, self.luk.income('hhincome2002_b02id'))
+        dfr['income'] = self._lookup(dfr, self.luk.income('ind'))
+        dfr['hh_income'] = self._lookup(dfr, self.luk.income('hh'))
         # traveller type
-        dfr['tt'] = self._lookup_tt(dfr, self.tfn_ttype)
+        dfr['tt'] = self._lookup_tt(dfr)
         return dfr
 
-    def _lookup_tt(self, dfr: pd.DataFrame, col_list: List) -> pd.Series:
-        fun.log_stderr(f' .. {col_list} -> traveller type')
-        dct = self.luk.tt_tfn(col_list, self.cfg.def_ttype)  # update tfn or ntem _tt
-        out = fun.dfr_to_tuple(dfr, col_list)
+    def _lookup_tt(self, dfr: pd.DataFrame) -> pd.Series:
+        def_ttype, tfn_ttype = self.cfg.def_ttype, self.cfg.tfn_ttype
+        fun.log_stderr(f' .. {tfn_ttype} -> traveller type')
+        dct = self.luk.tt_tfn(tfn_ttype, def_ttype)  # update tfn or ntem _tt
+        self.dfr_ttype = self.luk.tt_to_dfr(tfn_ttype, def_ttype)
+        dfr_type = self.dfr_ttype.copy()
+        for col in tfn_ttype:
+            val = f'{col}_sec' if col == 'ns' else col
+            dct_type = eval(f'self.luk.{val}()')['out']
+            dfr_type = dfr_type.set_index(col).rename(index=dct_type).reset_index()
+        fun.dfr_to_csv(dfr_type[['tt'] + tfn_ttype], f'{self.cfg.fld_cbuild}', f'traveller_type_{def_ttype}', False)
+        out = fun.dfr_to_tuple(dfr, tfn_ttype)
         return out.apply(lambda x: dct.get(x, 0))
 
     def _mask_invalid(self, dfr: pd.DataFrame, col_name: str) -> pd.Series:
@@ -346,9 +360,9 @@ class ClassifiedBuild:
         fun.log_stderr(f'\nSummary (classified)')
         self._write_stats(dfr, ['surveyyear'], 'NTS_cb_year')
         self._write_stats(dfr, ['hholdgor_b02id'], 'NTS_cb_gor')
-        self._write_stats(dfr, ['hholdcounty_b01id'], 'NTS_cb_county')
+        self._write_stats(dfr, ['hholdcounty_b01id', 'hholdgor_b02id'], 'NTS_cb_county')
         self._write_stats(dfr, ['tfn_at', 'hholdgor_b02id', 'hholdareatype_b01id', 'settlement2011ew_b01id'],
-                          f'NTS_cb_{self.tfn_atype}')
+                          f'NTS_cb_at_{self.tfn_atype}')
         self._write_stats(dfr, ['mode', 'mainmode_b11id'], 'NTS_cb_mode')
         self._write_stats(dfr, ['purpose', 'direction', 'trippurpfrom_b01id', 'trippurpto_b01id'],
                           'NTS_cb_purpose')
@@ -358,7 +372,6 @@ class ClassifiedBuild:
         self._write_stats(dfr, ['hh_type', 'hholdnumadults', 'numcarvan'], 'NTS_cb_hh_type')
         self._write_stats(dfr, ['soc', 'xsoc2000_b02id', 'age_b01id', 'ecostat_b01id'], 'NTS_cb_soc')
         self._write_stats(dfr, ['ns', 'nssec_b03id'], 'NTS_cb_ns_sec')
-        self._write_stats(dfr, ['tt'] + self.tfn_ttype, 'NTS_cb_traveller_type')
         self._write_stats(dfr, ['householdid', 'individualid'] + self.tfn_ttype + ['hh_income', 'income'],
                           'NTS_cb_income')
         self._write_stats(dfr, ['tripdestgor_b02id', 'gender', 'sic', 'purpose', 'direction'], 'NTS_cb_sic')
@@ -369,16 +382,24 @@ class ClassifiedBuild:
         self._write_stats(dfr, ['mode', 'mainmode_b11id', 'jjxsc', 'purpose', 'direction', 'trippurpose_b01id',
                                 'trippurpfrom_b01id', 'trippurpto_b01id'],
                           'NTS_cb_mode_purpose_direction')
+        self._write_stats(dfr, ['householdid', 'hh_type', 'individualid', 'hrprelation_b01id', 'gender', 'aws',
+                                'ns', 'soc', 'ns_ind'], 'NTS_cb_hrp')
+        # write traveller types
+        # self._write_stats(dfr, ['gender', 'aws', 'ns', 'soc', 'ns_ind'], 'NTS_cb_test')
+        tmp = self._write_stats(dfr, self.tfn_ttype).reset_index()
+        tmp = pd.merge(tmp, self.dfr_ttype, how='outer', on=self.tfn_ttype).fillna(0)
+        self._write_stats(tmp, ['tt'] + self.tfn_ttype, 'NTS_cb_traveller_type')
 
         # output trips by ntem/ruc
-        col_grby = ['hholdgor_b02id', 'hholdcounty_b01id', 'hholdareatype_b01id', 'settlement2011ew_b01id']
-        a = dfr.groupby(col_grby + ['individualid', 'purpose', 'direction', 'w2'])[['trips']].sum().reset_index()
-        b = a.groupby(col_grby + ['individualid', 'direction', 'w2'])[['trips']].sum().reset_index()
-        a = a.groupby(col_grby + ['purpose', 'direction'])[['trips']].sum()
-        a = fun.dfr_complete(a, None, 'purpose').reset_index()
-        b = b.groupby(col_grby + ['direction'])[['w2']].sum().reset_index()
-        a = pd.merge(a, b, how='left', on=col_grby + ['direction'])
-        fun.dfr_to_csv(a, f'{self.cfg.fld_cbuild}\\{self.cfg.fld_report}', 'NTS_test', False)
+        col_grby = ['tfn_at', 'hholdgor_b02id', 'hholdareatype_b01id', 'settlement2011ew_b01id']
+        trip = dfr.groupby(col_grby + ['individualid', 'mode', 'purpose', 'direction', 'w2'])[['trips']].sum().reset_index()
+        pops = trip.groupby(col_grby + ['individualid', 'direction', 'w2'])[['trips']].sum().reset_index()
+        trip = trip.groupby(col_grby + ['mode', 'purpose', 'direction'])[['trips']].sum()
+        trip = fun.dfr_complete(trip, None, 'purpose')
+        trip = fun.dfr_complete(trip, None, 'mode').reset_index()
+        pops = pops.groupby(col_grby + ['direction'])[['w2']].sum().reset_index()
+        trip = pd.merge(trip, pops, how='left', on=col_grby + ['direction'])
+        fun.dfr_to_csv(trip, f'{self.cfg.fld_cbuild}\\{self.cfg.fld_report}', 'NTS_test', False)
 
     # swap orig/dest for return_home trips
     @staticmethod
@@ -389,24 +410,51 @@ class ClassifiedBuild:
         return dfr
 
     @staticmethod
-    def _process_stage(dfr: pd.DataFrame) -> pd.DataFrame:
+    def _preprocess_stage(dfr: pd.DataFrame, to_trip_level: bool = False) -> pd.DataFrame:
         fun.log_stderr('\nProcess stage database')
-        dfr['stagemode_b11id'] = (dfr['mainmode_b11id'] == dfr['stagemode_b11id'])
-        col_grby = ['surveyyear', 'householdid', 'individualid', 'dayid', 'tripid']
         col_list = ['stagedistance', 'stagetime', 'stagefarecost', 'stagecost']
-        dfr[col_list] = dfr[col_list].astype(float)
-        for col in col_list:
-            dfr[f'{col}_main'] = dfr.groupby(col_grby + ['stagemode_b11id'])[col].transform('sum')
-            dfr[f'{col}_sub'] = dfr.groupby(col_grby)[col].transform('sum').sub(dfr[f'{col}_main'])
-        dfr['stageseq'] = dfr.groupby(['individualid', 'tripid'])['stageseq'].transform('max')
-        dfr = dfr.loc[dfr['stagemode_b11id']].reset_index(drop=True)  # retain stagemode = mainmode
-        dfr.sort_values(col_grby + ['stagedistance'], ascending=True, inplace=True)
-        dfr = dfr.drop_duplicates(col_grby, keep='last', ignore_index=True)  # retain longest distance
-        dfr = dfr.drop(columns=['stageid', 'stagemode_b11id'] + col_list, errors='ignore')
-        # test
-        # mask = dfr.groupby(['individualid', 'tripid'])['stageseq'].transform('max') > 1
-        # fun.dfr_to_csv(dfr.loc[mask], cbo_fldr, 'example_data', False)
+        dfr[col_list] = dfr[col_list].astype('float64')
+        if to_trip_level:
+            dfr['stagemode_b11id'] = (dfr['mainmode_b11id'] == dfr['stagemode_b11id'])
+            col_grby = ['surveyyear', 'householdid', 'individualid', 'dayid', 'tripid']
+            for col in col_list:
+                dfr[f'{col}_main'] = dfr.groupby(col_grby + ['stagemode_b11id'])[col].transform('sum')
+                dfr[f'{col}_sub'] = dfr.groupby(col_grby)[col].transform('sum').sub(dfr[f'{col}_main'])
+            dfr['stageseq'] = dfr.groupby(['individualid', 'tripid'])['stageseq'].transform('max')
+            dfr = dfr.loc[dfr['stagemode_b11id']].reset_index(drop=True)  # retain stagemode = mainmode
+            dfr.sort_values(col_grby + ['stagedistance'], ascending=True, inplace=True)
+            dfr = dfr.drop_duplicates(col_grby, keep='last', ignore_index=True)  # retain longest distance
+            dfr = dfr.drop(columns=['stageid', 'stagemode_b11id'] + col_list, errors='ignore')
+
         return dfr
+
+    def _analysis_stage(self, dfr: pd.DataFrame, seg_incl: Union[str, List], csv_name: str):
+        # aggregate stage mode
+        dfr['stagemode'] = self._lookup(dfr, self.luk.mode('stage'))
+
+        # disposable income factor
+        def _net_income(x) -> float:
+            return x if x <= 10_000 else (10_000 + 0.7 * (x - 10_000))
+
+        # total household incomes
+        col_grby = seg_incl if isinstance(seg_incl, list) else [seg_incl]
+        col_hold = ['householdid'] if 'householdid' not in col_grby else []
+        hhi = dfr.groupby(col_hold + col_grby)[['hh_income', 'w2']].mean().reset_index()
+        hhi['weekly_income'] = hhi['hh_income'].apply(lambda x: _net_income(x)) / 52
+        # add household weights
+        hhi['weekly_income'] = hhi['weekly_income'].mul(dfr['w2'])
+        hhi = hhi.groupby(col_grby).agg({'weekly_income': 'sum', 'w2': 'sum'}).reset_index()
+        # total stage costs
+        col_grby = col_grby + ['stagemode']
+        col_calc = ['stagedistance', 'stagecost']
+        out = dfr[col_grby + col_calc + ['w2', 'w5xhh']].copy()
+        for col in col_calc:
+            out[col] = out[col].mul(out['w2'])  # .mul(out['w5xhh'])
+        out = out.groupby(col_grby)[col_calc].sum()
+        out = fun.dfr_complete(out, None, 'stagemode').reset_index()
+        out = pd.merge(out, hhi, how='left', on=[col for col in col_grby if col != 'stagemode'])
+        # write result
+        fun.dfr_to_csv(out, f'{self.cfg.fld_cbuild}', csv_name, False)
 
     def _write_stats(self, dfr: pd.DataFrame, col_grby: Union[List, str], csv_name: str = None) -> pd.DataFrame:
         col_grby = [col.lower() for col in fun.str_to_list(col_grby)]

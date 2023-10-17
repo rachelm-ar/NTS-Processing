@@ -16,12 +16,11 @@ if __name__ == '__main__':
     cfg = cfg.Config(out_fldr)
     cb_version = '5_test'
 
-    # process NTS
-    csv_build = f'{cfg.fld_cbuild}\\{cfg.csv_cbuild}_v{cb_version}.csv'
+    # classified build
     ClassifiedBuild(nts_fldr, out_fldr, cb_version, True)
-
-    # NTS outputs
-    Output(out_fldr, cb_version)
 
     # trip-rate model
     TripRate(out_fldr, cb_version)
+
+    # NTS outputs
+    Output(out_fldr, cb_version)

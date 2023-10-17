@@ -4,7 +4,7 @@ from mdlfunction import mkdir
 class Config:
     def __init__(self, out_fldr: str):
         # specs
-        self.def_years = [yr for yr in range(2002, 2020)]
+        self.def_years = [yr for yr in range(2002, 2022)]
         self.tfn_atype = 'tfn'  # ntem (8), ruc2011 (5), or tfn (17)
         self.def_ttype = 'tfn'  # ntem (88) or tfn (632)
         self.tfn_ttype = (['gender', 'aws', 'hh_type'] if self.def_ttype == 'ntem' else

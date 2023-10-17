@@ -40,8 +40,7 @@ def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None, nts_dtype: type
     dfr = dfr.rename(columns={key: key.lower().strip() for key in dfr.columns})
     try:
         dfr = dfr[col_incl] if col_incl is not None else dfr
-        dfr = dfr.fillna('0')
-        dfr = dfr.replace(' ', '0')
+        dfr = dfr.fillna('0').replace(' ', '0')
         if nts_dtype is int:
             col_incl = ['w2', 'w5', 'w5xhh', 'tripdisincsw', 'triptravtime', 'hholdoslaua_b01id',
                         'settlement2011ew_b01id', 'stagedistance', 'stagetime', 'stagefarecost', 'stagecost',

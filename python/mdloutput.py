@@ -36,13 +36,13 @@ class Output:
         nts_data = self._preprocess(nts_data)
         # produce data for specific mode and area
         # geo_incl: either gor, county, or tfn_at, geo_list: list of geo_area to extract
-        self._traveller_type()
-        self._trip_rates_hb(nts_data, self.tfn_mode, 'tfn_at', ['tt'] + self.tfn_ttype)
-        # self._trip_rates_nhb(nts_data, self.tfn_mode, None, None)
-        # self._trip_rates_all(nts_data, self.tfn_mode, 'tfn_at', None, None, False)
-        # self._trip_length(nts_data, self.tfn_mode, 'gor', None, None)
-        # self._tour_proportion(nts_data, self.tfn_mode, None, None, None)
-        # self._occs_vehicle(nts_data, self.tfn_mode, 'gor', None)
+        self._mts_hbase(nts_data, self.tfn_mode, 'tfn_at', ['tt'] + self.tfn_ttype)
+        self._trip_rates_nhbase(nts_data, self.tfn_mode, None, None)
+        self._mts_nhbase(nts_data, self.tfn_mode, None, None)
+        self._trip_rates_all(nts_data, self.tfn_mode, 'tfn_at', None, None, False)
+        self._trip_length(nts_data, self.tfn_mode, 'gor', None, None)
+        self._tour_proportion(nts_data, self.tfn_mode, None, None, None)
+        self._occs_vehicle(nts_data, self.tfn_mode, 'gor', None)
         self._activity(nts_data, None, 'gor')
 
     def _preprocess(self, dfr: pd.DataFrame, agg_cols: bool = False) -> pd.DataFrame:
@@ -61,16 +61,6 @@ class Output:
         fun.log_stderr(f' .. sort data by {col_sort}')
         dfr.sort_values(col_sort, ascending=True, ignore_index=True, inplace=True)
         return dfr
-
-    def _traveller_type(self):
-        def_ttype, tfn_ttype = self.cfg.def_ttype, self.cfg.tfn_ttype
-        self.dfr_ttype = self.luk.tt_to_dfr(tfn_ttype, def_ttype)
-        dfr_type = self.dfr_ttype.copy()
-        for col in tfn_ttype:
-            colx = f'{col}_sec' if col == 'ns' else col
-            dct_type = eval(f'self.luk.{colx}()')['out']
-            dfr_type = dfr_type.set_index(col).rename(index=dct_type).reset_index()
-        fun.dfr_to_csv(dfr_type[['tt'] + tfn_ttype], f'{self.cfg.fld_output}', f'traveller_type_{def_ttype}', False)
 
     def _trip_length(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
                      geo_list: Union[List, Dict] = None, seg_incl: Union[List, str] = None):
@@ -252,60 +242,36 @@ class Output:
         dfr = dfr.sort_index().reset_index()
         fun.dfr_to_csv(dfr, out_fldr, f'distribution_{"all" if geo_incl is None else geo_incl}', False)
 
-    def _trip_rates_hb(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
-                       seg_incl: Union[List, str] = None):
+    def _mts_hbase(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
+                   seg_incl: Union[List, str] = None):
         # hb trip-rates BETA_hsr (by purpose, traveller_type, area_type)
         # aggregation: level 1 - by hh_type, then level 2 - at1 + at2, at7 + at8, where low sample size
         # hb mode-time-split RHO (by purpose, area_type, traveller_type, mode, time)
         # geo_incl: geo_area to be included: either gor, county, tfn_at
-        fun.log_stderr('\nNTS trip rates - hb')
+        fun.log_stderr('\nNTS mode-time split - hb')
         fun.log_stderr(f' .. process data')
         lev_2col, col_type = self._level_to_col(geo_incl), self.luk.nts_dtype
         seg_incl = fun.str_to_list(seg_incl) if seg_incl is not None else []
         lev_prod, col_used = lev_2col['h'], ['purpose']
         col_used = [lev_prod] + col_used if geo_incl is not None else col_used
         dfr = dfr[col_used + seg_incl + ['mode', 'direction', 'period', 'individualid', 'w1', 'w2', 'trips']].copy()
-        pop = dfr.groupby(['individualid', 'w2'])[['trips']].sum().reset_index().drop(columns='trips')
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
         dfr = dfr.loc[(dfr['direction'] == 'hb_fr') & (dfr['w1'] == 1)].copy()
         # mode-time-split
         col_grby = col_used + seg_incl + ['mode', 'period']
-        mts = dfr.groupby(col_grby)[['trips']].sum().reset_index()
-        mts = fun.dfr_filter_zero(mts, col_grby)
-        mts = fun.dfr_filter_mode(mts, mode)
-        mts['split'] = mts.groupby(col_used + seg_incl)['trips'].transform('sum')
-        mts['split'] = mts['trips'].div(mts['split']).fillna(0)
-        mts = fun.dfr_complete(mts, col_grby, lev_prod)
-        # hb trip-rates
-        dfr = dfr.groupby(seg_incl + col_used + ['individualid', 'mode'])[['trips']].sum()
-        dfr = fun.dfr_complete(dfr, None, 'purpose').reset_index()
-        col_grby = [col for col in seg_incl + col_used if col != 'purpose']
-        ppx_list = dfr['purpose'].unique()
-        dfr = pd.pivot_table(dfr, values='trips', index=col_grby + ['individualid', 'mode'],
-                             columns='purpose').fillna(0)
-        dfr.rename(columns={pp: f'p{pp}' for pp in ppx_list}, inplace=True)
-        dfr = fun.dfr_filter_mode(dfr.reset_index(), mode).drop(columns='mode')
-        dfr = dfr.groupby(col_grby + ['individualid']).sum().reset_index()
-        dfr = pd.merge(dfr, pop, how='left', on='individualid', suffixes=('', ''))
-        dfr = pd.merge(dfr, self.dfr_ttype, how='outer', on=['tt'] + self.cfg.tfn_ttype).fillna(0)
-        dfr = dfr.groupby(col_grby).sum().drop(columns='individualid')
-        dfr = fun.dfr_complete(dfr, None, lev_prod)
-        dfr = fun.dfr_filter_zero(dfr.reset_index(), col_grby)
+        dfr = dfr.groupby(col_grby)[['trips']].sum().reset_index()
+        dfr = fun.dfr_filter_zero(dfr, col_grby)
+        dfr = fun.dfr_filter_mode(dfr, mode)
+        dfr['split'] = dfr.groupby(col_used + seg_incl)['trips'].transform('sum')
+        dfr['split'] = dfr['trips'].div(dfr['split']).fillna(0)
+        dfr = fun.dfr_complete(dfr, col_grby, lev_prod)
         # write output
         fun.log_stderr(f' .. write output')
         out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}'
-        fun.dfr_to_csv(dfr, out_fldr, 'trip_rates_hb', False)
-        fun.dfr_to_csv(mts, out_fldr, 'mode_time_split_hb', True)
-        # long format for comparison with NTEM
-        dfr.rename(columns={f'p{pp}': pp for pp in ppx_list}, inplace=True)
-        dfr = dfr.groupby(col_grby + ['w2']).sum().stack().reset_index()
-        dfr.rename(columns={f'level_{len(col_grby) + 1}': 'purpose', 0: 'trip_rate'}, inplace=True)
-        dfr = fun.dfr_filter_zero(dfr, ['purpose'])
-        dfr['trip_rate'] = dfr['trip_rate'].div(dfr['w2']).fillna(0)
-        fun.dfr_to_csv(dfr, out_fldr, 'trip_rates_hb_long', False)
+        fun.dfr_to_csv(dfr, out_fldr, 'mode_time_split_hb', True)
 
-    def _trip_rates_nhb(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
-                        seg_incl: Union[List, str] = None):
+    def _trip_rates_nhbase(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
+                           seg_incl: Union[List, str] = None):
         # geo_incl: geo_area to be included: either gor, county, tfn_at
         fun.log_stderr('\nNTS trip rates - nhb')
         fun.log_stderr(f' .. process data')
@@ -335,6 +301,28 @@ class Output:
         nhb = fun.dfr_filter_zero(nhb, col_used + seg_incl + col_u4hb)
         nhb = fun.dfr_filter_mode(nhb, mode)
         nhb = fun.dfr_complete(nhb, col_used + seg_incl + col_u4hb, 'mode_hb')
+        # write output
+        fun.log_stderr(f' .. write output')
+        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_nhbase}'
+        fun.dfr_to_csv(nhb.sort_index(), out_fldr, 'trip_rates_nhb', True)
+
+    def _mts_nhbase(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
+                    seg_incl: Union[List, str] = None):
+        # geo_incl: geo_area to be included: either gor, county, tfn_at
+        fun.log_stderr('\nNTS mode-time split - nhb')
+        fun.log_stderr(f' .. process data')
+        lev_2col, col_type = self._level_to_col(geo_incl), self.luk.nts_dtype
+        lev_prod, lev_orig, lev_dest = lev_2col['h'], lev_2col['o'], lev_2col['d']
+        seg_incl = fun.str_to_list(seg_incl) if seg_incl is not None else []
+        col_used = ['mode', 'purpose']
+        col_used = [lev_orig, lev_dest] + col_used if geo_incl is not None else col_used
+        dfr = dfr[col_used + seg_incl + ['direction', 'period', 'tour_group', 'individualid', 'trips']].copy()
+        mode = list(self._agg_mode(col_type).values()) if mode is None else mode
+        # calculate nhb trip-rates (exclude hb_to trips)
+        dfr = dfr.loc[dfr['direction'].isin(['nhb'])].reset_index(drop=True)
+        if geo_incl is not None:
+            dfr = dfr.rename(columns={lev_orig: lev_prod})
+            col_used = [col for col in col_used + [lev_prod] if col not in [lev_orig, lev_dest]]
         # mode-time-split
         dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl + ['period'])
         dfr = fun.dfr_filter_mode(dfr, mode)
@@ -345,7 +333,6 @@ class Output:
         # write output
         fun.log_stderr(f' .. write output')
         out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_nhbase}'
-        fun.dfr_to_csv(nhb.sort_index(), out_fldr, 'trip_rates_nhb', True)
         fun.dfr_to_csv(dfr.sort_index(), out_fldr, 'mode_time_split_nhb', True)
 
     def _trip_rates_attraction(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,

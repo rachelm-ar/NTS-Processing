@@ -113,42 +113,48 @@ class Lookup:
 
         # individual income 2002
         self.i02_01id = {
-            0.5: {1: 'Less than £1,000'},
-            1.5: {2: '£1,000 - £1,999'},
-            2.5: {3: '£2,000 - £2,999'},
-            3.5: {4: '£3,000 - £3,999'},
-            4.5: {5: '£4,000 - £4,999'},
-            5.5: {6: '£5,000 - £5,999'},
-            6.5: {7: '£6,000 - £6,999'},
-            7.5: {8: '£7,000 - £7,999'},
-            8.5: {9: '£8,000 - £8,999'},
-            9.5: {10: '£9,000 - £9,999'},
-            11.3: {11: '£10,000 - £12,499'},
-            13.8: {12: '£12,500 - £14,999'},
-            16.3: {13: '£15,000 - £17,499'},
-            18.8: {14: '£17,500 - £19,999'},
-            22.5: {15: '£20,000 - £24,999'},
-            27.5: {16: '£25,000 - £29,999'},
-            32.5: {17: '£30,000 - £34,999'},
-            37.5: {18: '£35,000 - £39,999'},
-            45.0: {19: '£40,000 - £49,999'},
-            55.0: {20: '£50,000 - £59,999'},
-            65.0: {21: '£60,000 - £69,999'},
-            72.5: {22: '£70,000 - £74,999'},
-            87.5: {23: '£75,000 to £99,999'},
-            112.5: {24: '£100,000 to £124,999'},
-            137.5: {25: '£125,000 to £149,999'},
-            150: {26: '£150,000 or more'},
+            500: {1: 'Less than £1,000'},
+            1500: {2: '£1,000 - £1,999'},
+            2500: {3: '£2,000 - £2,999'},
+            3500: {4: '£3,000 - £3,999'},
+            4500: {5: '£4,000 - £4,999'},
+            5500: {6: '£5,000 - £5,999'},
+            6500: {7: '£6,000 - £6,999'},
+            7500: {8: '£7,000 - £7,999'},
+            8500: {9: '£8,000 - £8,999'},
+            9500: {10: '£9,000 - £9,999'},
+            11250: {11: '£10,000 - £12,499'},
+            13750: {12: '£12,500 - £14,999'},
+            16250: {13: '£15,000 - £17,499'},
+            18750: {14: '£17,500 - £19,999'},
+            22500: {15: '£20,000 - £24,999'},
+            27500: {16: '£25,000 - £29,999'},
+            32500: {17: '£30,000 - £34,999'},
+            37500: {18: '£35,000 - £39,999'},
+            45000: {19: '£40,000 - £49,999'},
+            55000: {20: '£50,000 - £59,999'},
+            65000: {21: '£60,000 - £69,999'},
+            72500: {22: '£70,000 - £74,999'},
+            87500: {23: '£75,000 to £99,999'},
+            112500: {24: '£100,000 to £124,999'},
+            137500: {25: '£125,000 to £149,999'},
+            150000: {26: '£150,000 or more'},
             -1: {-8: 'NA', 0: 'NA'},
             0: {-9: 'DNA (under 16)'}
         }
 
         # income HHIncome2002_B02ID
         self.i02_02id = {
-            1: {1: 'Less than £25,000'},
-            2: {2: '£25,000 to £49,999'},
-            3: {3: '£50,000 and over'},
-            0: {-8: 'NA'}
+            1: {key: key for key in range(1, 16)},  # Less than £25,000
+            2: {key: key for key in range(16, 20)},  # £25,000 to £49,999
+            3: {key: key for key in range(20, 28)},  # £50,000 and over
+            0: {-8: 'NA', 0: 'NA'}
+        }
+
+        # household reference person
+        self.hrp_01id = {
+            1: {99: 'Household reference person'},
+            0: {1: '', 2: '', 3: '', 4: '', 5: '', 6: '', 7: '', 8: ''}
         }
 
         # SIC1992 codes
@@ -226,7 +232,7 @@ class Lookup:
             6: {12: 'other urban areas - 50k to 100k population', 13: 'other urban areas - 25k to 50k population'},
             7: {14: 'other urban areas - 10k to 25k population', 15: 'other urban areas - 3k to 10k population'},
             8: {16: 'rural'},
-            0: {-8: 'na', -9: 'dna'}
+            0: {-8: 'na', -9: 'dna', -10: 'dna'}
         }
 
         # government office region
@@ -250,6 +256,7 @@ class Lookup:
         self.at2_01id = self.dct_to_specs(self.at2_01id, col_type)
         self.i02_01id = self.dct_to_specs(self.i02_01id, col_type)
         self.i02_02id = self.dct_to_specs(self.i02_02id, col_type)
+        self.hrp_01id = self.dct_to_specs(self.hrp_01id, col_type)
         self.s07_02id = self.dct_to_specs(self.s07_02id, col_type)
         self.s92_02id = self.dct_to_specs(self.s92_02id, col_type)
 
@@ -292,18 +299,18 @@ class Lookup:
     def aws(self) -> Dict:
         # age, work, status
         eco_01id, age_01id = self.eco_01id, self.age_01id
-        eco_over = eco_01id['fte'] + eco_01id['pte'] + eco_01id['stu'] + eco_01id['unm']
+        eco_over = eco_01id['fte'] + eco_01id['pte'] + eco_01id['unm'] + eco_01id['dna']
         out_dict = {'col': ['age_b01id', 'ecostat_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
                     'log': 'aws',
                     'val': {1: fun.product(age_01id['child'], eco_01id['dna']),  # child
                             2: fun.product(age_01id['adult'], eco_01id['fte']),  # fte
                             3: fun.product(age_01id['adult'], eco_01id['pte']),  # pte
-                            4: fun.product(age_01id['adult'], eco_01id['stu']),  # student
+                            4: fun.product(age_01id['adult'] + age_01id['elder'], eco_01id['stu']),  # student
                             5: fun.product(age_01id['adult'], eco_01id['unm']),  # unemployed
-                            6: fun.product(age_01id['elder'], eco_over + eco_01id['dna']),  # over 75
+                            6: fun.product(age_01id['elder'], eco_over),  # over 75
                             },
-                    'out': {1: 'child', 2: 'fte', 3: 'pte', 4: 'student', 5: 'neet', 6: '75+'}
+                    'out': {1: 'child', 2: 'fte', 3: 'pte', 4: 'student', 5: 'neet', 6: 'over 75'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -324,49 +331,49 @@ class Lookup:
                             4: (fun.product(all_xsoc, all_ages, eco_01id['stu']) +  # student
                                 fun.product(all_xsoc, age_01id['adult'], eco_01id['unm']) +  # unemployed
                                 fun.product(all_xsoc, age_01id['child'], all_ecos) +  # children
-                                fun.product(all_xsoc, age_01id['elder'], all_ecos))  # over 75
+                                fun.product(all_xsoc, age_01id['elder'], all_ecos)),  # over 75
+                            #  0: fun.product(soc_02id['dna'], age_01id['adult'], emp_ecos)  # other
                             },
                     'out': {1: '1. high skilled', 2: '2. medium skilled', 3: '3. low skilled', 4: '4. other'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def sic(self, sic_year: str = '2007') -> Dict:
-        out_dict = {'col': f'sic{sic_year}_b02id', 'typ': self.nts_dtype, 'log': f'sic{sic_year}',
-                    'val': eval(f'self.s{sic_year[2:]}_02id')}
-        out_dict['val'] = self.val_to_key(out_dict['val'])
-        return out_dict
-
     def ns_sec(self) -> Dict:
         # ns-sec
         out_dict = {'col': 'nssec_b03id', 'typ': self.nts_dtype, 'log': 'ns-sec',
-                    'val': {1: self.sec_03id['ns1'],  # ns-sec 1
-                            2: self.sec_03id['ns2'],  # ns-sec 2
-                            3: self.sec_03id['ns3'],  # ns-sec 3
-                            4: self.sec_03id['ns4'],  # ns-sec 4
-                            5: self.sec_03id['ns5'] + self.sec_03id['dna'],  # ns-sec 5
+                    'val': {1: self.sec_03id['ns1'],  # manager & professional
+                            2: self.sec_03id['ns2'],  # intermediate
+                            3: self.sec_03id['ns3'],  # manual & routine
+                            4: self.sec_03id['ns4'],  # unemployed
+                            5: self.sec_03id['ns5'] + self.sec_03id['dna'],  # not classified + students
                             },
-                    'out': {1: '1. professional', 2: '2. technical', 3: '3. routine', 4: '4. unemployed',
-                            5: '5. not classified'}
+                    'out': {1: '1. manager & professional', 2: '2. intermediate & small employers',
+                            3: '3. routine & manual', 4: '4. unemployed', 5: '5. not classified (inc. students)'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def income(self, col_name: str) -> Dict:
-        # household or individual income
-        level = col_name.split('_')[1][1:]
+    def hrp(self) -> Dict:
+        # hrp
+        out_dict = {'col': 'hrprelation_b01id', 'typ': self.nts_dtype, 'log': 'hrp',
+                    'val': {1: self.hrp_01id[1]},
+                    'out': {1: 'household reference person', 0: 'other'}
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def income(self, col_name: str, lev_name: str = '01') -> Dict:
+        # household or individual income: {ind/hh}income2002_b{01/02}id
+        col_name = f'{col_name}income2002_b01id'
         out_dict = {'col': col_name, 'typ': self.nts_dtype, 'log': 'income',
-                    'val': eval(f'self.i02_{level}')}
+                    'val': eval(f'self.i02_{lev_name}id')}
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def at_ntem(self, col_name: str) -> Dict:
-        # ntem area type
-        out_dict = {'col': f'{col_name}areatype_b01id', 'typ': self.nts_dtype, 'log': 'ntem_at',
-                    'val': self.at2_01id,
-                    'out': {1: 'inner london', 2: 'outer london', 3: 'metropolitan', 4: 'urban big',
-                            5: 'urban large', 6: 'urban medium', 7: 'urban small', 8: 'rural'}
-                    }
+    def sic(self, sic_year: str = '2007') -> Dict:
+        out_dict = {'col': f'sic{sic_year}_b02id', 'typ': self.nts_dtype, 'log': f'sic{sic_year}',
+                    'val': eval(f'self.s{sic_year[2:]}_02id')}
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
@@ -400,16 +407,20 @@ class Lookup:
         par_dict = _dct_update(gen[0], aws[0], hh, soc[-1], sec)
         if out_type == 'tfn':
             for g in gen[1:]:
-                # fte/pte: gender=2-3, aws=2-3, hh=1-8, soc=1-3, ns=1-3,5
-                par_dict = _dct_update([g], aws[1:3], hh, soc[:3], sec[:3] + sec[-1:])
+                # fte/pte: gender=2-3, aws=2-3, (hh=1-2, soc=1-3, ns=1-3,5) & (hh=3-8, soc=1-3, ns=1-5)
+                par_dict = _dct_update(g, 2, hh[:2], [1, 2], [1, 2, 3, 5])
+                par_dict = _dct_update(g, 2, hh[:2], 3, [2, 3, 5])
+                par_dict = _dct_update(g, 2, hh[2:], [1, 2, 3], sec)
+                par_dict = _dct_update(g, 3, hh[:2], [1, 2], [1, 2, 3, 5])
+                par_dict = _dct_update(g, 3, hh[:2], 3, [2, 3, 5])
+                par_dict = _dct_update(g, 3, hh[2:], [1, 2, 3], sec)
                 # student: gender=2-3, aws=4, (hh=1-2, soc=4, ns=5) & (hh=3-8, soc=4, ns=1-5)
-                par_dict = _dct_update([g], [4], hh[:2], soc[-1], [5])
-                par_dict = _dct_update([g], [4], hh[2:], soc[-1], sec)
-                # unemployed: gender=2-3, aws=5, (hh=1-8, soc=4, ns=4) & (hh=3-8, soc=4, ns=1-5)
-                par_dict = _dct_update([g], [5], hh[:2], soc[-1], [4])
-                par_dict = _dct_update([g], [5], hh[2:], soc[-1], sec)
+                par_dict = _dct_update(g, 4, hh[:2], 4, 5)
+                par_dict = _dct_update(g, 4, hh[2:], 4, sec)
+                # unemployed: gender=2-3, aws=5, (hh=1-8, soc=4, ns=1-5)
+                par_dict = _dct_update(g, 5, hh, 4, sec)
                 # over 75 gender=2-3, aws=6, hh=1-8, soc=4, ns=1-5
-                par_dict = _dct_update([g], [6], hh, soc[-1], sec)
+                par_dict = _dct_update(g, 6, hh, 4, sec)
         else:
             # fte/pte: gender=2-3, aws=2-6, hh=1-8
             par_dict = _dct_update(gen[1:], aws[1:], hh)
@@ -423,38 +434,98 @@ class Lookup:
         dfr = dfr.reset_index(drop=False).rename(columns={'index': 'tt'})
         return dfr
 
+    def at_ntem(self, col_name: str) -> Dict:
+        # ntem area type
+        out_dict = {'col': f'{col_name}areatype_b01id', 'typ': self.nts_dtype, 'log': 'ntem_at',
+                    'val': self.at2_01id,
+                    'out': {1: 'inner london', 2: 'outer london', 3: 'metropolitan', 4: 'urban big',
+                            5: 'urban large', 6: 'urban medium', 7: 'urban small', 8: 'rural'}
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
     def at_tfn(self, col_type: str) -> Dict:
         # test new area types that based on ruc, ntem & gor
         # col_type: hhold, triporig, tripdest
         # 1: 'north east', 2: 'north west', 3: 'yorkshire and the humber', 4: 'east midlands',
         # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south east', 9: 'south west',
         # 10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
-        set_list = [val for key in self.set_01id for val in self.set_01id[key]]
-        at2_list = [val for key in self.at2_01id for val in self.at2_01id[key]]
-        at2_xlon = [val for key in self.at2_01id for val in self.at2_01id[key] if val not in self.at2_01id[1]]
-        eng_list = [1, 2, 3, 4, 5, 6, 7, 8, 9]  # england only
-        out_dict = {'col': [f'{col_type}gor_b02id', f'{col_type}areatype_b01id', 'settlement2011ew_b01id'],
+        set_01id, at2_01id = self.set_01id, self.at2_01id
+        all_cnty = [-8, -9] + list(range(10, 89))
+        set_list = [val for key in set_01id for val in set_01id[key]]
+        non_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1] + at2_01id[2]]
+        out_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1]]
+        enw_list = [1, 2, 3, 4, 5, 6, 8, 9, 10]  # england & wales only, exc. london
+        out_dict = {'col': [f'{col_type}gor_b02id', f'{col_type}county_b01id', f'{col_type}areatype_b01id',
+                            f'{col_type}ruc2011_b01id'],
+                    'typ': [self.nts_dtype, self.nts_dtype, self.nts_dtype, str],
+                    'log': f'tfn_at ({col_type})',
+                    'val': {1: fun.product([7], all_cnty, at2_01id[1], set_list),  # inner london
+                            2: (fun.product([7], all_cnty, out_ldon, set_list) +  # outer london within london
+                                fun.product([6, 8], all_cnty, at2_01id[2], set_list)),  # outer london outside london
+                            3: (fun.product([1, 3], all_cnty, non_ldon, set_01id['major']) +  # major (ne + yh)
+                                fun.product([1, 3], all_cnty, non_ldon, set_01id['minor'])),  # minor (yh)
+                            4: fun.product([2, 4], all_cnty, non_ldon, set_01id['major']),  # major (nw + em)
+                            5: fun.product([5], all_cnty, non_ldon, set_01id['major']),  # major (wm)
+                            6: fun.product([1, 3], all_cnty, non_ldon, set_01id['city']),  # city (ne + yh)
+                            7: (fun.product([2], all_cnty, non_ldon, set_01id['city']) +  # city (nw)
+                                fun.product([10], [60, 63], non_ldon, set_01id['city'])),  # city (wales)
+                            8: fun.product([4], all_cnty, non_ldon, set_01id['minor'] + set_01id['city']),  # city (em)
+                            9: (fun.product([5], all_cnty, non_ldon, set_01id['city']) +  # city (wm)
+                                fun.product([10], [61, 65], non_ldon, set_01id['city'])),  # city (wales)
+                            10: fun.product([6], all_cnty, non_ldon, set_01id['major'] + set_01id['city']),  # city (east)
+                            11: fun.product([8], all_cnty, non_ldon, set_01id['major'] + set_01id['city']),  # city (se)
+                            12: (fun.product([9], all_cnty, non_ldon, set_01id['city']) +  # city (sw)
+                                 fun.product([10], [62, 64, 66, 67], non_ldon, set_01id['city'])),  # city (wales)
+                            13: fun.product(enw_list, all_cnty, non_ldon, set_01id['town']),  # town
+                            14: fun.product(enw_list, all_cnty, non_ldon, set_01id['village']),  # village
+                            15: fun.product([11], all_cnty, non_ldon, set_list),  # scotland
+                            },
+                    'out': {1: 'inner london', 2: 'outer london', 3: 'major (ne + yh) + minor (yh)',
+                            4: 'major (nw + em)', 5: 'major (wm)', 6: 'city (ne + yh)', 7: 'city (nw)',
+                            8: 'city + minor (em)', 9: 'city (wm)', 10: 'city (east)', 11: 'city (se)',
+                            12: 'city (sw)', 13: 'town', 14: 'village', 15: 'scotland'}
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def at_tfn_v1(self, col_type: str) -> Dict:
+        # test new area types that based on ruc, ntem & gor
+        # col_type: hhold, triporig, tripdest
+        # 1: 'north east', 2: 'north west', 3: 'yorkshire and the humber', 4: 'east midlands',
+        # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south east', 9: 'south west',
+        # 10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
+        set_01id, at2_01id = self.set_01id, self.at2_01id
+        set_list = [val for key in set_01id for val in set_01id[key]]
+        non_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1] + at2_01id[2]]
+        out_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1]]
+        enw_list = [1, 2, 3, 4, 5, 6, 8, 9]  # england only, exc. london
+        out_dict = {'col': [f'{col_type}gor_b02id', f'{col_type}areatype_b01id', f'{col_type}ruc2011_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype, str],
-                    'log': 'tfn_at',
-                    'val': {1: fun.product([7], self.at2_01id[1], set_list),  # inner london
-                            2: (fun.product([7], at2_xlon, set_list) +  # outer london + major (east, se)
-                                fun.product([6, 8], at2_list, self.set_01id['major'])),
-                            3: fun.product([2, 4], at2_list, self.set_01id['major']),  # major (nw + em)
-                            4: fun.product([5], at2_list, self.set_01id['major']),  # major (wm)
-                            5: fun.product([1, 3], at2_list, self.set_01id['major']),  # major (ne + yh)
-                            6: fun.product(eng_list, at2_list, self.set_01id['minor']),  # minor
-                            7: fun.product([8], at2_list, self.set_01id['city']),  # city (se)
-                            8: fun.product([9], at2_list, self.set_01id['city']),  # city (sw)
-                            9: fun.product([6], at2_list, self.set_01id['city']),  # city (east)
-                            10: fun.product([5], at2_list, self.set_01id['city']),  # city (wm)
-                            11: fun.product([2], at2_list, self.set_01id['city']),  # city (nw)
-                            12: fun.product([4], at2_list, self.set_01id['city']),  # city (em)
-                            13: fun.product([1, 3], at2_list, self.set_01id['city']),  # city (ne + yh)
-                            14: fun.product(eng_list, at2_list, self.set_01id['town']),  # town
-                            15: fun.product(eng_list, at2_list, self.set_01id['village']),  # village
-                            16: fun.product([10], at2_list, set_list),  # wales
-                            17: fun.product([11], at2_list, set_list)  # scotland
-                            }
+                    'log': f'tfn_at ({col_type})',
+                    'val': {1: fun.product([7], at2_01id[1], set_list),  # inner london
+                            2: (fun.product([7], out_ldon, set_list) +  # outer london + major (east, se)
+                                fun.product([6, 8], at2_01id[2], set_list)),
+                            3: fun.product([1, 3], non_ldon, set_01id['major']),  # major (ne + yh)
+                            4: fun.product([2, 4], non_ldon, set_01id['major']),  # major (nw + em)
+                            5: fun.product([5], non_ldon, set_01id['major']),  # major (wm)
+                            6: fun.product(enw_list, non_ldon, set_01id['minor']),  # minor
+                            7: fun.product([1, 3], non_ldon, set_01id['city']),  # city (ne + yh)
+                            8: fun.product([2], non_ldon, set_01id['city']),  # city (nw)
+                            9: fun.product([4], non_ldon, set_01id['city']),  # city (em)
+                            10: fun.product([5], non_ldon, set_01id['city']),  # city (wm)
+                            11: fun.product([6], non_ldon, set_01id['major'] + set_01id['city']),  # city (east)
+                            12: fun.product([8], non_ldon, set_01id['major'] + set_01id['city']),  # city (se)
+                            13: fun.product([9], non_ldon, set_01id['city']),  # city (sw)
+                            14: fun.product(enw_list, non_ldon, set_01id['town']),  # town
+                            15: fun.product(enw_list, non_ldon, set_01id['village']),  # village
+                            16: fun.product([10], non_ldon, set_list),  # wales
+                            17: fun.product([11], non_ldon, set_list),  # scotland
+                            },
+                    'out': {1: 'inner london', 2: 'outer london', 3: 'major (ne + yh)', 4: 'major (nw + em)',
+                            5: 'major (wm)', 6: 'minor (em + yh)', 7: 'city (ne + yh)', 8: 'city (nw)',
+                            9: 'city (em)', 10: 'city (wm)', 11: 'city (east)', 12: 'city (se)',
+                            13: 'city (sw)', 14: 'town', 15: 'village', 16: 'wales', 17: 'scotland'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -491,11 +562,11 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def mode(self) -> Dict:
+    def mode(self, col_mode: str = 'main') -> Dict:
         # main mode
-        out_dict = {'col': ['mainmode_b11id'],
+        out_dict = {'col': [f'{col_mode}mode_b11id'],
                     'typ': [self.nts_dtype],
-                    'log': 'main mode',
+                    'log': f'{col_mode} mode',
                     'val': {1: self.mmd_11id['swak'] + self.mmd_11id['walk'],  # walk
                             2: self.mmd_11id['bike'],  # cycle
                             3: self.mmd_11id['car_d'] + self.mmd_11id['car_p'],  # car driver/passenger
@@ -551,7 +622,7 @@ class Lookup:
         all_24hr = ttp_01id['am'] + ttp_01id['ip'] + ttp_01id['pm'] + ttp_01id['op'] + ttp_01id['na']
         out_dict = {'col': ['travelweekday_b01id', f'trip{ttp_type}_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
-                    'log': f'trip {ttp_type} time',
+                    'log': f'{ttp_type} time',
                     'val': {1: fun.product(wkd_01id['wkd'], ttp_01id['am']),
                             2: fun.product(wkd_01id['wkd'], ttp_01id['ip']),
                             3: fun.product(wkd_01id['wkd'], ttp_01id['pm']),
