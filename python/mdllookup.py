@@ -6,7 +6,7 @@ import pandas as pd
 class Lookup:
     def __init__(self, col_type: type = int):
         self.nts_dtype = col_type
-        # main mode - trip & stage table
+        # mode: {main/stage}mode_b11id - trip & stage table
         self.mmd_11id = {
             'swak': {1: 'walk, less than 1 mile'},
             'walk': {2: 'walk, 1 mile or more'},
@@ -26,7 +26,7 @@ class Lookup:
             'na': {23: 'na (public)', 24: 'na (private)', 25: 'na', -8: 'na', 0: '0'}
         }
 
-        # trip purpose
+        # trip purpose: trippurp{from/to}_b01id
         self.tpp_01id = {
             'com': {1: 'work', 18: 'escort work'},
             'emb': {2: 'in course of work', 19: 'escort in course of work'},
@@ -148,7 +148,7 @@ class Lookup:
             1: {key: key for key in range(1, 16)},  # Less than £25,000
             2: {key: key for key in range(16, 20)},  # £25,000 to £49,999
             3: {key: key for key in range(20, 28)},  # £50,000 and over
-            0: {-8: 'NA', 0: 'NA'}
+            0: {-8: 'na', 0: 'na'}
         }
 
         # household reference person
@@ -176,7 +176,7 @@ class Lookup:
             'e08/09': {14: 'N - Health and social work'},
             'e12/14': {15: 'O - Other community, social and personal service activities'},
             'na': {-8: 'na'},
-            'child': {-9: 'dna'}
+            'dna': {-9: 'dna'}
         }
 
         # SIC2007 codes
@@ -201,7 +201,7 @@ class Lookup:
             'e08/09': {17: 'Q - Human health and social work activities'},
             'e12/14': {18: 'R - Arts, entertainment and recreation', 19: 'S - Other service activities'},
             'na': {-8: 'na'},
-            'child': {-9: 'dna'}
+            'dna': {-9: 'dna'}
         }
 
         # settlement ruc 2011
@@ -220,7 +220,7 @@ class Lookup:
                         '8': 'very remote rural area - scotland'}
         }
 
-        # ntem area type2
+        # ntem area type2: {hhold/triporig/tripdest}areatype2_b01id
         self.at2_01id = {
             1: {1: 'inner london'},
             2: {2: 'outer london built-up areas'},
@@ -232,15 +232,43 @@ class Lookup:
             6: {12: 'other urban areas - 50k to 100k population', 13: 'other urban areas - 25k to 50k population'},
             7: {14: 'other urban areas - 10k to 25k population', 15: 'other urban areas - 3k to 10k population'},
             8: {16: 'rural'},
-            0: {-8: 'na', -9: 'dna', -10: 'dna'}
+            0: {-8: 'na', -9: 'dna', -10: 'dead'}
         }
 
-        # government office region
-        self.gor_02id = {1: 'north east', 2: 'north west', 3: 'yorkshire and the humber',
+        # gor: {hhold/triporig/tripdest}gor_b02id
+        self.gor_02id = {1: 'north east', 2: 'north west', 3: 'yorks and humber',
                          4: 'east midlands', 5: 'west midlands', 6: 'east of england',
                          7: 'london', 8: 'south east', 9: 'south west',
                          10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
                          }
+
+        # vehicle fuel type: vehproptype_b01id
+        self.vp1_01id = {
+            1: {1: 'unleaded petrol', 94: 'unleaded petrol and lead replacement petrol (LRP)',
+                95: 'lead replacement petrol (LRP)', 96: 'leaded (classic cars)'},
+            2: {2: 'diesel'},
+            3: {3: 'electric'},
+            4: {},
+            5: {},
+            6: {4: 'liquefied petroleum gas (LPG)'},
+            7: {5: 'bi-fuel'},
+            8: {97: 'other', -8: 'na', -9: 'na'},
+            0: {0: ''},
+            -10: {-10: 'dead'}
+        }
+        # vehicle fuel type: vehproptypen_b01id
+        self.vp2_01id = {
+            1: {1: 'petrol'},
+            2: {2: 'diesel'},
+            3: {3: 'electric/battery only'},
+            4: {4: 'hybrid'},
+            5: {5: 'plug-in hybrid'},
+            6: {6: 'liquefied petroleum gas (LPG)'},
+            7: {7: 'bi-fuel'},
+            8: {97: 'other', -8: 'na', -9: 'na'},
+            0: {0: ''},
+            -10: {-10: 'dead'}
+        }
 
         # convert specs to either key or values
         self.set_01id = self.dct_to_specs(self.set_01id, col_type)
@@ -259,6 +287,8 @@ class Lookup:
         self.hrp_01id = self.dct_to_specs(self.hrp_01id, col_type)
         self.s07_02id = self.dct_to_specs(self.s07_02id, col_type)
         self.s92_02id = self.dct_to_specs(self.s92_02id, col_type)
+        self.vp1_01id = self.dct_to_specs(self.vp1_01id, col_type)
+        self.vp2_01id = self.dct_to_specs(self.vp2_01id, col_type)
 
     def gender(self) -> Dict:
         # gender
@@ -473,7 +503,8 @@ class Lookup:
                             8: fun.product([4], all_cnty, non_ldon, set_01id['minor'] + set_01id['city']),  # city (em)
                             9: (fun.product([5], all_cnty, non_ldon, set_01id['city']) +  # city (wm)
                                 fun.product([10], [61, 65], non_ldon, set_01id['city'])),  # city (wales)
-                            10: fun.product([6], all_cnty, non_ldon, set_01id['major'] + set_01id['city']),  # city (east)
+                            10: fun.product([6], all_cnty, non_ldon, set_01id['major'] + set_01id['city']),
+                            # city (east)
                             11: fun.product([8], all_cnty, non_ldon, set_01id['major'] + set_01id['city']),  # city (se)
                             12: (fun.product([9], all_cnty, non_ldon, set_01id['city']) +  # city (sw)
                                  fun.product([10], [62, 64, 66, 67], non_ldon, set_01id['city'])),  # city (wales)
@@ -547,12 +578,12 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def occupant(self) -> Dict:
+    def occupant(self, col_mode: str = 'main') -> Dict:
         # occupant
         mmd_11id = self.mmd_11id
-        out_dict = {'col': ['mainmode_b11id'],
+        out_dict = {'col': [f'{col_mode}mode_b11id'],
                     'typ': [self.nts_dtype],
-                    'log': 'occupancy',
+                    'log': f'occupancy ({col_mode})',
                     'val': {'driver': (mmd_11id['swak'] + mmd_11id['walk'] + mmd_11id['bike'] +
                                        mmd_11id['car_d'] + mmd_11id['van_d'] + mmd_11id['bus_d']),
                             'passenger': (mmd_11id['car_p'] + mmd_11id['van_p'] + mmd_11id['bus_p'] +
@@ -645,6 +676,17 @@ class Lookup:
                             'hb_to': fun.product(nhb_purp, self.tpp_01id['hom']),
                             'nhb': fun.product(nhb_purp, nhb_purp)
                             }
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def fuel_type(self, col_name: str) -> Dict:
+        # vehicle fuel type: col_name = vehproptype_b01id, or vehproptypen_b01id
+        out_dict = {'col': col_name, 'typ': self.nts_dtype,
+                    'log': 'fuel type',
+                    'val': (self.vp1_01id if col_name == 'vehproptype_b01id' else self.vp2_01id),
+                    'out': {1: 'petrol', 2: 'diesel', 3: 'electric', 4: 'hybrid', 5: 'p-hybrid', 6: 'lpg',
+                            7: 'bi-fuel', 8: 'other', 0: 'passenger'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict

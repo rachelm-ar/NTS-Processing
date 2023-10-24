@@ -1,6 +1,7 @@
 from mdlbuild import ClassifiedBuild
 from mdloutput import Output
 from mdltriprate import TripRate
+from mdlstage import Stage
 import mdlconfig as cfg
 import multiprocessing as mp
 import matplotlib.pyplot as plt
@@ -17,10 +18,13 @@ if __name__ == '__main__':
     cb_version = '5_test'
 
     # classified build
-    ClassifiedBuild(nts_fldr, out_fldr, cb_version, True)
+    ClassifiedBuild(nts_fldr, out_fldr, cb_version, False)
 
     # trip-rate model
-    TripRate(out_fldr, cb_version)
+    TripRate(out_fldr, cb_version, False)
 
     # NTS outputs
-    Output(out_fldr, cb_version)
+    Output(out_fldr, cb_version, True)
+
+    # NTS stage analysis
+    Stage(out_fldr, cb_version, False)

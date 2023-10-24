@@ -17,15 +17,18 @@ class Config:
         # sub-folders
         self.fld_cbuild = f'{out_fldr}\\classified builds'
         self.fld_output = f'{out_fldr}\\outputs'
-        self.fld_dbase = 'hb_trip_rates'
+        self.fld_dbase = 'database'
         self.fld_report = 'reports'
         self.fld_notem = 'notem'
         self.fld_tlds = 'tld'
         self.fld_hbase = 'hb'
+        self.fld_rates = 'trip_rates'
+        self.fld_split = 'mode_time_splits'
         self.fld_phis = 'phi_factors'
         self.fld_nhbase = 'nhb'
         self.fld_occs = 'occs'
         self.fld_graph = 'graphs'
+        self.fld_stage = 'stage'
 
         # create directory
         self._setup_directory()
@@ -33,10 +36,13 @@ class Config:
     def _setup_directory(self):
         # create sub-folders
         mkdir(f'{self.fld_cbuild}\\{self.fld_report}')
-        mkdir(f'{self.fld_cbuild}\\{self.fld_dbase}')
+        mkdir(f'{self.fld_output}\\{self.fld_dbase}')
         mkdir(f'{self.fld_output}\\{self.fld_notem}')
         mkdir(f'{self.fld_output}\\{self.fld_occs}')
         mkdir(f'{self.fld_output}\\{self.fld_nhbase}')
         mkdir(f'{self.fld_output}\\{self.fld_tlds}')
+        mkdir(f'{self.fld_output}\\{self.fld_stage}')
         mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_graph}')
         mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_phis}')
+        mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_rates}')
+        mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_split}')

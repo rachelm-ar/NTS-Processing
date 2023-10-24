@@ -15,8 +15,8 @@ def dfr_filter_zero(dfr: pd.DataFrame, col_used: Union[List, str]) -> pd.DataFra
 
 
 # filter mode values
-def dfr_filter_mode(dfr: pd.DataFrame, inc_list: List) -> pd.DataFrame:
-    return dfr.loc[dfr['mode'].isin(inc_list)].reset_index(drop=True)
+def dfr_filter_mode(dfr: pd.DataFrame, inc_list: List, col_mode: str = 'mode') -> pd.DataFrame:
+    return dfr.loc[dfr[col_mode].isin(inc_list)].reset_index(drop=True)
 
 
 # create a complete set of index values
@@ -242,3 +242,40 @@ def dist_band(max_dist: float) -> np.ndarray:
 # product function
 def product(*args) -> List:
     return list(itt.product(*args))
+
+
+# fill data from aggregate level
+def agg_fill(dfr: pd.DataFrame, col_grby: Union[List, str], col_segm: Union[List, str], col_calc: str,
+             val_vmin: float = 0) -> pd.Series:
+    # col_grby: list of columns to aggregate, hierarchical level from right to left
+    # col_segm: further segmentation to calculate %split
+    def _calc_split():
+        enu = dfr.groupby(col_used + col_segm, observed=True)[col_calc].transform('sum')
+        den = dfr.groupby(col_used, observed=True)[col_calc].transform('sum')
+        out.loc[(out.isna()) & (den > val_vmin)] = enu.div(den)
+        return out
+
+    out = pd.Series(data=[np.nan] * len(dfr))
+    col_grby, col_segm = str_to_list(col_grby), str_to_list(col_segm)
+    dfr = dfr[col_grby + col_segm + [col_calc]].copy()
+    for lev, key in enumerate(col_grby):
+        col_used = col_grby if lev == 0 else col_grby[:-lev]
+        _calc_split()
+
+        # aggregate to hh & at subgroup
+        if col_used[-1] == 'hh_type':
+            dfr.loc[dfr['hh_type'].isin([1, 3, 6]), 'hh_type'] = 1  # 0 car
+            dfr.loc[dfr['hh_type'].isin([4, 7]), 'hh_type'] = 2  # 1 car
+            dfr.loc[dfr['hh_type'].isin([2, 5, 8]), 'hh_type'] = 3  # 1+ car
+            _calc_split()
+
+        if col_used[-1] == 'tfn_at':
+            dfr.loc[dfr['tfn_at'].isin([1, 2]), 'tfn_at'] = 1  # london
+            dfr.loc[dfr['tfn_at'].isin([3, 4, 5]), 'tfn_at'] = 2  # major
+            dfr.loc[dfr['tfn_at'].isin([6, 7]), 'tfn_at'] = 3  # city (north)
+            dfr.loc[dfr['tfn_at'].isin([8, 9]), 'tfn_at'] = 4  # city (midland)
+            dfr.loc[dfr['tfn_at'].isin([10, 11, 12]), 'tfn_at'] = 5  # city (south)
+            dfr.loc[dfr['tfn_at'].isin([13, 14]), 'tfn_at'] = 6  # rural
+            _calc_split()
+
+    return out.fillna(0)

@@ -18,10 +18,9 @@ class TripRate:
         require: R4.1.2, utils, MASS 7.3.54 and pscl 1.5.5
     """
 
-    def __init__(self, nts_fldr: str, cb_version: Union[str, int]):
+    def __init__(self, nts_fldr: str, cb_version: Union[str, int], over_write: bool = True):
         fun.log_stderr('\n***** TRIP-RATE REGRESSION MODEL - HB PRODUCTION *****')
         # read config
-        self._install_r()
         self.cfg = mdlconfig.Config(nts_fldr)
         self.luk = mdllookup.Lookup(self.cfg.nts_dtype)
         self.cb_version, self.tfn_modes = cb_version, self.cfg.tfn_modes
@@ -31,20 +30,24 @@ class TripRate:
         self.hhx_list = list(set(self.luk.hh_type()['val'].values()))
 
         # read in cb data
-        self._regx_form()
-        fun.log_stderr('\nImport cb data')
-        nts_fldr = f'{self.cfg.fld_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
-        nts_data = fun.csv_to_dfr(nts_fldr)
+        if over_write:
+            self._install_r()
+            self._regx_form()
+            fun.log_stderr('\nImport cb data')
+            nts_fldr = f'{self.cfg.fld_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
+            nts_data = fun.csv_to_dfr(nts_fldr)
 
-        # prepare database
-        self._trip_rates_hb(nts_data)
-        #
-        # # run with python or R codes
-        # # self._regx_model_py()
-        self._regx_model_rs()
-        self._regx_output()
-        # self._compare_python_vs_r()
-        self._analysis()
+            # prepare database
+            self._trip_rates_hb(nts_data)
+            #
+            # # run with python or R codes
+            # # self._regx_model_py()
+            self._regx_model_rs()
+            self._regx_output()
+            # self._compare_python_vs_r()
+            self._analysis()
+        else:
+            fun.log_stderr(f' .. skipped!')
 
     @staticmethod
     def _install_r(upgrade: bool = False):
@@ -108,7 +111,7 @@ class TripRate:
         out['trip_rates'] = out['trip_rates'].div(out['w2']).fillna(0)
         fun.dfr_to_csv(out, out_fldr, 'trip_rates_hb_long', False)
         # travel diary
-        out_fldr = f'{self.cfg.fld_cbuild}\\{self.cfg.fld_dbase}'
+        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_dbase}'
         fun.log_stderr(f' .. trip rates sample')
         dfr = fun.dfr_filter_zero(dfr, tfn_type)
         col_grby = ['surveyyear', 'individualid'] + col_grby + ['purpose', 'w2']
@@ -155,6 +158,7 @@ class TripRate:
         tfn_ttype = self.tfn_ttype + ['tfn_at']
         col_grby = tfn_ttype + ['purpose']
         out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}\\analysis'
+        fun.mkdir(out_fldr)
         for pp in self.ppx_list:
             reg_stat = []
             for aws in self.aws_list:
@@ -171,7 +175,7 @@ class TripRate:
                 old['trip_rates'] = old['trip_rates'].mul(yrs_fact).mul(res_fact)
                 old = old.groupby(col_grby, observed=True)[['trip_rates']].sum()
                 # new method
-                df1 = self._regx_engine_rs(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
+                df1 = self._regx_engine_rs_nw(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
                 df1['trip_rates'] = df1['trip_rates'].mul(df1['w2_weights'])
                 agg_func = {'w2': 'sum', 'w2_weights': 'sum', 'weekly_trips': 'sum', 'trips_nts': 'sum',
                             'trip_rates': 'sum'}
@@ -179,7 +183,7 @@ class TripRate:
                 df1['trip_rates'] = df1['trip_rates'].div(df1['w2_weights'])
                 df1.drop(columns=['w2', 'w2_weights', 'weekly_trips', 'trips_nts'], inplace=True)
                 # new method 2
-                dfr = self._regx_engine_rs_w(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
+                dfr = self._regx_engine_rs(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
                 self.unw_trip.append(dfr.groupby(['purpose', 'aws'])[['trip_rates']].mean())
                 dfr['trip_rates'] = dfr['trip_rates'].mul(dfr['w2_weights'])
                 agg_func = {'w2': 'sum', 'w2_weights': 'sum', 'weekly_trips': 'sum', 'trips_nts': 'sum',
@@ -256,7 +260,7 @@ class TripRate:
         fun.log_stderr(f'\nAnalysis')
         tfn_atyp = self.cfg.tfn_atype
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
         nts_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_long.csv', tfn_ttype + ['w2', 'trip_rates'])
         cte_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_ctripend.csv', tfn_ttype + ['trips'])
 
@@ -328,9 +332,9 @@ class TripRate:
                 fun.plt_scatter(f'p{pp}_aws{aws}_{mdl_form}', pyx, rst, 'PY', 'RS',
                                 f'{out_fldr}\\{self.cfg.fld_graph}')
 
-    def _regx_engine_rs(self, form: str, formula: str, dfr: pd.DataFrame, tfn_ttype: List,
-                        method: str = 'new') -> pd.DataFrame:
-        # R model setup
+    def _regx_engine_rs_nw(self, form: str, formula: str, dfr: pd.DataFrame, tfn_ttype: List,
+                           method: str = 'new') -> pd.DataFrame:
+        # R model setup with no weights applied
         # independent variables - categorical, dependent variables - continuous
         robj.r('''
             run_model <- function(form, formula, data) {
@@ -375,9 +379,9 @@ class TripRate:
         dfr['surveyyear'] = dfr['surveyyear'].astype(int) if 'surveyyear' in col_grby else 0
         return dfr.drop(columns='w5_weights')
 
-    def _regx_engine_rs_w(self, form: str, formula: str, dfr: pd.DataFrame, tfn_ttype: List,
-                          method: str = 'new') -> pd.DataFrame:
-        # R model setup
+    def _regx_engine_rs(self, form: str, formula: str, dfr: pd.DataFrame, tfn_ttype: List,
+                        method: str = 'new') -> pd.DataFrame:
+        # R model setup with offset = w5xhh/jjxsc and weights = w2
         # independent variables - categorical, dependent variables - continuous
         robj.r('''
             run_model <- function(form, formula, data) {
@@ -522,7 +526,8 @@ class TripRate:
         out = out.fillna(dfr[col_enum].div(dfr[col_deno]).fillna(1))
         return out
 
-    def _test_aggregation(self, nts_trip: pd.DataFrame):
+    @staticmethod
+    def _test_aggregation(nts_trip: pd.DataFrame):
         # test aggregation
         dct_2agg = {}
         col_grby = ['purpose', 'gender', 'aws', 'soc', 'ns', 'hh_type', 'tfn_at']
