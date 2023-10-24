@@ -252,7 +252,7 @@ class Lookup:
             5: {},
             6: {4: 'liquefied petroleum gas (LPG)'},
             7: {5: 'bi-fuel'},
-            8: {97: 'other', -8: 'na', -9: 'na'},
+            8: {97: 'other', -8: 'na', -9: 'dna'},
             0: {0: ''},
             -10: {-10: 'dead'}
         }
@@ -265,7 +265,7 @@ class Lookup:
             5: {5: 'plug-in hybrid'},
             6: {6: 'liquefied petroleum gas (LPG)'},
             7: {7: 'bi-fuel'},
-            8: {97: 'other', -8: 'na', -9: 'na'},
+            8: {97: 'other', -8: 'na', -9: 'dna'},
             0: {0: ''},
             -10: {-10: 'dead'}
         }

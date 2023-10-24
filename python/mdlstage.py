@@ -22,8 +22,14 @@ class Stage:
         # read in cb data
         if over_write:
             fun.log_stderr('Import cb data')
-            self.csv_fuel = fun.csv_to_dfr(f'{nts_fldr}\\fuel_cost_per_litre.csv')
-            self.csv_fuel.set_index('year', inplace=True)
+            # income tax/ni bracket
+            self.dfr_itax = fun.csv_to_dfr(f'{nts_fldr}\\income_tax_brackets.csv')
+            self.dfr_itax.set_index(['year', 'type'], inplace=True)
+            self.dct_itax = self.dfr_itax.to_dict()
+            # fuel costs
+            self.dfr_fuel = fun.csv_to_dfr(f'{nts_fldr}\\fuel_cost_per_litre.csv')
+            self.dfr_fuel.set_index('year', inplace=True)
+            # nts classified build
             nts_data = f'{self.cfg.fld_cbuild}\\{self.cfg.csv_cbuild}_stage_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_data)
             self._affordability(nts_data, ['surveyyear', 'hholdgor_b02id', 'ns'])
@@ -36,22 +42,24 @@ class Stage:
         col_grby = seg_incl if isinstance(seg_incl, list) else [seg_incl]
         col_hold = ['householdid'] if 'householdid' not in col_grby else []
         hhi = dfr.groupby(col_hold + col_grby)[['hh_income', 'w2']].mean().reset_index()
-        hhi['weekly_income'] = hhi['hh_income'].apply(lambda x: self._net_income(x)) / 52
-        # household weights
-        hhi['weekly_income'] = hhi['weekly_income'].mul(dfr['w2'])
+        # hhi['weekly_income'] = hhi['hh_income'].apply(lambda x: self._net_income(x))
+        hhi['weekly_income'] = hhi.apply(lambda x: self._net_income_yr(x['surveyyear'], x['hh_income']), axis=1)
+        hhi['weekly_income'] = hhi['weekly_income'].mul(hhi['w2']).div(52)
         hhi = hhi.groupby(col_grby).agg({'weekly_income': 'sum', 'w2': 'sum'}).reset_index()
         # car fuel costs
         dfr['stagefuel'], car_mask = 0., dfr['stagemode'].isin([3, 4])  # car & van
-        dfr.loc[(car_mask) & (dfr['fueltype'] == 1), 'stagefuel'] = self._lpk_tag(dfr, 'petrol')
-        dfr.loc[(car_mask) & (dfr['fueltype'] == 2), 'stagefuel'] = self._lpk_tag(dfr, 'diesel')
-        dfr.loc[(car_mask) & (dfr['fueltype'] == 3), 'stagefuel'] = self._lpk_tag(dfr, 'electric')
-        dfr.loc[(car_mask) & (dfr['fueltype'].isin([4, 5, 6, 7, 8])), 'stagefuel'] = self._lpk_tag(dfr, 'other')
+        dfr.loc[car_mask & (dfr['fueltype'] == 1), 'stagefuel'] = self._lpk_tag(dfr, 'petrol')
+        dfr.loc[car_mask & (dfr['fueltype'] == 2), 'stagefuel'] = self._lpk_tag(dfr, 'diesel')
+        dfr.loc[car_mask & (dfr['fueltype'] == 3), 'stagefuel'] = self._lpk_tag(dfr, 'electric')
+        dfr.loc[car_mask & (dfr['fueltype'].isin([4, 5, 6, 7, 8])), 'stagefuel'] = self._lpk_tag(dfr, 'other')
         # car/pt fare costs
         col_grby = col_grby + ['stagemode']
         col_calc = ['stagedistance', 'stagefuel', 'stagecost']
-        out = dfr[col_grby + col_calc + ['w2', 'w5xhh']].copy()
+        out = dfr[col_grby + col_calc + ['fueltype', 'w2', 'w5xhh']].copy()
         for col in col_calc:
             out[col] = out[col].mul(out['w2'])  # .mul(out['w5xhh'])
+        out['stagedistance'] = out['stagedistance'].mul(self.cfg.m2k_fact)
+        out.loc[(out['fueltype'] <= 0) & (out['stagemode'].isin([3, 4])), 'stagedistance'] = 0
         out = out.groupby(col_grby)[col_calc].sum()
         out = fun.dfr_complete(out, None, 'stagemode').reset_index()
         # merge with income data
@@ -64,17 +72,36 @@ class Stage:
 
     # disposable income factor
     @staticmethod
-    def _net_income(x: float) -> float:
-        y0 = 10_000
+    def _net_income(x: Union[int, float]) -> float:
+        y0 = min(10_000, x)
         y1 = max((1 - 0.20 - 0.12) * (min(x, 50_000) - y0), 0)
         y2 = max((1 - 0.40 - 0.02) * (min(x, 150_000) - 50_000), 0)
         y3 = max((1 - 0.45 - 0.02) * (x - 150_000), 0)
         return y0 + y1 + y2 + y3
 
+    def _net_income_yr(self, yr: int, gross: Union[float, int]) -> float:
+        # https://www.gov.uk/national-insurance-rates-letters
+        # https://www.gov.uk/government/statistics/main-features-of-national-insurance-contributions
+        # https://www.gov.uk/government/publications/rates-and-allowances-income-tax
+        # https://www.gov.uk/government/statistics/rates-of-income-statistics
+
+        dct_0, tax_both = self.dct_itax['tax_free'], 0
+        tax_0, nin_0 = dct_0[(yr, 'tax')], dct_0[(yr, 'ni')]
+        tax_p, nin_p = tax_0, nin_0
+        for key in [1, 2, 3]:
+            dct_v, dct_r = self.dct_itax[f'b{key}_value'], self.dct_itax[f'b{key}_rate']
+            tax_v, nin_v = float(dct_v[(yr, 'tax')]), float(dct_v[(yr, 'ni')])
+            tax_r, nin_r = float(dct_r[(yr, 'tax')]), float(dct_r[(yr, 'ni')])
+            tax_i = max(tax_r * (min(gross, tax_0 + tax_v) - tax_p), 0) / 100
+            nin_i = max(nin_r * (min(gross, nin_v) - nin_p), 0) / 100
+            tax_p, nin_p = tax_0 + tax_v, nin_v
+            tax_both += tax_i + nin_i
+        return gross - tax_both
+
     # fuel consumption (TAG may 23 - 2015 base)
     def _lpk_tag(self, dfr: pd.DataFrame, fuel_type: str = 'other') -> pd.Series:
         # fuel prices
-        fuel = self.csv_fuel[fuel_type].to_dict()
+        fuel = self.dfr_fuel[fuel_type].to_dict()
         # lpk = (a/v + b + c.v + d.v2)
         if fuel_type == 'petrol':
             a, b, c, d = 0.451946800, 0.096046026, -0.001094078, 0.000007246
