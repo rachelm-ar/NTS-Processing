@@ -34,7 +34,7 @@ class TripRate:
             self._install_r()
             self._regx_form()
             fun.log_stderr('\nImport cb data')
-            nts_fldr = f'{self.cfg.fld_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
+            nts_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_fldr)
 
             # prepare database
@@ -89,7 +89,7 @@ class TripRate:
         dfr = fun.dfr_filter_mode(dfr, self.cfg.tfn_modes)
 
         # weighted trip rates
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}'
         fun.log_stderr(f' .. weighted trip rates')
         ppx_list = dfr['purpose'].unique()
         out = dfr.groupby(tfn_type + ['individualid'])[['trips']].sum()
@@ -111,7 +111,7 @@ class TripRate:
         out['trip_rates'] = out['trip_rates'].div(out['w2']).fillna(0)
         fun.dfr_to_csv(out, out_fldr, 'trip_rates_hb_long', False)
         # travel diary
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_dbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_dbase}'
         fun.log_stderr(f' .. trip rates sample')
         dfr = fun.dfr_filter_zero(dfr, tfn_type)
         col_grby = ['surveyyear', 'individualid'] + col_grby + ['purpose', 'w2']
@@ -157,7 +157,7 @@ class TripRate:
         self.unw_trip, self.reg_trip, self.reg_stat = [], [], []
         tfn_ttype = self.tfn_ttype + ['tfn_at']
         col_grby = tfn_ttype + ['purpose']
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}\\analysis'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\analysis'
         fun.mkdir(out_fldr)
         for pp in self.ppx_list:
             reg_stat = []
@@ -239,7 +239,7 @@ class TripRate:
     def _regx_output(self, reg_type: str = None):
         fun.log_stderr(f'\nWrite output trip-rates')
         # weighted & unweighted trip-rates
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}'
         out_fldr = f'{out_fldr}\\{reg_type}' if reg_type not in [None, ''] else out_fldr
         fun.mkdir(out_fldr)
         tfn_grby = self.tfn_ttype + ['tfn_at', 'purpose']
@@ -260,7 +260,7 @@ class TripRate:
         fun.log_stderr(f'\nAnalysis')
         tfn_atyp = self.cfg.tfn_atype
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
         nts_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_long.csv', tfn_ttype + ['w2', 'trip_rates'])
         cte_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_ctripend.csv', tfn_ttype + ['trips'])
 
@@ -315,7 +315,7 @@ class TripRate:
     def _compare_python_vs_r(self):
         fun.log_stderr(f'\nAnalysis')
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}'
         pyx_trip = fun.csv_to_dfr(f'{out_fldr}\\python\\trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
         rst_trip = fun.csv_to_dfr(f'{out_fldr}\\rstudio\\trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
         # merge database

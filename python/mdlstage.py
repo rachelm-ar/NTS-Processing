@@ -25,26 +25,36 @@ class Stage:
             # income tax/ni bracket
             self.dfr_itax = fun.csv_to_dfr(f'{nts_fldr}\\income_tax_brackets.csv')
             self.dfr_itax.set_index(['year', 'type'], inplace=True)
+            self.dfr_itax = self.dfr_itax.astype(float)
             self.dct_itax = self.dfr_itax.to_dict()
             # fuel costs
             self.dfr_fuel = fun.csv_to_dfr(f'{nts_fldr}\\fuel_cost_per_litre.csv')
             self.dfr_fuel.set_index('year', inplace=True)
+            self.dfr_fuel = self.dfr_fuel.astype(float)
             # nts classified build
-            nts_data = f'{self.cfg.fld_cbuild}\\{self.cfg.csv_cbuild}_stage_v{self.cb_version}.csv'
+            nts_data = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_stage_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_data)
             self._affordability(nts_data, ['surveyyear', 'hholdgor_b02id', 'ns'])
         else:
             fun.log_stderr(f' .. skipped!')
 
-    def _affordability(self, dfr: pd.DataFrame, seg_incl: Union[str, List]):
+    def _affordability(self, dfr: pd.DataFrame, seg_incl: Union[str, List], by_individual: bool = True):
         fun.log_stderr('Personal affordability')
         # total household incomes
         col_grby = seg_incl if isinstance(seg_incl, list) else [seg_incl]
         col_hold = ['householdid'] if 'householdid' not in col_grby else []
-        hhi = dfr.groupby(col_hold + col_grby)[['hh_income', 'w2']].mean().reset_index()
-        # hhi['weekly_income'] = hhi['hh_income'].apply(lambda x: self._net_income(x))
-        hhi['weekly_income'] = hhi.apply(lambda x: self._net_income_yr(x['surveyyear'], x['hh_income']), axis=1)
+        if by_individual:
+            col_hold = col_hold + ['individualid']
+            hhi = dfr.groupby(col_hold + col_grby)[['income', 'w2']].mean().reset_index()
+        else:
+            hhi = dfr.groupby(col_hold + col_grby)[['hh_income', 'w2']].mean().reset_index()
+            hhi.rename(columns={'hh_income': 'income'}, inplace=True)
+        if 'surveyyear' in col_grby:
+            hhi['weekly_income'] = hhi.apply(lambda x: self._net_income_yr(x['surveyyear'], x['income']), axis=1)
+        else:
+            hhi['weekly_income'] = hhi['income'].apply(lambda x: self._net_income(x))
         hhi['weekly_income'] = hhi['weekly_income'].mul(hhi['w2']).div(52)
+        hhi['w2'] = hhi['w2'].div(hhi.groupby(['householdid'])['w2'].transform('count'))
         hhi = hhi.groupby(col_grby).agg({'weekly_income': 'sum', 'w2': 'sum'}).reset_index()
         # car fuel costs
         dfr['stagefuel'], car_mask = 0., dfr['stagemode'].isin([3, 4])  # car & van
@@ -68,7 +78,7 @@ class Stage:
         if 'hholdgor_b02id' in seg_incl:
             out = out.set_index('hholdgor_b02id').rename(index=self.luk.gor_02id).reset_index()
         # write result
-        fun.dfr_to_csv(out, f'{self.cfg.fld_output}\\{self.cfg.fld_stage}', 'personal_affordability', False)
+        fun.dfr_to_csv(out, f'{self.cfg.dir_output}\\{self.cfg.fld_stage}', 'personal_affordability', False)
 
     # disposable income factor
     @staticmethod
@@ -80,6 +90,7 @@ class Stage:
         return y0 + y1 + y2 + y3
 
     def _net_income_yr(self, yr: int, gross: Union[float, int]) -> float:
+        # income tax & ni rates obtained from below:
         # https://www.gov.uk/national-insurance-rates-letters
         # https://www.gov.uk/government/statistics/main-features-of-national-insurance-contributions
         # https://www.gov.uk/government/publications/rates-and-allowances-income-tax
@@ -90,19 +101,18 @@ class Stage:
         tax_p, nin_p = tax_0, nin_0
         for key in [1, 2, 3]:
             dct_v, dct_r = self.dct_itax[f'b{key}_value'], self.dct_itax[f'b{key}_rate']
-            tax_v, nin_v = float(dct_v[(yr, 'tax')]), float(dct_v[(yr, 'ni')])
-            tax_r, nin_r = float(dct_r[(yr, 'tax')]), float(dct_r[(yr, 'ni')])
+            tax_v, nin_v = dct_v[(yr, 'tax')], dct_v[(yr, 'ni')]
+            tax_r, nin_r = dct_r[(yr, 'tax')], dct_r[(yr, 'ni')]
             tax_i = max(tax_r * (min(gross, tax_0 + tax_v) - tax_p), 0) / 100
             nin_i = max(nin_r * (min(gross, nin_v) - nin_p), 0) / 100
             tax_p, nin_p = tax_0 + tax_v, nin_v
             tax_both += tax_i + nin_i
         return gross - tax_both
 
-    # fuel consumption (TAG may 23 - 2015 base)
     def _lpk_tag(self, dfr: pd.DataFrame, fuel_type: str = 'other') -> pd.Series:
-        # fuel prices
+        # fuel prices - https://www.gov.uk/government/statistics/weekly-road-fuel-prices
         fuel = self.dfr_fuel[fuel_type].to_dict()
-        # lpk = (a/v + b + c.v + d.v2)
+        # lpk = (a/v + b + c.v + d.v2) - TAG DataBook May 23
         if fuel_type == 'petrol':
             a, b, c, d = 0.451946800, 0.096046026, -0.001094078, 0.000007246
         elif fuel_type == 'diesel':

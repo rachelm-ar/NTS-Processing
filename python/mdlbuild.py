@@ -2,7 +2,7 @@ from typing import Union, List, Dict
 import multiprocessing as mp
 import mdlfunction as fun
 import mdllookup as luk
-import mdlconfig
+import mdlconfig as cfg
 import pandas as pd
 import numpy as np
 import os
@@ -43,6 +43,7 @@ class ClassifiedBuild:
 
         # nts-specific specs
         self.nts_fldr, self.out_fldr = nts_fldr, cbo_fldr
+        self.xls_spec = '7553_nts_lookup_table_response_levels_special_2002_to_2021.xlsx'
         self.nts_file = {'trips': {'household': 'household_special_2002-2021_protect.tab',
                                    'individual': 'individual_special_2002-2021_protect.tab',
                                    'day': 'day_special_2002-2021_protect.tab',
@@ -86,7 +87,7 @@ class ClassifiedBuild:
                          }
 
         # nts specs
-        self.cfg = mdlconfig.Config(cbo_fldr)
+        self.cfg = cfg.Config(cbo_fldr)
         self.nts_dtype, def_years = self.cfg.nts_dtype, self.cfg.def_years
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.m2k_fact, self.tfn_modes = self.cfg.m2k_fact, self.cfg.tfn_modes
@@ -96,14 +97,16 @@ class ClassifiedBuild:
         # import & pre-process
         if over_write:
             self._exist()
-            nts_data = self._import('trips', pd.DataFrame(), def_years)
+            self.nts_spec = self._import_spec()
+            self._write_lookups()
+            nts_data = self._import_data('trips', pd.DataFrame(), def_years)
             nts_data = self._preprocess(nts_data)
             nts_data = self._apply_lookups(nts_data)
             self._summary(nts_data)
             self._write_cb(nts_data, f'{self.cfg.csv_cbuild}_v{self.cb_version}')
 
             # write affordability c.build to csv
-            nts_data = self._import('stage', nts_data)
+            nts_data = self._import_data('stage', nts_data)
             nts_data = self._preprocess_stage(nts_data)
             self._write_cb(nts_data, f'{self.cfg.csv_cbuild}_stage_v{self.cb_version}')
         else:
@@ -112,15 +115,23 @@ class ClassifiedBuild:
     def _exist(self):
         fun.log_stderr('\nCheck file existence')
         self.err_indx = fun.exist_path(self.nts_fldr, self.err_indx)
+        self.err_indx = fun.exist_file(f'{self.nts_fldr}\\mrdoc\\excel\\{self.xls_spec}', self.err_indx)
         for key in self.nts_file:
             for col in self.nts_file[key]:
-                self.err_indx = fun.exist_file(f'{self.nts_fldr}\\{self.nts_file[key][col]}', self.err_indx)
+                self.err_indx = fun.exist_file(f'{self.nts_fldr}\\tab\\{self.nts_file[key][col]}', self.err_indx)
         os.makedirs(self.out_fldr, exist_ok=True)
         fun.log_stderr(' .. specified files OK') if self.err_indx else None
         exit() if not self.err_indx else None
 
-    def _import(self, nts_spec: str, nts_trip: pd.DataFrame = pd.DataFrame(), yrs_incl: List = None
-                ) -> pd.DataFrame:
+    def _import_spec(self) -> pd.DataFrame:
+        dfr = pd.read_excel(f'{self.nts_fldr}\\mrdoc\\excel\\{self.xls_spec}', engine='openpyxl')
+        dfr.rename(columns={col: col.strip().lower() for col in dfr.columns}, inplace=True)
+        for col in ['table', 'variable']:
+            dfr[col] = dfr[col].str.lower().str.strip()
+        return dfr
+
+    def _import_data(self, nts_spec: str, nts_trip: pd.DataFrame = pd.DataFrame(), yrs_incl: List = None
+                     ) -> pd.DataFrame:
         """ import NTS data:
             1. import trip-related database, nts_spec = trip, merge household, individual, day to trip table
             2. import stage-related database, nts_spec = stage, nts_trip = trip database from (1),
@@ -130,7 +141,7 @@ class ClassifiedBuild:
         dct: Union[Dict, pd.DataFrame] = {}
         pool, nts_spec = mp.Pool(self.num_cpus), nts_spec.lower().strip()
         for key in self.nts_file[nts_spec]:
-            csv_file = f'{self.nts_fldr}\\{self.nts_file[nts_spec][key]}'
+            csv_file = f'{self.nts_fldr}\\tab\\{self.nts_file[nts_spec][key]}'
             dct[key] = pool.apply_async(fun.csv_to_dfr, [csv_file, self.col_incl[key], self.cfg.nts_dtype])
         pool.close()
         pool.join()
@@ -269,12 +280,13 @@ class ClassifiedBuild:
         fun.log_stderr(f' .. {tfn_ttype} -> traveller type')
         dct = self.luk.tt_tfn(tfn_ttype, def_ttype)  # update tfn or ntem _tt
         self.dfr_ttype = self.luk.tt_to_dfr(tfn_ttype, def_ttype)
-        dfr_type = self.dfr_ttype.copy()
+        dfr_type, col_calc = self.dfr_ttype.copy(), ['tt']
         for col in tfn_ttype:
             val = f'{col}_sec' if col == 'ns' else col
             dct_type = eval(f'self.luk.{val}()')['out']
-            dfr_type = dfr_type.set_index(col).rename(index=dct_type).reset_index()
-        fun.dfr_to_csv(dfr_type[['tt'] + tfn_ttype], f'{self.cfg.fld_cbuild}', f'traveller_type_{def_ttype}', False)
+            dfr_type[f'{col}_desc'] = dfr_type[col].apply(lambda x: dct_type.get(x, x))
+            col_calc = col_calc + [col, f'{col}_desc']
+        fun.dfr_to_csv(dfr_type[col_calc], f'{self.cfg.dir_cbuild}', f'traveller_type_{def_ttype}', False)
         out = fun.dfr_to_tuple(dfr, tfn_ttype)
         return out.apply(lambda x: dct.get(x, 0))
 
@@ -392,31 +404,34 @@ class ClassifiedBuild:
                           'NTS_cb_income')
         self._write_stats(dfr, ['tripdestgor_b02id', 'gender', 'aws', 'sic', 'purpose', 'direction'], 'NTS_cb_sic')
         self._write_stats(dfr, ['sic1992_b02id', 'sic2007_b02id'], 'NTS_cb_sic92_to_07')
-        self._write_stats(dfr, ['hholdua_b01id', 'hholdua2009_b01id', 'hholdua1998_b01id'], 'NTS_cb_hholdua')
-        self._write_stats(dfr, ['hholdareatype_b01id', 'hholdareatype2_b01id', 'hholdareatype1_b01id'],
-                          'NTS_cb_hholdareatype')
-        self._write_stats(dfr, ['mode', 'mainmode_b11id', 'jjxsc', 'purpose', 'direction', 'trippurpose_b01id',
-                                'trippurpfrom_b01id', 'trippurpto_b01id'],
-                          'NTS_cb_mode_purpose_direction')
+        self._write_stats(dfr, ['hholdua_b01id', 'hholdua1998_b01id', 'hholdua2009_b01id'], 'NTS_cb_hholdua')
+        self._write_stats(dfr, ['hholdareatype_b01id', 'hholdareatype1_b01id', 'hholdareatype2_b01id'],
+                          'NTS_cb_areatype')
+        self._write_stats(dfr, ['triporigareatype_b01id', 'triporigareatype1_b01id', 'triporigareatype2_b01id'],
+                          'NTS_cb_areatype_o')
+        self._write_stats(dfr, ['tripdestareatype_b01id', 'tripdestareatype1_b01id', 'tripdestareatype2_b01id'],
+                          'NTS_cb_areatype_d')
+        self._write_stats(dfr, ['mode', 'purpose', 'direction', 'mainmode_b11id', 'trippurpfrom_b01id',
+                                'trippurpto_b01id'], 'NTS_cb_mode_purpose_direction')
         self._write_stats(dfr, ['householdid', 'hh_type', 'individualid', 'hrprelation_b01id', 'gender', 'aws',
                                 'ns', 'soc', 'ns_ind'], 'NTS_cb_hrp')
         # write traveller types
-        # self._write_stats(dfr, ['gender', 'aws', 'ns', 'soc', 'ns_ind'], 'NTS_cb_test')
         tmp = self._write_stats(dfr, self.tfn_ttype).reset_index()
         tmp = pd.merge(tmp, self.dfr_ttype, how='outer', on=self.tfn_ttype).fillna(0)
         self._write_stats(tmp, ['tt'] + self.tfn_ttype, 'NTS_cb_traveller_type')
 
+    def _test(self, dfr: pd.DataFrame):
         # output trips by ntem/ruc
-        # col_grby = ['tfn_at', 'hholdgor_b02id', 'hholdareatype_b01id', 'settlement2011ew_b01id']
-        # col_trip = ['mode', 'purpose', 'direction']
-        # trip = dfr.groupby(col_grby + ['individualid', 'w2'] + col_trip)[['trips']].sum().reset_index()
-        # pops = trip.groupby(col_grby + ['individualid', 'direction', 'w2'])[['trips']].sum().reset_index()
-        # trip = trip.groupby(col_grby + col_trip)[['trips']].sum()
-        # trip = fun.dfr_complete(trip, None, 'purpose')
-        # trip = fun.dfr_complete(trip, None, 'mode').reset_index()
-        # pops = pops.groupby(col_grby + ['direction'])[['w2']].sum().reset_index()
-        # trip = pd.merge(trip, pops, how='left', on=col_grby + ['direction'])
-        # fun.dfr_to_csv(trip, f'{self.cfg.fld_cbuild}\\{self.cfg.fld_report}', 'NTS_test', False)
+        col_grby = ['tfn_at', 'hholdgor_b02id', 'hholdareatype_b01id', 'settlement2011ew_b01id']
+        col_trip = ['mode', 'purpose', 'direction']
+        trip = dfr.groupby(col_grby + ['individualid', 'w2'] + col_trip)[['trips']].sum().reset_index()
+        pops = trip.groupby(col_grby + ['individualid', 'direction', 'w2'])[['trips']].sum().reset_index()
+        trip = trip.groupby(col_grby + col_trip)[['trips']].sum()
+        trip = fun.dfr_complete(trip, None, 'purpose')
+        trip = fun.dfr_complete(trip, None, 'mode').reset_index()
+        pops = pops.groupby(col_grby + ['direction'])[['w2']].sum().reset_index()
+        trip = pd.merge(trip, pops, how='left', on=col_grby + ['direction'])
+        fun.dfr_to_csv(trip, f'{self.cfg.dir_cbuild}\\{self.cfg.fld_report}', 'NTS_test', False)
 
     def _preprocess_stage(self, dfr: pd.DataFrame, agg_to_trip: bool = False) -> pd.DataFrame:
         fun.log_stderr('\nProcess stage database')
@@ -448,12 +463,59 @@ class ClassifiedBuild:
         col_grby = [col.lower() for col in fun.str_to_list(col_grby)]
         fun.log_stderr(f' .. write {col_grby} -> {csv_name}') if csv_name is not None else None
         out = dfr.groupby(col_grby)[['trips']].sum()
-        out_fldr = f'{self.cfg.fld_cbuild}\\{self.cfg.fld_report}'
+        out_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.fld_report}'
         fun.dfr_to_csv(out, out_fldr, csv_name) if csv_name is not None else None
         return out
 
     def _write_cb(self, dfr: pd.DataFrame, cbo_name: str):
-        cbo_fldr = self.cfg.fld_cbuild
+        out_fldr = self.cfg.dir_cbuild
         fun.log_stderr('\nWrite cb trip data to csv')
-        fun.log_stderr(f' .. write to {cbo_fldr}\\{cbo_name}')
-        fun.dfr_to_csv(dfr, cbo_fldr, cbo_name, False)
+        fun.log_stderr(f' .. write to {out_fldr}\\{cbo_name}')
+        fun.dfr_to_csv(dfr, out_fldr, cbo_name, False)
+
+    def _write_lookups(self):
+        # output folder
+        out_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.fld_lookup}'
+
+        # local function
+        def _lookup(func: str):
+            arg, var_list = func.split(':'), self.nts_spec['variable'].unique()
+            arg = arg[:1] + [f'("{arg[1]}")' if len(arg) > 1 else '()']
+            try:
+                luk_eval = eval(f'self.luk.{arg[0]}{arg[1]}')
+            except AttributeError:
+                luk_eval = {'col': func, 'val': {}}
+            luk_eval['col'] = luk_eval['col'] if isinstance(luk_eval['col'], list) else [luk_eval['col']]
+            dfr = {key: val for key, val in luk_eval['val'].items()}
+            dfr = pd.DataFrame.from_dict(dfr, orient='index').reset_index()
+            dfr[luk_eval['col']] = dfr['index'].to_list() if len(luk_eval['col']) > 1 else dfr[['index']]
+            dfr = dfr.drop(columns='index').rename(columns={0: arg[0]})
+            dfr[f'{arg[0]}_name'] = dfr[arg[0]].apply(lambda x: luk_eval['out'].get(x, x))
+            for col in luk_eval['col']:
+                if col in var_list:
+                    col_x = col
+                else:
+                    col_x = col.split('_')
+                    col_x = (f'{col_x[0]}2_{col_x[1]}' if 'areatype' in col else
+                             f'{col_x[0]}2009_{col_x[1]}' if 'ua' in col else
+                             f'settlement2011ew_b01id' if 'ruc2011' in col else col)
+
+                dct = self.nts_spec.loc[self.nts_spec['variable'] == col_x].set_index('id').to_dict()['desc']
+                if len(luk_eval['val']) > 0:
+                    dfr[f'{col}_desc'] = dfr[col].apply(lambda x: dct.get(x, x))
+                else:
+                    dfr = pd.DataFrame.from_dict(dct, orient='index').reset_index()
+                    dfr.rename(columns={'index': col, 0: f'{col}_desc'}, inplace=True)
+            fun.dfr_to_csv(dfr, out_fldr, f'luk_{arg[0]}', False)
+
+        # run functions
+        _lookup('at_ntem:hhold')
+        _lookup('at_tfn:hhold')
+        _lookup('hholdua_b01id')
+        _lookup('hholdruc2011_b01id')
+        _lookup('hholdgor_b02id')
+        _lookup('mode')
+        _lookup('purpose')
+        _lookup('hh_type')
+        _lookup('soc')
+        _lookup('ns_sec')

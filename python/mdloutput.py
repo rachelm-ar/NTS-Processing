@@ -31,7 +31,7 @@ class Output:
         # read in cb data
         if over_write:
             fun.log_stderr('Import cb data')
-            nts_fldr = f'{self.cfg.fld_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
+            nts_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_fldr)
 
             # pre-processing
@@ -41,7 +41,7 @@ class Output:
             self._mts_hbase(nts_data, self.tfn_mode, 'tfn_at', 'hh_type')  # 'tfn_at', self.tfn_ttype
             self._trip_rates_nhbase(nts_data, self.tfn_mode, 'tfn_at', 'hh_type')
             self._mts_nhbase(nts_data, self.tfn_mode, 'tfn_at', 'hh_type')
-            self._trip_length(nts_data, self.tfn_mode, 'tfn_at', None, None)
+            self._trip_length(nts_data, self.tfn_mode, 'tfn_at', None, None, True)
             self._tour_proportion(nts_data, self.tfn_mode, None, None, None)
             self._occs_vehicle(nts_data, self.tfn_mode, 'gor', None)
             self._activity(nts_data, None, 'gor')
@@ -83,11 +83,12 @@ class Output:
             col_dist = dfr['trav_dist'].values
             rng_dist = fun.dist_band(col_dist.max())
             dfr['dist_band'] = np.digitize(col_dist, rng_dist, right=False)
-            col_used = [col for col in col_used if col != 'trav_dist'] + ['dist_band']
+            # col_used = [col for col in col_used if col != 'trav_dist'] + ['dist_band']
+            col_used = col_used + ['dist_band']
         dfr = dfr.groupby(col_used + seg_incl)[['trips']].sum().reset_index()
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_tlds}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_tlds}'
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
         if geo_list is not None and geo_incl is not None:
             dct = fun.list_to_dict(geo_list)
@@ -126,7 +127,7 @@ class Output:
         dfr = pd.merge(dfr, pop, how='left', on=col_grby, suffixes=('', ''))
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_notem}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_notem}'
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
         if geo_list is not None and geo_incl is not None:
             dct = fun.list_to_dict(geo_list)
@@ -161,7 +162,7 @@ class Output:
         # dfr = dfr.groupby(col_used + seg_incl + ['period_return'])[['trips']].sum().reset_index()
         # write tour_prop output
         fun.log_stderr(f' .. write output - tour proportion')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_notem}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_notem}'
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
         if geo_list is not None and geo_incl is not None:
             dct = fun.list_to_dict(geo_list)
@@ -175,7 +176,7 @@ class Output:
         fun.dfr_to_csv(dfr, out_fldr, 'tour_proportions', False)
         # write phi factors
         fun.log_stderr(f' .. write output - phi factor')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_phis}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_phis}'
         col_used = [col for col in col_used + seg_incl if col != 'mode']
         for mdx in dfr['mode'].unique():
             out = dfr.loc[dfr['mode'] == mdx].reset_index(drop=True).drop(columns='mode')
@@ -202,7 +203,7 @@ class Output:
         dfr = dfr.groupby(col_used + seg_incl)[['trips']].sum(col_type).reset_index()
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_occs}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_occs}'
         mode = list(self._agg_mode(col_type).values()) if mode is None else mode
         if geo_list is not None and geo_incl is not None:
             dct = fun.list_to_dict(geo_list)
@@ -243,7 +244,7 @@ class Output:
         dfr = fun.dfr_filter_mode(dfr, mode)
         # write activity
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_notem}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_notem}'
         act = dfr.groupby([lev_prod, 'tour_id'])[['freq', 'trip']].sum()
         fun.dfr_to_csv(act, out_fldr, f'activity_{"all" if geo_incl is None else geo_incl}')
         # write distribution
@@ -287,7 +288,7 @@ class Output:
         dfr['split'] = fun.agg_fill(dfr, seg_incl, ['mode', 'period'], 'trips', 300)
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_split}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_split}'
         fun.dfr_to_csv(dfr, out_fldr, 'mode_time_split_hb', False)
 
     def _trip_rates_nhbase(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
@@ -323,7 +324,7 @@ class Output:
         nhb = nhb.rename(columns={lev_dest: lev_prod}) if geo_incl is not None else nhb
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_nhbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_nhbase}'
         fun.dfr_to_csv(nhb.sort_index(), out_fldr, 'trip_rates_nhb', False)
 
     def _mts_nhbase(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
@@ -360,7 +361,7 @@ class Output:
         dfr = dfr.rename(columns={lev_orig: lev_prod}) if geo_incl is not None else dfr
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_nhbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_nhbase}'
         fun.dfr_to_csv(dfr.sort_index(), out_fldr, 'mode_time_split_nhb', False)
 
     def _trip_rates_attraction(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
@@ -398,7 +399,7 @@ class Output:
         dfr = fun.dfr_complete(dfr, col_grby, lev_prod)
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.fld_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}'
         fun.dfr_to_csv(dfr.sort_index(), out_fldr, 'trip_rates_hb', True)
         fun.dfr_to_csv(mts.sort_index(), out_fldr, 'mode_time_split_hb', True)
 

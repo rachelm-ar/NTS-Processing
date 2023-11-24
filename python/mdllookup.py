@@ -300,7 +300,7 @@ class Lookup:
                             2: fun.product(sex_01id['male'], age_01id['adult'] + age_01id['elder']),  # male
                             3: fun.product(sex_01id['female'], age_01id['adult'] + age_01id['elder'])  # female
                             },
-                    'out': {1: 'child', 2: 'male', 3: 'female'}  # for output
+                    'out': {1: 'Child', 2: 'Male', 3: 'Female'}  # for output
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -340,7 +340,7 @@ class Lookup:
                             5: fun.product(age_01id['adult'], eco_01id['unm']),  # unemployed
                             6: fun.product(age_01id['elder'], eco_over),  # over 75
                             },
-                    'out': {1: 'child', 2: 'fte', 3: 'pte', 4: 'student', 5: 'neet', 6: 'over 75'}
+                    'out': {1: 'Child', 2: 'FTE', 3: 'PTE', 4: 'Student', 5: 'NEET', 6: 'Over 75'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -364,7 +364,7 @@ class Lookup:
                                 fun.product(all_xsoc, age_01id['elder'], all_ecos)),  # over 75
                             #  0: fun.product(soc_02id['dna'], age_01id['adult'], emp_ecos)  # other
                             },
-                    'out': {1: '1. high skilled', 2: '2. medium skilled', 3: '3. low skilled', 4: '4. other'}
+                    'out': {1: 'High skilled', 2: 'Medium skilled', 3: 'Low skilled', 4: 'Other'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -378,8 +378,8 @@ class Lookup:
                             4: self.sec_03id['ns4'],  # unemployed
                             5: self.sec_03id['ns5'] + self.sec_03id['dna'],  # not classified + students
                             },
-                    'out': {1: '1. manager & professional', 2: '2. intermediate & small employers',
-                            3: '3. routine & manual', 4: '4. unemployed', 5: '5. not classified (inc. students)'}
+                    'out': {1: 'Manager & professional', 2: 'Intermediate & small employers',
+                            3: 'Routine & manual', 4: 'Unemployed', 5: 'Not classified (inc. students)'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -468,8 +468,8 @@ class Lookup:
         # ntem area type
         out_dict = {'col': f'{col_name}areatype_b01id', 'typ': self.nts_dtype, 'log': 'ntem_at',
                     'val': self.at2_01id,
-                    'out': {1: 'inner london', 2: 'outer london', 3: 'metropolitan', 4: 'urban big',
-                            5: 'urban large', 6: 'urban medium', 7: 'urban small', 8: 'rural'}
+                    'out': {1: 'Inner London', 2: 'Outer London', 3: 'Metropolitan', 4: 'Urban big',
+                            5: 'Urban large', 6: 'Urban medium', 7: 'Urban small', 8: 'Rural'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -512,10 +512,10 @@ class Lookup:
                             14: fun.product(enw_list, all_cnty, non_ldon, set_01id['village']),  # village
                             15: fun.product([11], all_cnty, non_ldon, set_list),  # scotland
                             },
-                    'out': {1: 'inner london', 2: 'outer london', 3: 'major (ne + yh) + minor (yh)',
-                            4: 'major (nw + em)', 5: 'major (wm)', 6: 'city (ne + yh)', 7: 'city (nw)',
-                            8: 'city + minor (em)', 9: 'city (wm)', 10: 'city (east)', 11: 'city (se)',
-                            12: 'city (sw)', 13: 'town', 14: 'village', 15: 'scotland'}
+                    'out': {1: 'Inner London', 2: 'Outer London', 3: 'Major (NE + YH) + Minor (YH)',
+                            4: 'Major (NW + EM)', 5: 'Major (WM)', 6: 'City (NE + YH)', 7: 'City (NW)',
+                            8: 'City + Minor (EM)', 9: 'City (WM)', 10: 'City (East)', 11: 'City (SE)',
+                            12: 'City (SW)', 13: 'Town', 14: 'Village', 15: 'Scotland'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -572,8 +572,8 @@ class Lookup:
                             4: self.set_01id['town'],
                             5: self.set_01id['village']
                             },
-                    'out': {1: 'major conurbation', 2: 'minor conurbation', 3: 'city & town',
-                            4: 'town & fringe', 5: 'village'}
+                    'out': {1: 'Major conurbation', 2: 'Minor conurbation', 3: 'City & town',
+                            4: 'Town & fringe', 5: 'Village'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -607,8 +607,8 @@ class Lookup:
                             7: self.mmd_11id['rail_l'],  # light rail/underground
                             8: self.mmd_11id['air']  # air
                             },
-                    'out': {1: 'walk', 2: 'cycle', 3: 'car', 4: 'van', 5: 'bus', 6: 'surface rail',
-                            7: 'light rail', 8: 'air'}
+                    'out': {1: 'Walk', 2: 'Cycle', 3: 'Car', 4: 'Van', 5: 'Bus', 6: 'Surface rail',
+                            7: 'Light rail', 8: 'Air'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -641,8 +641,8 @@ class Lookup:
                                 fun.product(non_walk, tpp_from, tpp_01id['jwk']) +
                                 fun.product(non_walk, tpp_01id['jwk'], end_home))
                             },
-                    'out': {1: 'commute', 2: 'employer business', 3: 'education', 4: 'shopping',
-                            5: 'personal business', 6: 'social', 7: 'visit friends', 8: 'holiday'}
+                    'out': {1: 'Commute', 2: 'Employer business', 3: 'Education', 4: 'Shopping',
+                            5: 'Personal business', 6: 'Social', 7: 'Visit friends', 8: 'Holiday'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -685,8 +685,8 @@ class Lookup:
         out_dict = {'col': col_name, 'typ': self.nts_dtype,
                     'log': 'fuel type',
                     'val': (self.vp1_01id if col_name == 'vehproptype_b01id' else self.vp2_01id),
-                    'out': {1: 'petrol', 2: 'diesel', 3: 'electric', 4: 'hybrid', 5: 'p-hybrid', 6: 'lpg',
-                            7: 'bi-fuel', 8: 'other', 0: 'passenger'}
+                    'out': {1: 'Petrol', 2: 'Diesel', 3: 'Electric', 4: 'Hybrid', 5: 'P-hybrid', 6: 'LPG',
+                            7: 'Bi-fuel', 8: 'Other', 0: 'Passenger'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict

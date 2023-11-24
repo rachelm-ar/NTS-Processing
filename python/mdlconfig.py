@@ -15,10 +15,11 @@ class Config:
         self.csv_cbuild = 'cb_tfn'
 
         # sub-folders
-        self.fld_cbuild = f'{out_fldr}\\classified builds'
-        self.fld_output = f'{out_fldr}\\outputs'
+        self.dir_cbuild = f'{out_fldr}\\classified builds'
+        self.dir_output = f'{out_fldr}\\outputs'
         self.fld_dbase = 'database'
         self.fld_report = 'reports'
+        self.fld_lookup = 'lookups'
         self.fld_notem = 'notem'
         self.fld_tlds = 'tld'
         self.fld_hbase = 'hb'
@@ -35,14 +36,15 @@ class Config:
 
     def _setup_directory(self):
         # create sub-folders
-        mkdir(f'{self.fld_cbuild}\\{self.fld_report}')
-        mkdir(f'{self.fld_output}\\{self.fld_dbase}')
-        mkdir(f'{self.fld_output}\\{self.fld_notem}')
-        mkdir(f'{self.fld_output}\\{self.fld_occs}')
-        mkdir(f'{self.fld_output}\\{self.fld_nhbase}')
-        mkdir(f'{self.fld_output}\\{self.fld_tlds}')
-        mkdir(f'{self.fld_output}\\{self.fld_stage}')
-        mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_graph}')
-        mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_phis}')
-        mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_rates}')
-        mkdir(f'{self.fld_output}\\{self.fld_hbase}\\{self.fld_split}')
+        mkdir(f'{self.dir_cbuild}\\{self.fld_report}')
+        mkdir(f'{self.dir_cbuild}\\{self.fld_lookup}')
+        mkdir(f'{self.dir_output}\\{self.fld_dbase}')
+        mkdir(f'{self.dir_output}\\{self.fld_notem}')
+        mkdir(f'{self.dir_output}\\{self.fld_occs}')
+        mkdir(f'{self.dir_output}\\{self.fld_nhbase}')
+        mkdir(f'{self.dir_output}\\{self.fld_tlds}')
+        mkdir(f'{self.dir_output}\\{self.fld_stage}')
+        mkdir(f'{self.dir_output}\\{self.fld_hbase}\\{self.fld_graph}')
+        mkdir(f'{self.dir_output}\\{self.fld_hbase}\\{self.fld_phis}')
+        mkdir(f'{self.dir_output}\\{self.fld_hbase}\\{self.fld_rates}')
+        mkdir(f'{self.dir_output}\\{self.fld_hbase}\\{self.fld_split}')
