@@ -1,21 +1,17 @@
-import os
 import numpy as np
 import pandas as pd
-from typing import Union, List
 import mdlfunction as fun
 import mdlconfig
 import mdllookup
-
-# R & statsmodels packages
 import statsmodels.api as sm
-os.environ['R_HOME'] = r'C:\Program Files\R\R-4.3.1'
-import rpy2.robjects as robj
+import rpy2.robjects as r2
 from rpy2.robjects import pandas2ri as pd2r, packages as rpkg
+from typing import Union, List
 
 
 class TripRate:
     """ calculate trip-rates u sing regression model
-        require: R4.1.2, utils, MASS 7.3.54 and pscl 1.5.5
+        require: R4.3.2, utils, MASS 7.3.54 and pscl 1.5.5
     """
 
     def __init__(self, nts_fldr: str, cb_version: Union[str, int], over_write: bool = True):
@@ -39,10 +35,9 @@ class TripRate:
 
             # prepare database
             self._trip_rates_hb(nts_data)
-            #
-            # # run with python or R codes
-            # # self._regx_model_py()
-            self._regx_model_rs()
+
+            # self._regx_model_py()  # run with python codes
+            self._regx_model_rs()  # run with R codes
             self._regx_output()
             # self._compare_python_vs_r()
             self._analysis()
@@ -53,10 +48,10 @@ class TripRate:
     def _install_r(upgrade: bool = False):
         # package version
         def _version(name):
-            robj.r('''
+            r2.r('''
                 pkg_version <- function(pkg) packageVersion(pkg)
             ''')
-            out = {0: val for _, val in robj.r['pkg_version'](name).items()}
+            out = {0: val for _, val in r2.r['pkg_version'](name).items()}
             return '.'.join(str(col) for col in list(out[0]))
 
         # import utilities
@@ -89,7 +84,7 @@ class TripRate:
         dfr = fun.dfr_filter_mode(dfr, self.cfg.tfn_modes)
 
         # weighted trip rates
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
         fun.log_stderr(f' .. weighted trip rates')
         ppx_list = dfr['purpose'].unique()
         out = dfr.groupby(tfn_type + ['individualid'])[['trips']].sum()
@@ -174,7 +169,7 @@ class TripRate:
                 res_fact = old['trips_nts'].div(old['w2']).fillna(1)
                 old['trip_rates'] = old['trip_rates'].mul(yrs_fact).mul(res_fact)
                 old = old.groupby(col_grby, observed=True)[['trip_rates']].sum()
-                # new method
+                # new method (df1)
                 df1 = self._regx_engine_rs_nw(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
                 df1['trip_rates'] = df1['trip_rates'].mul(df1['w2_weights'])
                 agg_func = {'w2': 'sum', 'w2_weights': 'sum', 'weekly_trips': 'sum', 'trips_nts': 'sum',
@@ -182,7 +177,7 @@ class TripRate:
                 df1 = df1.groupby(col_grby, observed=True).agg(agg_func)
                 df1['trip_rates'] = df1['trip_rates'].div(df1['w2_weights'])
                 df1.drop(columns=['w2', 'w2_weights', 'weekly_trips', 'trips_nts'], inplace=True)
-                # new method 2
+                # new method (final)
                 dfr = self._regx_engine_rs(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
                 self.unw_trip.append(dfr.groupby(['purpose', 'aws'])[['trip_rates']].mean())
                 dfr['trip_rates'] = dfr['trip_rates'].mul(dfr['w2_weights'])
@@ -239,7 +234,7 @@ class TripRate:
     def _regx_output(self, reg_type: str = None):
         fun.log_stderr(f'\nWrite output trip-rates')
         # weighted & unweighted trip-rates
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
         out_fldr = f'{out_fldr}\\{reg_type}' if reg_type not in [None, ''] else out_fldr
         fun.mkdir(out_fldr)
         tfn_grby = self.tfn_ttype + ['tfn_at', 'purpose']
@@ -262,7 +257,7 @@ class TripRate:
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
         out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
         nts_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_long.csv', tfn_ttype + ['w2', 'trip_rates'])
-        cte_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_ctripend.csv', tfn_ttype + ['trips'])
+        cte_trip = fun.csv_to_dfr(f'{self.cfg.dir_import}\\trip_rates_hb_ctripend.csv', tfn_ttype + ['trips'])
 
         # back to original codes
         out_fldr = f'{out_fldr}\\{reg_type}' if reg_type not in [None, ''] else out_fldr
@@ -336,7 +331,7 @@ class TripRate:
                            method: str = 'new') -> pd.DataFrame:
         # R model setup with no weights applied
         # independent variables - categorical, dependent variables - continuous
-        robj.r('''
+        r2.r('''
             run_model <- function(form, formula, data) {
                 if(form == "nb") {
                     glm.nb(formula = as.formula(formula), data = data,
@@ -350,7 +345,7 @@ class TripRate:
                 }
             }
         ''')
-        robj.r('''
+        r2.r('''
             prediction <- function(model, data) {
                 predict(model, data, type = "response")
             }
@@ -360,7 +355,7 @@ class TripRate:
         _, col_grby = self._reg_to_list(formula)
         dfr = dfr.copy()
         dfr[col_grby] = dfr[col_grby].astype(str).astype('category')
-        reg = robj.r['run_model'](form, formula, pd2r.py2rpy(dfr))
+        reg = r2.r['run_model'](form, formula, pd2r.py2rpy(dfr))
         col_year = ['purpose', 'surveyyear'] if 'surveyyear' in col_grby else ['purpose']
         dfr['w1'] = 1
         dfr['w2_weights'] = dfr['w2'].mul(dfr['weekly_trips'])  # individual weights
@@ -372,7 +367,7 @@ class TripRate:
         dfr['w5_weights'] = dfr['w5_weights'].div(dfr['w2_weights']).fillna(w5x_fill)  # response weights
         w2x_fill = self._nan_fill(dfr, col_grby, 'w2', 'w1')
         dfr['w2_weights'] = dfr['w2'].div(dfr['w1']).fillna(w2x_fill)
-        dfr['trip_rates'] = robj.r['prediction'](reg, pd2r.py2rpy(dfr))
+        dfr['trip_rates'] = r2.r['prediction'](reg, pd2r.py2rpy(dfr))
         dfr['trip_rates'] = dfr['trip_rates'].mul(dfr['w5_weights'] if method != 'old' else 1)
         dfr['w2_weights'] = np.where(dfr['w2'] > 0, dfr['w2'], 0.1 * dfr['w2_weights'])
         dfr[col_grby] = dfr[col_grby].astype(int)
@@ -383,7 +378,7 @@ class TripRate:
                         method: str = 'new') -> pd.DataFrame:
         # R model setup with offset = w5xhh/jjxsc and weights = w2
         # independent variables - categorical, dependent variables - continuous
-        robj.r('''
+        r2.r('''
             run_model <- function(form, formula, data) {
                 if(form == "nb") {
                     glm.nb(formula = as.formula(formula), data = data, weights = w2_weights,
@@ -397,7 +392,7 @@ class TripRate:
                 }
             }
         ''')
-        robj.r('''
+        r2.r('''
             prediction <- function(model, data) {
                 predict(model, data, type = "response")
             }
@@ -416,7 +411,7 @@ class TripRate:
         dfr['w2_weights'], dfr['w1'] = dfr['w2'], 1
         w5x_fill = self._nan_fill(dfr, col_grby, 'w5xhh', 'weekly_trips')
         dfr['w5_weights'] = dfr['w5xhh'].div(dfr['weekly_trips']).fillna(w5x_fill)  # offset
-        reg = robj.r['run_model'](form, formula, pd2r.py2rpy(dfr))
+        reg = r2.r['run_model'](form, formula, pd2r.py2rpy(dfr))
         col_year = ['purpose', 'surveyyear'] if 'surveyyear' in col_grby else ['purpose']
         agg_func = {'w5xhh': 'sum', 'w2': 'sum', 'weekly_trips': 'sum', 'trips_nts': 'sum', 'w1': 'sum'}
         dfr = dfr.groupby(tfn_ttype + col_year, observed=False).agg(agg_func).reset_index()
@@ -424,7 +419,7 @@ class TripRate:
         dfr['w2_weights'] = dfr['w2'].div(dfr['w1']).fillna(w2x_fill)
         w5x_fill = self._nan_fill(dfr, col_grby, 'w5xhh', 'weekly_trips')
         dfr['w5_weights'] = dfr['w5xhh'].div(dfr['weekly_trips']).fillna(w5x_fill)
-        dfr['trip_rates'] = robj.r['prediction'](reg, pd2r.py2rpy(dfr))
+        dfr['trip_rates'] = r2.r['prediction'](reg, pd2r.py2rpy(dfr))
         dfr['trip_rates'] = dfr['trip_rates'].mul(dfr['w5_weights'])
         dfr['w2_weights'] = np.where(dfr['w2'] > 0, dfr['w2'], 0.1 * dfr['w2_weights'])
         dfr[col_grby] = dfr[col_grby].astype(int)
@@ -470,12 +465,12 @@ class TripRate:
         a['w1'], a['w2_weights'], col_weight = 1, 1, 'trips_nts'
         w5x_fill = self._nan_fill(a, col_grby, col_weight, 'weekly_trips')
         a['w5_weights'] = a[col_weight].div(a['weekly_trips']).fillna(w5x_fill)  # offset
-        reg = robj.r['run_model'](form, str_form, pd2r.py2rpy(a))
+        reg = r2.r['run_model'](form, str_form, pd2r.py2rpy(a))
         a = a.groupby(col_grby, observed=False)[['w1'] + col_calc].sum().reset_index()
         a['w2_weights'] = 1
         w5x_fill = self._nan_fill(a, col_grby, col_weight, 'weekly_trips')
         a['w5_weights'] = a[col_weight].div(a['weekly_trips']).fillna(w5x_fill)
-        a['trip_rates'] = robj.r['prediction'](reg, pd2r.py2rpy(a))
+        a['trip_rates'] = r2.r['prediction'](reg, pd2r.py2rpy(a))
         a.to_csv('test2.csv', index=False)
 
         # test 4
@@ -486,13 +481,13 @@ class TripRate:
         a['w1'], a['w2_weights'], col_weight = 1, a['w2'], 'w5xhh'
         w5x_fill = self._nan_fill(a, col_grby, col_weight, 'weekly_trips')
         a['w5_weights'] = a[col_weight].div(a['weekly_trips']).fillna(w5x_fill)  # offset
-        reg = robj.r['run_model'](form, str_form, pd2r.py2rpy(a))
+        reg = r2.r['run_model'](form, str_form, pd2r.py2rpy(a))
         a = a.groupby(col_grby, observed=False)[col_calc].sum().reset_index()
         w2x_fill = self._nan_fill(a, col_grby, 'w2', 'w1')
         a['w2_weights'] = a['w2'].div(a['w1']).fillna(w2x_fill)
         w5x_fill = self._nan_fill(a, col_grby, col_weight, 'weekly_trips')
         a['w5_weights'] = a[col_weight].div(a['weekly_trips']).fillna(w5x_fill)
-        a['trip_rates'] = robj.r['prediction'](reg, pd2r.py2rpy(a))
+        a['trip_rates'] = r2.r['prediction'](reg, pd2r.py2rpy(a))
         a['trip_rates'] = a['w5_weights'].mul(a['trip_rates']).mul(a['w2'])
         a.to_csv('test4.csv', index=False)
 

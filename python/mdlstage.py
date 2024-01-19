@@ -1,8 +1,9 @@
 import mdlconfig
 import mdlfunction as fun
-from typing import Union, List
+from typing import Union, List, Dict
 import mdllookup as luk
 import pandas as pd
+import numpy as np
 
 
 class Stage:
@@ -23,17 +24,18 @@ class Stage:
         if over_write:
             fun.log_stderr('Import cb data')
             # income tax/ni bracket
-            self.dfr_itax = fun.csv_to_dfr(f'{nts_fldr}\\income_tax_brackets.csv')
+            self.dfr_itax = fun.csv_to_dfr(f'{self.cfg.dir_import}\\income_tax_brackets.csv')
             self.dfr_itax.set_index(['year', 'type'], inplace=True)
             self.dfr_itax = self.dfr_itax.astype(float)
             self.dct_itax = self.dfr_itax.to_dict()
             # fuel costs
-            self.dfr_fuel = fun.csv_to_dfr(f'{nts_fldr}\\fuel_cost_per_litre.csv')
+            self.dfr_fuel = fun.csv_to_dfr(f'{self.cfg.dir_import}\\fuel_cost_per_litre.csv')
             self.dfr_fuel.set_index('year', inplace=True)
             self.dfr_fuel = self.dfr_fuel.astype(float)
             # nts classified build
             nts_data = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_stage_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_data)
+            self._veh_occupancy(nts_data, [3, 4], 'gor', None, None, [0, 5, 10, 25, 50, 100, 200, 1999])
             self._affordability(nts_data, ['surveyyear', 'hholdgor_b02id', 'ns'])
         else:
             fun.log_stderr(f' .. skipped!')
@@ -79,6 +81,47 @@ class Stage:
             out = out.set_index('hholdgor_b02id').rename(index=self.luk.gor_02id).reset_index()
         # write result
         fun.dfr_to_csv(out, f'{self.cfg.dir_output}\\{self.cfg.fld_stage}', 'personal_affordability', False)
+
+    def _veh_occupancy(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
+                       geo_list: Union[List, Dict] = None, seg_incl: Union[List, str] = None,
+                       agg_band: Union[bool, List] = True):
+        # geo_incl: geo_area to be included: either gor, county, tfn_at
+        # geo_list: list of geo_area to be included
+        # agg_band: False, True, or a list of user-defined distance bands
+        fun.log_stderr('\nNTS occupancies')
+        fun.log_stderr(f' .. process data')
+        lev_2col, col_type = self.luk.lev_to_name(geo_incl), self.luk.nts_dtype
+        lev_orig, lev_dest = lev_2col['o'], lev_2col['d']
+        seg_incl = fun.str_to_list(seg_incl) if seg_incl is not None else []
+        dfr['stage_dist'] = dfr['stagedistance'].mul(self.cfg.m2k_fact)
+        col_used = ['stagemode', 'purpose', 'direction', 'period', 'stageoccupant', 'stage_dist']
+        col_used = [lev_orig, lev_dest] + col_used if geo_incl is not None else col_used
+        if agg_band or isinstance(agg_band, List):
+            col_dist = dfr['stage_dist'].values
+            rng_dist = np.array(agg_band) if isinstance(agg_band, List) else fun.dist_band(col_dist.max())
+            dfr['dist_band'] = pd.cut(col_dist, rng_dist, right=False, labels=rng_dist[1:])
+            dfr['stage_dist'], col_used = 999, col_used + ['dist_band']
+        dfr = dfr[col_used + seg_incl + ['trips']].copy()
+        dfr = dfr.groupby(col_used + seg_incl, observed=True)[['trips']].sum(col_type).reset_index()
+        # write output
+        fun.log_stderr(f' .. write output')
+        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_occs}'
+        mode = self.tfn_mode if mode is None else mode
+        if geo_list is not None and geo_incl is not None:
+            dct = fun.list_to_dict(geo_list)
+            msk_orig = (dfr[lev_orig].str.lower().isin(list(dct)) if col_type is str else
+                        dfr[lev_orig].isin(list(dct)))
+            msk_dest = (dfr[lev_dest].str.lower().isin(list(dct)) if col_type is str else
+                        dfr[lev_dest].isin(list(dct)))
+            dfr = dfr.loc[msk_orig | msk_dest]
+            if isinstance(geo_list, dict):
+                dfr = dfr.set_index([lev_orig, lev_dest]).rename(index=dct).reset_index()
+        dfr['purpose'] = self.luk.nhb_renumber(dfr, col_type)
+        dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl)
+        dfr = fun.dfr_filter_mode(dfr, mode, 'stagemode')
+        dfr = dfr.set_index(['triporiggor_b02id', 'tripdestgor_b02id']).rename(index=self.luk.gor_02id).reset_index()
+        dfr = dfr.set_index(['purpose']).rename(index=self.luk.purpose()['out']).reset_index()
+        fun.dfr_to_csv(dfr, out_fldr, 'vehicle_occupancy_stage', False)
 
     # disposable income factor
     @staticmethod

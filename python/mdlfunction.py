@@ -231,11 +231,14 @@ def add_path(cur_path: str, str_file: str) -> str:
 
 
 # derive distance band
-def dist_band(max_dist: float) -> np.ndarray:
-    max_dist = int(max_dist + 1)
-    num_band = int(max_dist ** 0.51)
-    arr_dist = np.array([int(((0 if val == 0 else val + 1) / num_band) ** 2.2 * max_dist)
-                         for val in range(num_band)])
+def dist_band(max_dist: Union[List, float]) -> np.ndarray:
+    if isinstance(max_dist, float):
+        max_dist = int(max_dist + 1)
+        num_band = int(max_dist ** 0.51)
+        arr_dist = np.array([int(((0 if val == 0 else val + 1) / num_band) ** 2.2 * max_dist)
+                             for val in range(num_band)])
+    else:
+        arr_dist = np.array(max_dist)
     return arr_dist
 
 
@@ -248,17 +251,21 @@ def product(*args) -> List:
 def agg_fill(dfr: pd.DataFrame, col_grby: Union[List, str], col_segm: Union[List, str], col_calc: str,
              val_vmin: float = 0) -> pd.Series:
     # col_grby: list of columns to aggregate, hierarchical level from right to left
+    # e.g. col_grby = [at, hh, tt] -> calculate %split by [at, hh, tt] first,
+    # else aggregate to [at, hh] type -> calc %split, then aggregate to [at] -> calc %split
     # col_segm: further segmentation to calculate %split
+
     def _calc_split():
         enu = dfr.groupby(col_used + col_segm, observed=True)[col_calc].transform('sum')
         den = dfr.groupby(col_used, observed=True)[col_calc].transform('sum')
-        out.loc[(out.isna()) & (den > val_vmin)] = enu.div(den)
+        out.loc[(out.isna()) & (enu > 0) & (den > val_vmin)] = enu.div(den)
         return out
 
     out = pd.Series(data=[np.nan] * len(dfr))
     col_grby, col_segm = str_to_list(col_grby), str_to_list(col_segm)
     dfr = dfr[col_grby + col_segm + [col_calc]].copy()
     for lev, key in enumerate(col_grby):
+        # ite_last = True if lev == len(col_grby) - 1 else False
         col_used = col_grby if lev == 0 else col_grby[:-lev]
         _calc_split()
 
@@ -266,12 +273,13 @@ def agg_fill(dfr: pd.DataFrame, col_grby: Union[List, str], col_segm: Union[List
         if col_used[-1] == 'hh_type':
             dfr.loc[dfr['hh_type'].isin([1, 3, 6]), 'hh_type'] = 1  # 0 car
             dfr.loc[dfr['hh_type'].isin([4, 7]), 'hh_type'] = 2  # 1 car
-            dfr.loc[dfr['hh_type'].isin([2, 5, 8]), 'hh_type'] = 3  # 1+ car
+            dfr.loc[dfr['hh_type'].isin([2, 5, 8]), 'hh_type'] = 3  # 2+ car
             _calc_split()
 
+        # TODO: this needs updating with new at
         if col_used[-1] == 'tfn_at':
             dfr.loc[dfr['tfn_at'].isin([1, 2]), 'tfn_at'] = 1  # london
-            dfr.loc[dfr['tfn_at'].isin([3, 4, 5]), 'tfn_at'] = 2  # major
+            dfr.loc[dfr['tfn_at'].isin([3, 4, 5]), 'tfn_at'] = 2  # major & minor
             dfr.loc[dfr['tfn_at'].isin([6, 7]), 'tfn_at'] = 3  # city (north)
             dfr.loc[dfr['tfn_at'].isin([8, 9]), 'tfn_at'] = 4  # city (midland)
             dfr.loc[dfr['tfn_at'].isin([10, 11, 12]), 'tfn_at'] = 5  # city (south)

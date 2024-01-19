@@ -1,6 +1,7 @@
 from typing import Dict, List
 import mdlfunction as fun
 import pandas as pd
+import numpy as np
 
 
 class Lookup:
@@ -111,7 +112,19 @@ class Lookup:
             'dna': {-9: 'dna'}
         }
 
-        # individual income 2002
+        # wfh frequency
+        self.wfh_01id = {
+            3.000: {1: '3 or more times a week'},  # 3
+            1.500: {2: 'once or twice a week'},  # 1.5
+            0.750: {3: 'less than once a week more than twice a month'},  # 0.75
+            0.375: {4: 'once or twice a month'},  # 0.375
+            0.100: {5: 'less than one a month more than twice a year'},  # 0.10
+            0.030: {6: 'once or twice a year'},  # 0.03
+            0.015: {7: 'less than once a year or never'},  # 0.015
+            0.000: {-8: 'na', -9: 'dna'}
+        }
+
+        # individual/household income 2002
         self.i02_01id = {
             500: {1: 'Less than £1,000'},
             1500: {2: '£1,000 - £1,999'},
@@ -143,81 +156,88 @@ class Lookup:
             0: {-9: 'DNA (under 16)'}
         }
 
-        # income HHIncome2002_B02ID
+        # aggregate income
         self.i02_02id = {
-            1: {key: key for key in range(1, 16)},  # Less than £25,000
-            2: {key: key for key in range(16, 20)},  # £25,000 to £49,999
-            3: {key: key for key in range(20, 28)},  # £50,000 and over
-            0: {-8: 'na', 0: 'na'}
+            '£0k-£25k': {key: key for key in range(1, 16)},  # Less than £25,000
+            '£25k-£50k': {key: key for key in range(16, 20)},  # £25,000 to £49,999
+            '£50k+': {key: key for key in range(20, 28)},  # £50,000 and over
+            'na': {-8: 'na', 0: 'na'}
         }
 
         # household reference person
         self.hrp_01id = {
             1: {99: 'Household reference person'},
-            0: {1: '', 2: '', 3: '', 4: '', 5: '', 6: '', 7: '', 8: ''}
+            0: {1: 'Spouse', 2: 'Cohabitee', 3: 'Son/daughter', 4: 'Step-son/daughter', 5: 'Foster child',
+                6: 'Son/daughter-in-law', 7: 'Parent/guardian', 8: 'Step-parent', 9: 'Foster parent',
+                10: 'Parent-in-law', 11: 'Brother/sister', 12: 'Step-brother/sister', 13: 'Foster brother/sister',
+                14: 'Brother/sister-in-law', 15: 'Grand-child', 16: 'Grand-parent', 17: 'Other relative',
+                18: 'Other non-relative', 19: 'Civil partner', -8: 'NA', -9: 'DNA'}
         }
 
         # SIC1992 codes
         self.s92_02id = {
-            'e13': {1: 'A - Agriculture, hunting and forestry', 2: 'B - Fishing'},
-            'e10': {3: 'C - Mining and quarrying', 4: 'D - Manufacturing',
-                    5: 'E - Electricity, gas and water supply', 6: 'F - Construction'},
-            'e07/09/10': {7: 'G - Wholesale and retail trade; repair of motor vehicles, '
-                             'motorcycles and personal and household goods'},
-            'e06/07/11': {8: 'H - Hotels and restaurants'},
-            'e09/10/12/14': {9: 'I - Transport, storage and communication'},
-            'e09/14': {10: 'J - Financial intermediation'},
-            'e09/12/14': {11: 'K - Real estate, renting and business activities'},
-            'e14': {12: 'L - Public administration and defence; compulsory social security',
-                    16: 'P - Private households with employed persons',
-                    17: 'Q - Extra-territorial organisations and bodies',
-                    18: 'Workplace outside UK (Pre 2002)'},
-            'e03/04/05': {13: 'M - Education'},
-            'e08/09': {14: 'N - Health and social work'},
-            'e12/14': {15: 'O - Other community, social and personal service activities'},
-            'na': {-8: 'na'},
+            'A': {1: 'A - Agriculture, hunting and forestry', 2: 'B - Fishing'},
+            'B': {3: 'C - Mining and quarrying'},
+            'C': {4: 'D - Manufacturing'},
+            'D/E': {5: 'E - Electricity, gas and water supply'},
+            'F': {6: 'F - Construction'},
+            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles, '
+                     'motorcycles and personal and household goods'},
+            'I': {8: 'H - Hotels and restaurants'},
+            'H/J': {9: 'I - Transport, storage and communication'},
+            'K': {10: 'J - Financial intermediation'},
+            'L/M/N': {11: 'K - Real estate, renting and business activities'},
+            'O': {12: 'L - Public administration and defence; compulsory social security'},
+            'P': {13: 'M - Education'},
+            'Q': {14: 'N - Health and social work'},
+            'E/J/R/S': {15: 'O - Other community, social and personal service activities'},
+            'T/U': {16: 'P - Private households with employed persons',
+                    17: 'Q - Extra-territorial organisations and bodies'},
+            'na': {-8: 'na', 18: 'Workplace outside UK (Pre 2002)'},
             'dna': {-9: 'dna'}
         }
 
         # SIC2007 codes
         self.s07_02id = {
-            'e13': {1: 'A - Agriculture, forestry and fishing'},
-            'e10': {2: 'B - Mining and quarrying', 3: 'C - Manufacturing',
-                    4: 'D - Electricity, gas, steam and air conditioning supply',
-                    5: 'E - Water supply; sewerage, waste management and remediation activities',
-                    6: 'F - Construction'},
-            'e07/09/10': {7: 'G - Wholesale and retail trade; repair of motor vehicles and motorcycles'},
-            'e09/10/12/14': {8: 'H - Transportation and storage',
-                             10: 'J - Information and communication'},
-            'e06/07/11': {9: 'I - Accommodation and food service activities'},
-            'e09/14': {11: 'K - Financial and insurance activities'},
-            'e09/12/14': {12: 'L - Real estate activities',
-                          13: 'M - Professional, scientific and technical activities',
-                          14: 'N - Administrative and support service activities'},
-            'e14': {15: 'O - Public administration and defence; compulsory social security',
-                    20: 'T - Activities of households as employers',
+            'A': {1: 'A - Agriculture, forestry and fishing'},
+            'B': {2: 'B - Mining and quarrying'},
+            'C': {3: 'C - Manufacturing'},
+            'D/E': {4: 'D - Electricity, gas, steam and air conditioning supply',
+                    5: 'E - Water supply; sewerage, waste management and remediation activities'},
+            'F': {6: 'F - Construction'},
+            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles and motorcycles'},
+            'H': {8: 'H - Transportation and storage'},
+            'I': {9: 'I - Accommodation and food service activities'},
+            'J': {10: 'J - Information and communication'},
+            'K': {11: 'K - Financial and insurance activities'},
+            'L': {12: 'L - Real estate activities'},
+            'M': {13: 'M - Professional, scientific and technical activities'},
+            'N': {14: 'N - Administrative and support service activities'},
+            'O': {15: 'O - Public administration and defence; compulsory social security'},
+            'P': {16: 'P - Education'},
+            'Q': {17: 'Q - Human health and social work activities'},
+            'R': {18: 'R - Arts, entertainment and recreation'},
+            'S': {19: 'S - Other service activities'},
+            'T/U': {20: 'T - Activities of households as employers',
                     21: 'U - Activities of extraterritorial organisations and bodies'},
-            'e03/04/05': {16: 'P - Education'},
-            'e08/09': {17: 'Q - Human health and social work activities'},
-            'e12/14': {18: 'R - Arts, entertainment and recreation', 19: 'S - Other service activities'},
             'na': {-8: 'na'},
             'dna': {-9: 'dna'}
         }
 
         # settlement ruc 2011
         self.set_01id = {
-            'major': {'a1': 'urban - major conurbation'},
-            'minor': {'b1': 'urban - minor conurbation', '1': 'large urban area - scotland'},
-            'city': {'c1': 'urban - city and town', 'c2': 'urban - city and town in a sparse setting',
-                     '2': 'other urban area - scotland'},
-            'town': {'d1': 'rural - town and fringe', 'd2': 'rural - town and fringe in a sparse setting',
-                     '3': 'accessible small town - scotland', '4': 'remote small town - scotland',
-                     '5': 'very remote small town - scotland'},
-            'village': {'e1': 'rural - village', 'e2': 'rural - village in a sparse setting',
-                        'f1': 'rural - hamlets and isolated dwellings',
-                        'f2': 'rural - hamlets and isolated dwellings in a sparse setting',
-                        '6': 'accessible rural area - scotland', '7': 'remote rural area - scotland',
-                        '8': 'very remote rural area - scotland'}
+            'major': {'a1': 'Urban - major conurbation'},
+            'minor': {'b1': 'Urban - minor conurbation', '1': 'Large urban area - scotland'},
+            'city': {'c1': 'Urban - city and town', 'c2': 'Urban - city and town in a sparse setting',
+                     '2': 'Other urban area - scotland'},
+            'town': {'d1': 'Rural - town and fringe', 'd2': 'Rural - town and fringe in a sparse setting',
+                     '3': 'Accessible small town - Scotland', '4': 'Remote small town - Scotland',
+                     '5': 'Very remote small town - Scotland'},
+            'village': {'e1': 'Rural - village', 'e2': 'rural - village in a sparse setting',
+                        'f1': 'Rural - hamlets and isolated dwellings',
+                        'f2': 'Rural - hamlets and isolated dwellings in a sparse setting',
+                        '6': 'Accessible rural area - Scotland', '7': 'Remote rural area - Scotland',
+                        '8': 'Very remote rural area - Scotland'}
         }
 
         # ntem area type2: {hhold/triporig/tripdest}areatype2_b01id
@@ -236,10 +256,10 @@ class Lookup:
         }
 
         # gor: {hhold/triporig/tripdest}gor_b02id
-        self.gor_02id = {1: 'north east', 2: 'north west', 3: 'yorks and humber',
-                         4: 'east midlands', 5: 'west midlands', 6: 'east of england',
-                         7: 'london', 8: 'south east', 9: 'south west',
-                         10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
+        self.gor_02id = {1: 'North East', 2: 'North West', 3: 'Yorks and Humber',
+                         4: 'East Midlands', 5: 'West Midlands', 6: 'East of England',
+                         7: 'London', 8: 'South East', 9: 'South West',
+                         10: 'Wales', 11: 'Scotland', -8: 'NA', -9: 'DNA', -10: 'DEAD'
                          }
 
         # vehicle fuel type: vehproptype_b01id
@@ -284,6 +304,7 @@ class Lookup:
         self.at2_01id = self.dct_to_specs(self.at2_01id, col_type)
         self.i02_01id = self.dct_to_specs(self.i02_01id, col_type)
         self.i02_02id = self.dct_to_specs(self.i02_02id, col_type)
+        self.wfh_01id = self.dct_to_specs(self.wfh_01id, col_type)
         self.hrp_01id = self.dct_to_specs(self.hrp_01id, col_type)
         self.s07_02id = self.dct_to_specs(self.s07_02id, col_type)
         self.s92_02id = self.dct_to_specs(self.s92_02id, col_type)
@@ -322,6 +343,17 @@ class Lookup:
                     'out': {1: '1 adult with 0 car', 2: '1 adult with 1+ cars', 3: '2 adults with 0 car',
                             4: '2 adults with 1 car', 5: '2 adults with 2+ cars', 6: '3+ adults with 0 car',
                             7: '3+ adults with 1 car', 8: '3+ adults with 2+ cars'}
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def hh_child(self) -> Dict:
+        # number of children in a household
+        out_dict = {'col': 'hholdnumchildren',
+                    'typ': int, 'log': 'hh_children',
+                    'val': {0: [0],
+                            1: list(range(1, 20))},
+                    'out': {0: 'no children', 1: 'with children'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -396,8 +428,15 @@ class Lookup:
     def income(self, col_name: str, lev_name: str = '01') -> Dict:
         # household or individual income: {ind/hh}income2002_b{01/02}id
         col_name = f'{col_name}income2002_b01id'
-        out_dict = {'col': col_name, 'typ': self.nts_dtype, 'log': 'income',
+        out_dict = {'col': col_name, 'typ': self.nts_dtype, 'log': f'income {lev_name}',
                     'val': eval(f'self.i02_{lev_name}id')}
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def wfh(self, col_name: str) -> Dict:
+        # number of day wfh
+        out_dict = {'col': col_name, 'typ': int, 'log': 'work from home',
+                    'val': self.wfh_01id}
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
@@ -427,8 +466,8 @@ class Lookup:
                 return par_dict
 
         # tt = [gender, aws, hh_type, soc, ns]
-        par_dict = {'gender': self.gender(), 'aws': self.aws(), 'hh_type': self.hh_type(),
-                    'soc': self.soc(), 'ns': self.ns_sec()}
+        par_dict: Dict = {'gender': self.gender(), 'aws': self.aws(), 'hh_type': self.hh_type(),
+                          'soc': self.soc(), 'ns': self.ns_sec()}
         gen, aws, hh = _dct_value(0), _dct_value(1), _dct_value(2)
         soc, sec = _dct_value(3), _dct_value(4)
 
@@ -436,20 +475,19 @@ class Lookup:
         par_dict = {}
         par_dict = _dct_update(gen[0], aws[0], hh, soc[-1], sec)
         if out_type == 'tfn':
+            # gender = 2-3
             for g in gen[1:]:
-                # fte/pte: gender=2-3, aws=2-3, (hh=1-2, soc=1-3, ns=1-3,5) & (hh=3-8, soc=1-3, ns=1-5)
-                par_dict = _dct_update(g, 2, hh[:2], [1, 2], [1, 2, 3, 5])
-                par_dict = _dct_update(g, 2, hh[:2], 3, [2, 3, 5])
-                par_dict = _dct_update(g, 2, hh[2:], [1, 2, 3], sec)
-                par_dict = _dct_update(g, 3, hh[:2], [1, 2], [1, 2, 3, 5])
-                par_dict = _dct_update(g, 3, hh[:2], 3, [2, 3, 5])
-                par_dict = _dct_update(g, 3, hh[2:], [1, 2, 3], sec)
-                # student: gender=2-3, aws=4, (hh=1-2, soc=4, ns=5) & (hh=3-8, soc=4, ns=1-5)
+                # fte/pte: aws=2-3, (hh=1-2, soc=1-3, ns=1-3,5) & (hh=3-8, soc=1-3, ns=1-5)
+                for w in [2, 3]:
+                    par_dict = _dct_update(g, w, hh[:2], [1, 2], [1, 2, 3, 5])  # no unem for soc1-2
+                    par_dict = _dct_update(g, w, hh[:2], 3, [2, 3, 5])  # no unem & ns-sec 1 for soc 3
+                    par_dict = _dct_update(g, w, hh[2:], [1, 2, 3], sec)
+                # student: aws=4, (hh=1-2, soc=4, ns=5) & (hh=3-8, soc=4, ns=1-5)
                 par_dict = _dct_update(g, 4, hh[:2], 4, 5)
                 par_dict = _dct_update(g, 4, hh[2:], 4, sec)
-                # unemployed: gender=2-3, aws=5, (hh=1-8, soc=4, ns=1-5)
+                # unemployed: aws=5, (hh=1-8, soc=4, ns=1-5)
                 par_dict = _dct_update(g, 5, hh, 4, sec)
-                # over 75 gender=2-3, aws=6, hh=1-8, soc=4, ns=1-5
+                # over 75 aws=6, hh=1-8, soc=4, ns=1-5
                 par_dict = _dct_update(g, 6, hh, 4, sec)
         else:
             # fte/pte: gender=2-3, aws=2-6, hh=1-8
@@ -474,15 +512,14 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def at_tfn(self, col_type: str) -> Dict:
-        # test new area types that based on ruc, ntem & gor
+    def at_tfn_15(self, col_type: str) -> Dict:
         # col_type: hhold, triporig, tripdest
-        # 1: 'north east', 2: 'north west', 3: 'yorkshire and the humber', 4: 'east midlands',
-        # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south east', 9: 'south west',
+        # 1: 'north east', 2: 'north-west', 3: 'yorkshire and the humber', 4: 'east midlands',
+        # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south-east', 9: 'south west',
         # 10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
         set_01id, at2_01id = self.set_01id, self.at2_01id
-        all_cnty = [-8, -9] + list(range(10, 89))
-        set_list = [val for key in set_01id for val in set_01id[key]]
+        all_cnty = [-8, -9] + list(range(10, 99))
+        all_sett = [val for key in set_01id for val in set_01id[key]]
         non_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1] + at2_01id[2]]
         out_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1]]
         enw_list = [1, 2, 3, 4, 5, 6, 8, 9, 10]  # england & wales only, exc. london
@@ -490,9 +527,9 @@ class Lookup:
                             f'{col_type}ruc2011_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype, self.nts_dtype, str],
                     'log': f'tfn_at ({col_type})',
-                    'val': {1: fun.product([7], all_cnty, at2_01id[1], set_list),  # inner london
-                            2: (fun.product([7], all_cnty, out_ldon, set_list) +  # outer london within london
-                                fun.product([6, 8], all_cnty, at2_01id[2], set_list)),  # outer london outside london
+                    'val': {1: fun.product([7], all_cnty, at2_01id[1], all_sett),  # inner london
+                            2: (fun.product([7], all_cnty, out_ldon, all_sett) +  # outer london within london
+                                fun.product([6, 8], all_cnty, at2_01id[2], all_sett)),  # outer london outside london
                             3: (fun.product([1, 3], all_cnty, non_ldon, set_01id['major']) +  # major (ne + yh)
                                 fun.product([1, 3], all_cnty, non_ldon, set_01id['minor'])),  # minor (yh)
                             4: fun.product([2, 4], all_cnty, non_ldon, set_01id['major']),  # major (nw + em)
@@ -510,7 +547,7 @@ class Lookup:
                                  fun.product([10], [62, 64, 66, 67], non_ldon, set_01id['city'])),  # city (wales)
                             13: fun.product(enw_list, all_cnty, non_ldon, set_01id['town']),  # town
                             14: fun.product(enw_list, all_cnty, non_ldon, set_01id['village']),  # village
-                            15: fun.product([11], all_cnty, non_ldon, set_list),  # scotland
+                            15: fun.product([11], all_cnty, non_ldon, all_sett),  # scotland
                             },
                     'out': {1: 'Inner London', 2: 'Outer London', 3: 'Major (NE + YH) + Minor (YH)',
                             4: 'Major (NW + EM)', 5: 'Major (WM)', 6: 'City (NE + YH)', 7: 'City (NW)',
@@ -520,23 +557,22 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def at_tfn_v1(self, col_type: str) -> Dict:
-        # test new area types that based on ruc, ntem & gor
+    def at_tfn_17(self, col_type: str) -> Dict:
         # col_type: hhold, triporig, tripdest
-        # 1: 'north east', 2: 'north west', 3: 'yorkshire and the humber', 4: 'east midlands',
-        # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south east', 9: 'south west',
+        # 1: 'north east', 2: 'north-west', 3: 'yorkshire and the humber', 4: 'east midlands',
+        # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south-east', 9: 'south west',
         # 10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
         set_01id, at2_01id = self.set_01id, self.at2_01id
-        set_list = [val for key in set_01id for val in set_01id[key]]
+        all_sett = [val for key in set_01id for val in set_01id[key]]
         non_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1] + at2_01id[2]]
         out_ldon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1]]
         enw_list = [1, 2, 3, 4, 5, 6, 8, 9]  # england only, exc. london
         out_dict = {'col': [f'{col_type}gor_b02id', f'{col_type}areatype_b01id', f'{col_type}ruc2011_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype, str],
                     'log': f'tfn_at ({col_type})',
-                    'val': {1: fun.product([7], at2_01id[1], set_list),  # inner london
-                            2: (fun.product([7], out_ldon, set_list) +  # outer london + major (east, se)
-                                fun.product([6, 8], at2_01id[2], set_list)),
+                    'val': {1: fun.product([7], at2_01id[1], all_sett),  # inner london
+                            2: (fun.product([7], out_ldon, all_sett) +  # outer london + major (east, se)
+                                fun.product([6, 8], at2_01id[2], all_sett)),
                             3: fun.product([1, 3], non_ldon, set_01id['major']),  # major (ne + yh)
                             4: fun.product([2, 4], non_ldon, set_01id['major']),  # major (nw + em)
                             5: fun.product([5], non_ldon, set_01id['major']),  # major (wm)
@@ -550,13 +586,67 @@ class Lookup:
                             13: fun.product([9], non_ldon, set_01id['city']),  # city (sw)
                             14: fun.product(enw_list, non_ldon, set_01id['town']),  # town
                             15: fun.product(enw_list, non_ldon, set_01id['village']),  # village
-                            16: fun.product([10], non_ldon, set_list),  # wales
-                            17: fun.product([11], non_ldon, set_list),  # scotland
+                            16: fun.product([10], non_ldon, all_sett),  # wales
+                            17: fun.product([11], non_ldon, all_sett),  # scotland
                             },
                     'out': {1: 'inner london', 2: 'outer london', 3: 'major (ne + yh)', 4: 'major (nw + em)',
                             5: 'major (wm)', 6: 'minor (em + yh)', 7: 'city (ne + yh)', 8: 'city (nw)',
                             9: 'city (em)', 10: 'city (wm)', 11: 'city (east)', 12: 'city (se)',
                             13: 'city (sw)', 14: 'town', 15: 'village', 16: 'wales', 17: 'scotland'}
+                    }
+        out_dict['val'] = self.val_to_key(out_dict['val'])
+        return out_dict
+
+    def at_tfn(self, col_type: str) -> Dict:
+        # col_type: hhold, triporig, tripdest
+        # 1: 'north east', 2: 'north-west', 3: 'yorkshire and the humber', 4: 'east midlands',
+        # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south-east', 9: 'south west',
+        # 10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
+        set_01id, at2_01id = self.set_01id, self.at2_01id
+        cty_list = [-8, -9] + list(range(10, 99))
+        gor_rest = [1, 2, 3, 4, 5, 9, 10, 11, -8, -9]
+        set_list = [val for key in set_01id for val in set_01id[key]]
+        at2_xlon = [val for key in at2_01id for val in at2_01id[key] if val not in at2_01id[1]]
+        out_dict = {'col': [f'{col_type}gor_b02id', f'{col_type}county_b01id', f'{col_type}areatype_b01id',
+                            f'{col_type}ruc2011_b01id'],
+                    'typ': [self.nts_dtype, self.nts_dtype, self.nts_dtype, str],
+                    'log': f'tfn_at ({col_type})',
+                    'val': {1: fun.product([7], cty_list, at2_01id[1], set_list),  # inner london
+                            2: fun.product([7], cty_list, at2_xlon, set_list),  # outer london
+                            # major
+                            3: fun.product([6, 8], cty_list, at2_xlon, set_01id['major']),  # east + se
+                            4: fun.product([5], cty_list, at2_xlon, set_01id['major']),  # wm
+                            5: fun.product([2, 4], cty_list, at2_xlon, set_01id['major']),  # nw + em
+                            6: fun.product([1], cty_list, at2_xlon, set_01id['major']),  # ne
+                            7: fun.product([3], cty_list, at2_xlon, set_01id['major']),  # yh
+                            # minor
+                            8: fun.product([4, 3], cty_list, at2_xlon, set_01id['minor']),  # em + yh
+                            # city
+                            9: fun.product([6], cty_list, at2_xlon, set_01id['city']),  # east
+                            10: fun.product([8], cty_list, at2_xlon, set_01id['city']),  # se
+                            11: (fun.product([9], cty_list, at2_xlon, set_01id['city']) +  # sw
+                                 fun.product([10], [62, 64, 66, 67], at2_xlon, set_01id['city'])),  # wales
+                            12: (fun.product([5], cty_list, at2_xlon, set_01id['city']) +  # wm
+                                 fun.product([10], [61, 65], at2_xlon, set_01id['city'])),  # wales
+                            13: fun.product([4], cty_list, at2_xlon, set_01id['city']),  # em
+                            14: (fun.product([2], cty_list, at2_xlon, set_01id['city']) +  # nw
+                                 fun.product([10], [60, 63], at2_xlon, set_01id['city'])),  # wales
+                            15: fun.product([1, 3], cty_list, at2_xlon, set_01id['city']),  # ne + yh
+                            # town
+                            16: fun.product([6, 8], cty_list, at2_xlon, set_01id['town']),
+                            17: fun.product(gor_rest, cty_list, at2_xlon, set_01id['town']),
+                            # village
+                            18: fun.product([6, 8], cty_list, at2_xlon, set_01id['village']),
+                            19: fun.product(gor_rest, cty_list, at2_xlon, set_01id['village']),
+                            # scotland urban
+                            20: fun.product([11], cty_list, at2_xlon, set_01id['minor'] + set_01id['city']),
+                            },
+                    'out': {1: 'Inner London', 2: 'Outer London', 3: 'Major (East + SE)', 4: 'Major (WM)',
+                            5: 'Major (NW + EM)', 6: 'Major (NE)', 7: 'Major (YH)', 8: 'Minor (EM + YH)',
+                            9: 'City (East)', 10: 'City (SE)', 11: 'City (SW + S.Wales)', 12: 'City (WM + M.Wales)',
+                            13: 'City (EM)', 14: 'City (NW + N.Wales)', 15: 'City (NE + YH)',
+                            16: 'Town (East + SE)', 17: 'Town (rest of GB)', 18: 'Village (East + SE)',
+                            19: 'Village (rest of GB)', 20: 'Scotland (Urban)'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
@@ -647,13 +737,13 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
-    def period(self, ttp_type: str = 'start') -> Dict:
+    def period(self, tse_type: str = 'start') -> Dict:
         # trip start/end time
         wkd_01id, ttp_01id = self.wkd_01id, self.ttp_01id
         all_24hr = ttp_01id['am'] + ttp_01id['ip'] + ttp_01id['pm'] + ttp_01id['op'] + ttp_01id['na']
-        out_dict = {'col': ['travelweekday_b01id', f'trip{ttp_type}_b01id'],
+        out_dict = {'col': ['travelweekday_b01id', f'trip{tse_type}_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
-                    'log': f'{ttp_type} time',
+                    'log': f'{tse_type} time',
                     'val': {1: fun.product(wkd_01id['wkd'], ttp_01id['am']),
                             2: fun.product(wkd_01id['wkd'], ttp_01id['ip']),
                             3: fun.product(wkd_01id['wkd'], ttp_01id['pm']),
@@ -674,14 +764,14 @@ class Lookup:
                     'log': 'direction',
                     'val': {'hb_fr': fun.product(self.tpp_01id['hom'], nhb_purp),
                             'hb_to': fun.product(nhb_purp, self.tpp_01id['hom']),
-                            'nhb': fun.product(nhb_purp, nhb_purp)
-                            }
+                            'nhb': fun.product(nhb_purp, nhb_purp)},
+                    'out': {'hb_fr': 'From Home', 'hb_to': 'Return Home', 'nhb': 'Non Home-Based'}
                     }
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
     def fuel_type(self, col_name: str) -> Dict:
-        # vehicle fuel type: col_name = vehproptype_b01id, or vehproptypen_b01id
+        # vehicle fuel type: vehproptype_b01id, vehproptypen_b01id
         out_dict = {'col': col_name, 'typ': self.nts_dtype,
                     'log': 'fuel type',
                     'val': (self.vp1_01id if col_name == 'vehproptype_b01id' else self.vp2_01id),
@@ -693,42 +783,31 @@ class Lookup:
 
     @staticmethod
     def val_to_key(dct: Dict) -> Dict:
+        # swap key to value
         dct = {key: [dct[key]] if not isinstance(dct[key], list) else dct[key] for key in dct}
         return {fun.str_lower(val): key for key in dct for val in dct[key]}
 
     @staticmethod
     def dct_to_specs(dct: Dict, out: type = int) -> Dict:
+        # create lookup specs
         return {key: list(dct[key].keys() if out is int else dct[key].values()) for key in dct}
 
-    def agg_type(self, tfn_type: str = 'tfn') -> Dict:
-        out_dict = {'at': {1: [], 2: [], 3: [], 4: [], 5: [], 6: []},
-                    'hh': {1: [], 2: [], 3: []}
-                    }
-        out_dict = self.val_to_key(out_dict)
-        return out_dict
+    @staticmethod
+    def lev_to_name(level: str = None) -> Dict:
+        # get column names from level: county or gor
+        if level is not None:
+            if level.lower() in ['county', 'gor']:
+                home = f'hhold{level}_b02id' if level.lower() == 'gor' else f'hhold{level}_b01id'
+                orig = f'triporig{level}_b02id' if level.lower() == 'gor' else f'triporig{level}_b01id'
+                dest = f'tripdest{level}_b02id' if level.lower() == 'gor' else f'tripdest{level}_b01id'
+            else:
+                home, orig, dest = level, f'{level}_o', f'{level}_d'
+        else:
+            home, orig, dest = None, None, None
+        return {'h': home, 'o': orig, 'd': dest}
 
     @staticmethod
-    def fun_aggregate(dfr: pd.DataFrame, col_2agg: List) -> Dict:
-        """
-        aggregation:
-            level 1: p, gen, aws, soc, ns, hh, at
-            level 2: p, gen, aws, soc, ns, hh
-            level 3: p, gen, aws, soc, ns
-            level 4: p, gen, aws, soc
-            level 5: p, gen, aws
-        if pop[xyz] > 300:
-            trip_rate[xyz] = trip[xyz] / pop[xyz]
-        elif pop[xyz, (at)] > 300:
-            trip_rate[xyz, (at)] =
-        elif pop[xyz, (at, hh)] > 300:
-            trip_rate[xyz, (at, hh)] =
-        elif pop[xyz, (at, hh, ns)] > 300:
-            trip_rate[xyz, (at, hh, ns)] =
-        elif pop[xyz, (at, hh, ns, soc)] > 300:
-            trip_rate[xyz, (at, hh, ns, soc)] =
-        else:
-            trip_rate[xyz, (at, hh, ns, soc, aws)] =
-        """
-        out_dict = {'lev1': {}, 'lev2': {}, 'lev3': {}}
-
-        return out_dict
+    def nhb_renumber(dfr: pd.DataFrame, col_type: type = int) -> np.ndarray:
+        # TODO: to be updated once finalised
+        return np.where(dfr['direction'] == 'xxx', (10 if col_type is int else 'n') + dfr['purpose'],
+                        dfr['purpose'])
