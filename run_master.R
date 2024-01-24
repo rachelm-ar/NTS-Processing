@@ -1,5 +1,5 @@
 user <- Sys.info()[[6]]
-repo_dir <- paste0("C:/Users/", user, "/Documents/GitHub/NTS-Processing/")
+repo_dir <- paste0("D:/OneDrive - Transport for the North/GitHub/NTS-Processing/")
 setwd(repo_dir)
 
 # Load custom functions
