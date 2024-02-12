@@ -20,12 +20,14 @@ def dfr_filter_mode(dfr: pd.DataFrame, inc_list: List, col_mode: str = 'mode') -
 
 
 # create a complete set of index values
-def dfr_complete(dfr: pd.DataFrame, col_index: Union[List, str, None], col_unstack: Union[List, str]
+def dfr_complete(dfr: pd.DataFrame, col_index: Union[List, str, None], col_unstk: Union[List, str]
                  ) -> pd.DataFrame:
-    if col_index is None or len(col_index) == 0:
-        return dfr.unstack(level=col_unstack, fill_value=0).stack()
-    else:
-        return dfr.set_index(col_index).unstack(level=col_unstack, fill_value=0).stack()
+    col_index = [] if col_index is None else str_to_list(col_index)
+    col_unstk = str_to_list(col_unstk)
+    dfr = dfr.set_index(col_index) if len(col_index) > 0 else dfr
+    for col in col_unstk:
+        dfr = dfr.unstack(level=col, fill_value=0).stack()
+    return dfr
 
 
 # import csv to dataframe
@@ -40,19 +42,21 @@ def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None, nts_dtype: type
     dfr = dfr.rename(columns={key: key.lower().strip() for key in dfr.columns})
     try:
         dfr = dfr[col_incl] if col_incl is not None else dfr
-        dfr = dfr.fillna('0').replace(' ', '0')
-        if nts_dtype is int:
-            col_incl = ['w2', 'w5', 'w5xhh', 'tripdisincsw', 'triptravtime', 'hholdoslaua_b01id',
-                        'settlement2011ew_b01id', 'stagedistance', 'stagetime', 'stagefarecost', 'stagecost',
-                        'ticketcost', 'tickettripcost']
-            col_incl = [col for col in dfr.columns if col not in col_incl]
-            try:
-                dfr[col_incl] = dfr[col_incl].astype('int64')
-            except ValueError as err:
-                log_stderr(f'    error with {csv_file}: {err}')
     except KeyError as err:
-        log_stderr(f'    error with {csv_file}: {err}')
-        dfr = False
+        log_stderr(f'    !!! {split_file(csv_file)[2]} -> {err} !!!')
+        dfr = dfr[[col for col in col_incl if col in dfr.columns]] if col_incl is not None else dfr
+
+    dfr = dfr.fillna('0').replace(' ', '0')
+    if nts_dtype is int:
+        col_incl = ['w2', 'w5', 'w5xhh', 'tripdisincsw', 'triptravtime', 'hholdoslaua_b01id', 'hholdosward_b01id',
+                    'settlement2011ew_b01id', 'stagedistance', 'stagetime', 'stagefarecost', 'stagecost',
+                    'ticketcost', 'tickettripcost']
+        col_incl = [col for col in dfr.columns if col not in col_incl]
+        try:
+            dfr[col_incl] = dfr[col_incl].astype('int64')
+        except ValueError as err:
+            log_stderr(f'    error with {csv_file}: {err}')
+
     return dfr
 
 
@@ -231,11 +235,11 @@ def add_path(cur_path: str, str_file: str) -> str:
 
 
 # derive distance band
-def dist_band(max_dist: Union[List, float]) -> np.ndarray:
+def dist_band(max_dist: Union[List, float], pow_incr: float = 2.2) -> np.ndarray:
     if isinstance(max_dist, float):
         max_dist = int(max_dist + 1)
         num_band = int(max_dist ** 0.51)
-        arr_dist = np.array([int(((0 if val == 0 else val + 1) / num_band) ** 2.2 * max_dist)
+        arr_dist = np.array([int(((0 if val == 0 else val + 1) / num_band) ** pow_incr * max_dist)
                              for val in range(num_band)])
     else:
         arr_dist = np.array(max_dist)

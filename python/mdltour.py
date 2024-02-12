@@ -28,10 +28,11 @@ class TourModel:
             self._read_input()
             self._calc_prod()
             self._calc_rezone(True)
-            self._calc_tour(10)
-            self._calc_mts('freq')
-            self._calc_dest('freq')
+            self._calc_tour(10, True)
+            self._calc_mts('freq', True)
+            self._calc_dest('freq', True)
             self._calc_trip_by_activity()
+            self._reports()
             # self._adjust_tripend()
         else:
             fun.log_stderr(f' .. skipped!')
@@ -250,17 +251,19 @@ class TourModel:
     def _activity_breakdown(self, tor: str, act_list: List) -> pd.DataFrame:
         """ tmz and taz have to be the same here, otherwise it won't work,
             as I haven't figured out a way to apply the distribution split from taz level to tmz level yet
-            first leg - hb_fr:
-                trip[i,j,p,m,t] = prod[i,p] * tour[i,0_p_y_z_0] * dest[i,p,fr,j] * mts[i,j,p,fr,m,t]
-                attr[j,p] += trip[i,j,p,m,t]
-            subsequent legs - nhb:
-                loop for p in [x,y,z] of the tour[i,0_x_y_z_0]:
-                    orig[i,p] = attr[j,p] if 1st nhb else dest[j,p]
-                    trip[i,j,p,m,t] = orig[i,p] * tour[i,0_x_p_z_0] * dest[i,p,nhb,j] * mts[i,j,p,nhb,m,t]
-                    dest[p,j] += trip[i,j,p,m,t]
-            last leg - hb_to:
-                orig[i,p] = dest[j,p]
-                trip[i,j,p,m,t] = orig[i,p] * tour[i,0_x_y_p_0] * dest[i,p,to,j] * mts[i,j,p,to,m,t]
+            outer loop: for tour[i, 0_p_y_z_0] in tour_list:
+                first leg - hb_fr:
+                    prod[i,p] = prod[i,p] * tour[i,0_p_y_z_0]
+                    trip[i,j,p,m,t] = prod[i,p] * dest[i,p,fr,j] * mts[i,j,p,fr,m,t]
+                    attr[j,p] += trip[i,j,p,m,t]
+                subsequent legs - nhb:
+                    inner loop: for p in [x,y,z] of the tour[i,0_x_y_z_0]:
+                        orig[i,p] = attr[j,p] if 1st nhb else dest[j,p]
+                        trip[i,j,p,m,t] = orig[i,p] * dest[i,p,nhb,j] * mts[i,j,p,nhb,m,t]
+                        dest[p,j] += trip[i,j,p,m,t]
+                last leg - hb_to:
+                    orig[i,p] = dest[j,p]
+                    trip[i,j,p,m,t] = orig[i,p] * dest[i,p,to,j] * mts[i,j,p,to,m,t]
             """
         fun.log_stderr(f' .. tour_id {tor} ...')
         tmz_attr, est_trip, tmz_prop = {}, [], 1

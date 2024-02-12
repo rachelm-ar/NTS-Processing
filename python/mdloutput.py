@@ -41,15 +41,16 @@ class Output:
             # pre-processing
             nts_data = self._preprocess(nts_data)
             self._work_from_home(nts_data)
-            self._trip_rates_production(nts_data, self.tfn_mode, None, 'surveyyear', False)
-            self._mts_hbase(nts_data, self.tfn_mode, 'tfn_at', ['hh_type', 'tt'], 2018)  # 'tfn_at', self.tfn_ttype
-            self._trip_rates_nhbase(nts_data, self.tfn_mode, 'tfn_at', None)
-            self._mts_nhbase(nts_data, self.tfn_mode, 'tfn_at', None)
-            self._trip_length(nts_data, self.tfn_mode, 'gor', None, True)
-            self._tour_proportion(nts_data, self.tfn_mode, 'tfn_at', None)
-            self._veh_occupancy(nts_data, [3, 4], 'gor', None, [0, 5, 10, 25, 50, 100, 200, 1999])
-            self._trip_rates_attraction(nts_data, self.tfn_mode, 'tfn_at', ['sic', 'soc'])
-            self._mts_attraction(nts_data,  self.tfn_mode, 'tfn_at', None)
+            self._trip_rates_production(nts_data, self.tfn_mode, 'gor', 'surveyyear', False)
+            self._mts_hbase(nts_data, self.tfn_mode, 'gor', 'surveyyear')  # 'tfn_at', self.tfn_ttype
+            self._trip_rates_nhbase(nts_data, self.tfn_mode, 'gor', 'surveyyear')
+            self._mts_nhbase(nts_data, self.tfn_mode, 'gor', 'surveyyear')
+            self._trip_length(nts_data, [3, 4], 'gor', 'surveyyear',
+                              [0, 2, 5, 10, 20, 32, 50, 75, 100, 150, 200, 300, 1999])
+            self._tour_proportion(nts_data, self.tfn_mode, 'gor', 'surveyyear')
+            self._veh_occupancy(nts_data, [3, 4], 'gor', 'surveyyear', [0, 5, 10, 25, 50, 100, 200, 1999])
+            self._trip_rates_attraction(nts_data, self.tfn_mode, 'gor', ['aws', 'sic', 'soc'])
+            self._mts_attraction(nts_data, self.tfn_mode, 'tfn_at', None)
             self._activity(nts_data, None, 'gor')
 
         else:
@@ -81,6 +82,7 @@ class Output:
         col_used = [lev_orig] + col_used if geo_incl is not None else col_used
         dfr = dfr[col_used + seg_incl + ['trips']].copy()
         dfr['trav_dist_total'] = dfr['trips'].mul(dfr['trav_dist'])
+        dfr['purpose'] = self.luk.purpose_agg(dfr['purpose'])
         if agg_band or isinstance(agg_band, List):
             col_dist = dfr['trav_dist'].values
             rng_dist = np.array(agg_band) if isinstance(agg_band, List) else fun.dist_band(col_dist.max())
@@ -94,7 +96,6 @@ class Output:
         dfr['purpose'] = self.luk.nhb_renumber(dfr, col_type)
         dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl)
         dfr = fun.dfr_filter_mode(dfr, mode)
-        dfr = dfr.rename(columns={lev_orig: lev_prod}) if geo_incl is not None else dfr
         fun.dfr_to_csv(dfr, out_fldr, 'trip_length_distribution', False)
 
     def _trip_rates_production(self, dfr: pd.DataFrame, mode: Union[List, None] = None,
@@ -300,9 +301,10 @@ class Output:
             dfr = pd.merge(dfr, self.tvt_list, how='outer', on=self.tfn_ttype).fillna(0)
         dfr[col_grby] = dfr[col_grby].astype(int)
         col_used = ['mode', 'purpose', 'period'] + ([lev_prod] if lev_prod is not None else [])
-        for col in col_used:
-            dfr.loc[dfr[col] == 0, col] = 1
-            dfr = fun.dfr_complete(dfr, col_grby, col).reset_index()
+        dfr = fun.dfr_filter_zero(dfr, col_used)
+        # for col in col_used:
+        #     dfr.loc[dfr[col] == 0, col] = 1
+        dfr = fun.dfr_complete(dfr, col_grby, col_used).reset_index()
 
         # aggregate split
         dfr = dfr.groupby(seg_incl + ['mode', 'period'])[['trips']].sum().reset_index()
