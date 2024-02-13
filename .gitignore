@@ -42,3 +42,7 @@ vignettes/*.pdf
 python/__pycache__*
 *.xml
 *.iml
+
+# Pycharm stuff
+*.idea*
+

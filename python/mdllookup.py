@@ -2,318 +2,45 @@ from typing import Dict, List
 import mdlfunction as fun
 import pandas as pd
 import numpy as np
+from typing import Union
+from caf.toolkit import BaseConfig
 
 
-class Lookup:
-    def __init__(self, col_type: type = int):
-        self.nts_dtype = col_type
-        # mode: {main/stage}mode_b11id - trip & stage table
-        self.mmd_11id = {
-            'swak': {1: 'walk, less than 1 mile'},
-            'walk': {2: 'walk, 1 mile or more'},
-            'bike': {3: 'bicycle'},
-            'car_d': {5: 'private car: driver', 7: 'motorcycle / scooter / moped: driver',
-                      11: 'other private transport'},
-            'car_p': {6: 'private car: passenger', 8: 'motorcycle / scooter / moped: passenger',
-                      20: 'taxi', 21: 'minicab'},
-            'van_d': {9: 'van / lorry: driver'},
-            'van_p': {10: 'van / lorry: passenger'},
-            'bus_d': {},
-            'bus_p': {4: 'private (hire) bus', 12: 'london stage bus', 13: 'other stage bus',
-                      14: 'coach / express bus', 15: 'excursion / tour bus', 22: 'other public transport'},
-            'rail_l': {16: 'london underground', 18: 'light rail'},
-            'rail_s': {17: 'surface rail'},
-            'air': {19: 'air'},
-            'na': {23: 'na (public)', 24: 'na (private)', 25: 'na', -8: 'na', 0: '0'}
-        }
+class Lookup(BaseConfig):
 
-        # trip purpose: trippurp{from/to}_b01id
-        self.tpp_01id = {
-            'com': {1: 'work', 18: 'escort work'},
-            'emb': {2: 'in course of work', 19: 'escort in course of work'},
-            'edu': {3: 'education', 20: 'escort education'},
-            'shp': {4: 'food shopping', 5: 'non food shopping', 21: 'escort shopping / personal business'},
-            'peb': {6: 'personal business medical', 7: 'personal business eat / drink', 8: 'personal business other'},
-            'soc': {9: 'eat / drink with friends', 11: 'other social', 12: 'entertain /  public activity',
-                    13: 'sport: participate', },  # 16: 'other non-escort', 22: 'other escort'
-            'vis': {10: 'visit friends'},  # 17: 'escort home'
-            'hol': {14: 'holiday: base'},
-            'jwk': {15: 'day trip / just walk'},
-            'esc': {17: 'escort home', 16: 'other non-escort', 22: 'other escort'},
-            'hom': {23: 'home'}
-        }
-        # trip purpose included in analysis
-        self.inc_purp = [val for key in self.tpp_01id for val in self.tpp_01id[key] if key not in ['hom', 'esc']]
+    mmd_11id: dict[str, dict[int, str]]
+    tpp_01id: dict[str, dict[int, str]]
+    wkd_01id: dict[str, dict[int, str]]
+    ttp_01id: dict[str, dict[int, str]]
+    age_01id: dict[str, dict[int, str]]
+    sex_01id: dict[str, dict[int, str]]
+    eco_01id: dict[str, dict[int, str]]
+    soc_02id: dict[str, dict[int, str]]
+    sec_03id: dict[str, dict[int, str]]
+    wfh_01id: dict[float, dict[int, str]]
+    i02_01id: dict[int, dict[int, str]]
+    i02_02id: dict[str, dict[int, Union[str, int]]]
+    hrp_01id: dict[int, dict[int, str]]
+    s92_02id: dict[str, dict[int, str]]
+    s07_02id: dict[str, dict[int, str]]
+    set_01id: dict[str, dict[str, str]]
+    at2_01id: dict[int, dict[int, str]]
+    gor_02id: dict[int, str]
+    vp1_01id: dict[int, dict[int, str]]
+    vp2_01id: dict[int, dict[int, str]]
+    col_type: type = int
 
-        # weekday & weekend
-        self.wkd_01id = {
-            'wkd': {1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday'},
-            'sat': {6: 'saturday'},
-            'sun': {7: 'sunday'}
-        }
+    @property
+    def nts_dtype(self):
+        return self.col_type
+    @property
+    def inc_purp(self):
+        return [val for key in self.tpp_01id for val in self.tpp_01id[key] if key not in ['hom', 'esc']]
 
-        # hours to periods
-        self.ttp_01id = {
-            'am': {8: '0700 - 0759', 9: '0800 - 0859', 10: '0900 - 0959'},
-            'ip': {11: '1000 - 1059', 12: '1100 - 1159', 13: '1200 - 1259',
-                   14: '1300 - 1359', 15: '1400 - 1459', 16: '1500 - 1559'},
-            'pm': {17: '1600 - 1659', 18: '1700 - 1759', 19: '1800 - 1859'},
-            'op': {1: '0000 - 0059', 2: '0100 - 0159', 3: '0200 - 0259', 4: '0300 - 0359',
-                   5: '0400 - 0459', 6: '0500 - 0559', 7: '0600 - 0659',
-                   20: '1900 - 1959', 21: '2000 - 2059', 22: '2100 - 2159', 23: '2200 - 2259', 24: '2300 - 2359'},
-            'na': {-8: 'na', -10: 'dead', 0: '0', '0': '0'}
-        }
-
-        # age profile
-        self.age_01id = {
-            'child': {1: 'less than 1 year', 2: '1 - 2 years', 3: '3 - 4 years',
-                      4: '5 - 10 years', 5: '11 - 15 years'},
-            'adult': {6: '16 years', 7: '17 years', 8: '18 years', 9: '19 years', 10: '20 years',
-                      11: '21 - 25 years', 12: '26 - 29 years', 13: '30 - 39 years', 14: '40 - 49 years',
-                      15: '50 - 59 years', 16: '60 - 64 years', 17: '65 - 69 years', 18: '70 - 74 years'},
-            'elder': {19: '75 - 79 years', 20: '80 - 84 years', 21: '85 years +'}
-        }
-
-        # gender
-        self.sex_01id = {
-            'male': {1: 'male'},
-            'female': {2: 'female'}
-        }
-        # work status
-        self.eco_01id = {
-            'fte': {1: 'employees: full-time', 3: 'self-employed: full-time'},
-            'pte': {2: 'employees: part-time', 4: 'self-employed: part-time'},
-            'stu': {7: 'economically inactive: student'},
-            'unm': {5: 'ILO unemployed', 6: 'economically inactive: retired',
-                    8: 'economically inactive: looking after family / home',
-                    9: 'economically inactive: permanently sick / disabled',
-                    10: 'economically inactive: temporarily sick / injured',
-                    11: 'economically inactive: other'},
-            'dna': {-8: 'na', -9: 'dna', -10: 'dead', 0: '0'}
-        }
-
-        # standard occupational classification (individual)
-        self.soc_02id = {
-            'hig': {1: 'managers and senior officials', 2: 'professional occupations',
-                    3: 'associate professional and technical occupations'},
-            'med': {4: 'administrative and secretarial occupations', 5: 'skilled trades occupations',
-                    6: 'personal service occupations', 7: 'sales and customer service occupations'},
-            'low': {8: 'process, plant and machine operatives', 9: 'elementary occupations'},
-            'dna': {-8: 'na', -9: 'dna'}
-        }
-
-        # national statistics - social economic classification (individual)
-        self.sec_03id = {
-            'ns1': {1: 'managerial and professional occupations'},
-            'ns2': {2: 'intermediate occupations and small employers'},
-            'ns3': {3: 'routine and manual occupations'},
-            'ns4': {4: 'never worked and long-term unemployed'},
-            'ns5': {5: 'not classified (including students)'},
-            'dna': {-9: 'dna'}
-        }
-
-        # wfh frequency
-        self.wfh_01id = {
-            3.000: {1: '3 or more times a week'},  # 3
-            1.500: {2: 'once or twice a week'},  # 1.5
-            0.750: {3: 'less than once a week more than twice a month'},  # 0.75
-            0.375: {4: 'once or twice a month'},  # 0.375
-            0.100: {5: 'less than one a month more than twice a year'},  # 0.10
-            0.030: {6: 'once or twice a year'},  # 0.03
-            0.015: {7: 'less than once a year or never'},  # 0.015
-            0.000: {-8: 'na', -9: 'dna'}
-        }
-
-        # individual/household income 2002
-        self.i02_01id = {
-            500: {1: 'Less than £1,000'},
-            1500: {2: '£1,000 - £1,999'},
-            2500: {3: '£2,000 - £2,999'},
-            3500: {4: '£3,000 - £3,999'},
-            4500: {5: '£4,000 - £4,999'},
-            5500: {6: '£5,000 - £5,999'},
-            6500: {7: '£6,000 - £6,999'},
-            7500: {8: '£7,000 - £7,999'},
-            8500: {9: '£8,000 - £8,999'},
-            9500: {10: '£9,000 - £9,999'},
-            11250: {11: '£10,000 - £12,499'},
-            13750: {12: '£12,500 - £14,999'},
-            16250: {13: '£15,000 - £17,499'},
-            18750: {14: '£17,500 - £19,999'},
-            22500: {15: '£20,000 - £24,999'},
-            27500: {16: '£25,000 - £29,999'},
-            32500: {17: '£30,000 - £34,999'},
-            37500: {18: '£35,000 - £39,999'},
-            45000: {19: '£40,000 - £49,999'},
-            55000: {20: '£50,000 - £59,999'},
-            65000: {21: '£60,000 - £69,999'},
-            72500: {22: '£70,000 - £74,999'},
-            87500: {23: '£75,000 to £99,999'},
-            112500: {24: '£100,000 to £124,999'},
-            137500: {25: '£125,000 to £149,999'},
-            150000: {26: '£150,000 or more'},
-            -1: {-8: 'NA', 0: 'NA'},
-            0: {-9: 'DNA (under 16)'}
-        }
-
-        # aggregate income
-        self.i02_02id = {
-            '£0k-£25k': {key: key for key in range(1, 16)},  # Less than £25,000
-            '£25k-£50k': {key: key for key in range(16, 20)},  # £25,000 to £49,999
-            '£50k+': {key: key for key in range(20, 28)},  # £50,000 and over
-            'na': {-8: 'na', 0: 'na'}
-        }
-
-        # household reference person
-        self.hrp_01id = {
-            1: {99: 'Household reference person'},
-            0: {1: 'Spouse', 2: 'Cohabitee', 3: 'Son/daughter', 4: 'Step-son/daughter', 5: 'Foster child',
-                6: 'Son/daughter-in-law', 7: 'Parent/guardian', 8: 'Step-parent', 9: 'Foster parent',
-                10: 'Parent-in-law', 11: 'Brother/sister', 12: 'Step-brother/sister', 13: 'Foster brother/sister',
-                14: 'Brother/sister-in-law', 15: 'Grand-child', 16: 'Grand-parent', 17: 'Other relative',
-                18: 'Other non-relative', 19: 'Civil partner', -8: 'NA', -9: 'DNA'}
-        }
-
-        # SIC1992 codes
-        self.s92_02id = {
-            'A': {1: 'A - Agriculture, hunting and forestry', 2: 'B - Fishing'},
-            'B': {3: 'C - Mining and quarrying'},
-            'C': {4: 'D - Manufacturing'},
-            'D/E': {5: 'E - Electricity, gas and water supply'},
-            'F': {6: 'F - Construction'},
-            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles, '
-                     'motorcycles and personal and household goods'},
-            'I': {8: 'H - Hotels and restaurants'},
-            'H/J': {9: 'I - Transport, storage and communication'},
-            'K': {10: 'J - Financial intermediation'},
-            'L/M/N': {11: 'K - Real estate, renting and business activities'},
-            'O': {12: 'L - Public administration and defence; compulsory social security'},
-            'P': {13: 'M - Education'},
-            'Q': {14: 'N - Health and social work'},
-            'E/J/R/S': {15: 'O - Other community, social and personal service activities'},
-            'T/U': {16: 'P - Private households with employed persons',
-                    17: 'Q - Extra-territorial organisations and bodies'},
-            'na': {-8: 'na', 18: 'Workplace outside UK (Pre 2002)'},
-            'dna': {-9: 'dna'}
-        }
-
-        # SIC2007 codes
-        self.s07_02id = {
-            'A': {1: 'A - Agriculture, forestry and fishing'},
-            'B': {2: 'B - Mining and quarrying'},
-            'C': {3: 'C - Manufacturing'},
-            'D/E': {4: 'D - Electricity, gas, steam and air conditioning supply',
-                    5: 'E - Water supply; sewerage, waste management and remediation activities'},
-            'F': {6: 'F - Construction'},
-            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles and motorcycles'},
-            'H': {8: 'H - Transportation and storage'},
-            'I': {9: 'I - Accommodation and food service activities'},
-            'J': {10: 'J - Information and communication'},
-            'K': {11: 'K - Financial and insurance activities'},
-            'L': {12: 'L - Real estate activities'},
-            'M': {13: 'M - Professional, scientific and technical activities'},
-            'N': {14: 'N - Administrative and support service activities'},
-            'O': {15: 'O - Public administration and defence; compulsory social security'},
-            'P': {16: 'P - Education'},
-            'Q': {17: 'Q - Human health and social work activities'},
-            'R': {18: 'R - Arts, entertainment and recreation'},
-            'S': {19: 'S - Other service activities'},
-            'T/U': {20: 'T - Activities of households as employers',
-                    21: 'U - Activities of extraterritorial organisations and bodies'},
-            'na': {-8: 'na'},
-            'dna': {-9: 'dna'}
-        }
-
-        # settlement ruc 2011
-        self.set_01id = {
-            'major': {'a1': 'Urban - major conurbation'},
-            'minor': {'b1': 'Urban - minor conurbation', '1': 'Large urban area - scotland'},
-            'city': {'c1': 'Urban - city and town', 'c2': 'Urban - city and town in a sparse setting',
-                     '2': 'Other urban area - scotland'},
-            'town': {'d1': 'Rural - town and fringe', 'd2': 'Rural - town and fringe in a sparse setting',
-                     '3': 'Accessible small town - Scotland', '4': 'Remote small town - Scotland',
-                     '5': 'Very remote small town - Scotland'},
-            'village': {'e1': 'Rural - village', 'e2': 'rural - village in a sparse setting',
-                        'f1': 'Rural - hamlets and isolated dwellings',
-                        'f2': 'Rural - hamlets and isolated dwellings in a sparse setting',
-                        '6': 'Accessible rural area - Scotland', '7': 'Remote rural area - Scotland',
-                        '8': 'Very remote rural area - Scotland'}
-        }
-
-        # ntem area type2: {hhold/triporig/tripdest}areatype2_b01id
-        self.at2_01id = {
-            1: {1: 'inner london'},
-            2: {2: 'outer london built-up areas'},
-            3: {3: 'west midlands built-up areas', 4: 'greater manchester built-up areas',
-                5: 'west yorkshire built-up areas', 6: 'glasgow built-up areas', 7: 'liverpool built-up areas',
-                8: 'tyneside built-up areas', 9: 'south yorkshire built-up areas'},
-            4: {10: 'other urban areas - over 250k population'},
-            5: {11: 'other urban areas - 100k to 250k population'},
-            6: {12: 'other urban areas - 50k to 100k population', 13: 'other urban areas - 25k to 50k population'},
-            7: {14: 'other urban areas - 10k to 25k population', 15: 'other urban areas - 3k to 10k population'},
-            8: {16: 'rural'},
-            0: {-8: 'na', -9: 'dna', -10: 'dead'}
-        }
-
-        # gor: {hhold/triporig/tripdest}gor_b02id
-        self.gor_02id = {1: 'North East', 2: 'North West', 3: 'Yorks and Humber',
-                         4: 'East Midlands', 5: 'West Midlands', 6: 'East of England',
-                         7: 'London', 8: 'South East', 9: 'South West',
-                         10: 'Wales', 11: 'Scotland', -8: 'NA', -9: 'DNA', -10: 'DEAD'
-                         }
-
-        # vehicle fuel type: vehproptype_b01id
-        self.vp1_01id = {
-            1: {1: 'unleaded petrol', 94: 'unleaded petrol and lead replacement petrol (LRP)',
-                95: 'lead replacement petrol (LRP)', 96: 'leaded (classic cars)'},
-            2: {2: 'diesel'},
-            3: {3: 'electric'},
-            4: {},
-            5: {},
-            6: {4: 'liquefied petroleum gas (LPG)'},
-            7: {5: 'bi-fuel'},
-            8: {97: 'other', -8: 'na', -9: 'dna'},
-            0: {0: ''},
-            -10: {-10: 'dead'}
-        }
-        # vehicle fuel type: vehproptypen_b01id
-        self.vp2_01id = {
-            1: {1: 'petrol'},
-            2: {2: 'diesel'},
-            3: {3: 'electric/battery only'},
-            4: {4: 'hybrid'},
-            5: {5: 'plug-in hybrid'},
-            6: {6: 'liquefied petroleum gas (LPG)'},
-            7: {7: 'bi-fuel'},
-            8: {97: 'other', -8: 'na', -9: 'dna'},
-            0: {0: ''},
-            -10: {-10: 'dead'}
-        }
-
-        # convert specs to either key or values
-        self.set_01id = self.dct_to_specs(self.set_01id, col_type)
-        self.mmd_11id = self.dct_to_specs(self.mmd_11id, col_type)
-        self.tpp_01id = self.dct_to_specs(self.tpp_01id, col_type)
-        self.age_01id = self.dct_to_specs(self.age_01id, col_type)
-        self.sex_01id = self.dct_to_specs(self.sex_01id, col_type)
-        self.eco_01id = self.dct_to_specs(self.eco_01id, col_type)
-        self.wkd_01id = self.dct_to_specs(self.wkd_01id, col_type)
-        self.ttp_01id = self.dct_to_specs(self.ttp_01id, col_type)
-        self.soc_02id = self.dct_to_specs(self.soc_02id, col_type)
-        self.sec_03id = self.dct_to_specs(self.sec_03id, col_type)
-        self.at2_01id = self.dct_to_specs(self.at2_01id, col_type)
-        self.i02_01id = self.dct_to_specs(self.i02_01id, col_type)
-        self.i02_02id = self.dct_to_specs(self.i02_02id, col_type)
-        self.wfh_01id = self.dct_to_specs(self.wfh_01id, col_type)
-        self.hrp_01id = self.dct_to_specs(self.hrp_01id, col_type)
-        self.s07_02id = self.dct_to_specs(self.s07_02id, col_type)
-        self.s92_02id = self.dct_to_specs(self.s92_02id, col_type)
-        self.vp1_01id = self.dct_to_specs(self.vp1_01id, col_type)
-        self.vp2_01id = self.dct_to_specs(self.vp2_01id, col_type)
-
+    @property
     def gender(self) -> Dict:
         # gender
-        age_01id, sex_01id = self.age_01id, self.sex_01id
+        age_01id, sex_01id = self.dct_to_specs(self.age_01id), self.dct_to_specs(self.sex_01id)
         out_dict = {'col': ['sex_b01id', 'age_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
                     'log': 'gender',
@@ -326,6 +53,7 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
+    @property
     def hh_type(self) -> Dict:
         # household type
         out_dict = {'col': ['hholdnumadults', 'numcarvan'],
@@ -347,6 +75,7 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
+    @property
     def hh_child(self) -> Dict:
         # number of children in a household
         out_dict = {'col': 'hholdnumchildren',
@@ -358,9 +87,10 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
+    @property
     def aws(self) -> Dict:
         # age, work, status
-        eco_01id, age_01id = self.eco_01id, self.age_01id
+        eco_01id, age_01id = self.dct_to_specs(self.eco_01id), self.dct_to_specs(self.age_01id)
         eco_over = eco_01id['fte'] + eco_01id['pte'] + eco_01id['unm'] + eco_01id['dna']
         out_dict = {'col': ['age_b01id', 'ecostat_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
@@ -377,9 +107,10 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
+    @property
     def soc(self) -> Dict:
         # soc
-        soc_02id, age_01id, eco_01id = self.soc_02id, self.age_01id, self.eco_01id
+        soc_02id, age_01id, eco_01id = self.dct_to_specs(self.soc_02id), self.dct_to_specs(self.age_01id), self.dct_to_specs(self.eco_01id)
         all_xsoc = soc_02id['hig'] + soc_02id['med'] + soc_02id['low'] + soc_02id['dna']
         all_ages = age_01id['child'] + age_01id['adult'] + age_01id['elder']
         emp_ecos = eco_01id['fte'] + eco_01id['pte']
@@ -401,14 +132,16 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
+    @property
     def ns_sec(self) -> Dict:
         # ns-sec
+        sec_03id = self.dct_to_specs(self.sec_03id)
         out_dict = {'col': 'nssec_b03id', 'typ': self.nts_dtype, 'log': 'ns-sec',
-                    'val': {1: self.sec_03id['ns1'],  # manager & professional
-                            2: self.sec_03id['ns2'],  # intermediate
-                            3: self.sec_03id['ns3'],  # manual & routine
-                            4: self.sec_03id['ns4'],  # unemployed
-                            5: self.sec_03id['ns5'] + self.sec_03id['dna'],  # not classified + students
+                    'val': {1: sec_03id['ns1'],  # manager & professional
+                            2: sec_03id['ns2'],  # intermediate
+                            3: sec_03id['ns3'],  # manual & routine
+                            4: sec_03id['ns4'],  # unemployed
+                            5: sec_03id['ns5'] + sec_03id['dna'],  # not classified + students
                             },
                     'out': {1: 'Manager & professional', 2: 'Intermediate & small employers',
                             3: 'Routine & manual', 4: 'Unemployed', 5: 'Not classified (inc. students)'}
@@ -416,6 +149,7 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
+    @property
     def hrp(self) -> Dict:
         # hrp
         out_dict = {'col': 'hrprelation_b01id', 'typ': self.nts_dtype, 'log': 'hrp',
@@ -432,6 +166,7 @@ class Lookup:
                     'val': eval(f'self.i02_{lev_name}id')}
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
+
 
     def wfh(self, col_name: str) -> Dict:
         # number of day wfh
@@ -466,8 +201,8 @@ class Lookup:
                 return par_dict
 
         # tt = [gender, aws, hh_type, soc, ns]
-        par_dict: Dict = {'gender': self.gender(), 'aws': self.aws(), 'hh_type': self.hh_type(),
-                          'soc': self.soc(), 'ns': self.ns_sec()}
+        par_dict: Dict = {'gender': self.gender, 'aws': self.aws, 'hh_type': self.hh_type,
+                          'soc': self.soc, 'ns': self.ns_sec}
         gen, aws, hh = _dct_value(0), _dct_value(1), _dct_value(2)
         soc, sec = _dct_value(3), _dct_value(4)
 
@@ -811,3 +546,288 @@ class Lookup:
         # TODO: to be updated once finalised
         return np.where(dfr['direction'] == 'xxx', (10 if col_type is int else 'n') + dfr['purpose'],
                         dfr['purpose'])
+
+if __name__ == "__main__":
+
+    luk = Lookup(mmd_11id={
+            'swak': {1: 'walk, less than 1 mile'},
+            'walk': {2: 'walk, 1 mile or more'},
+            'bike': {3: 'bicycle'},
+            'car_d': {5: 'private car: driver', 7: 'motorcycle / scooter / moped: driver',
+                      11: 'other private transport'},
+            'car_p': {6: 'private car: passenger', 8: 'motorcycle / scooter / moped: passenger',
+                      20: 'taxi', 21: 'minicab'},
+            'van_d': {9: 'van / lorry: driver'},
+            'van_p': {10: 'van / lorry: passenger'},
+            'bus_d': {},
+            'bus_p': {4: 'private (hire) bus', 12: 'london stage bus', 13: 'other stage bus',
+                      14: 'coach / express bus', 15: 'excursion / tour bus', 22: 'other public transport'},
+            'rail_l': {16: 'london underground', 18: 'light rail'},
+            'rail_s': {17: 'surface rail'},
+            'air': {19: 'air'},
+            'na': {23: 'na (public)', 24: 'na (private)', 25: 'na', -8: 'na', 0: '0'}
+        },
+
+        # trip purpose: trippurp{from/to}_b01id
+        tpp_01id = {
+            'com': {1: 'work', 18: 'escort work'},
+            'emb': {2: 'in course of work', 19: 'escort in course of work'},
+            'edu': {3: 'education', 20: 'escort education'},
+            'shp': {4: 'food shopping', 5: 'non food shopping', 21: 'escort shopping / personal business'},
+            'peb': {6: 'personal business medical', 7: 'personal business eat / drink', 8: 'personal business other'},
+            'soc': {9: 'eat / drink with friends', 11: 'other social', 12: 'entertain /  public activity',
+                    13: 'sport: participate', },  # 16: 'other non-escort', 22: 'other escort'
+            'vis': {10: 'visit friends'},  # 17: 'escort home'
+            'hol': {14: 'holiday: base'},
+            'jwk': {15: 'day trip / just walk'},
+            'esc': {17: 'escort home', 16: 'other non-escort', 22: 'other escort'},
+            'hom': {23: 'home'}
+        },
+        # trip purpose included in analysis
+
+        # weekday & weekend
+        wkd_01id = {
+            'wkd': {1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday'},
+            'sat': {6: 'saturday'},
+            'sun': {7: 'sunday'}
+        },
+
+        # hours to periods
+        ttp_01id = {
+            'am': {8: '0700 - 0759', 9: '0800 - 0859', 10: '0900 - 0959'},
+            'ip': {11: '1000 - 1059', 12: '1100 - 1159', 13: '1200 - 1259',
+                   14: '1300 - 1359', 15: '1400 - 1459', 16: '1500 - 1559'},
+            'pm': {17: '1600 - 1659', 18: '1700 - 1759', 19: '1800 - 1859'},
+            'op': {1: '0000 - 0059', 2: '0100 - 0159', 3: '0200 - 0259', 4: '0300 - 0359',
+                   5: '0400 - 0459', 6: '0500 - 0559', 7: '0600 - 0659',
+                   20: '1900 - 1959', 21: '2000 - 2059', 22: '2100 - 2159', 23: '2200 - 2259', 24: '2300 - 2359'},
+            'na': {-8: 'na', -10: 'dead', 0: '0', '0': '0'}
+        },
+
+        # age profile
+        age_01id = {
+            'child': {1: 'less than 1 year', 2: '1 - 2 years', 3: '3 - 4 years',
+                      4: '5 - 10 years', 5: '11 - 15 years'},
+            'adult': {6: '16 years', 7: '17 years', 8: '18 years', 9: '19 years', 10: '20 years',
+                      11: '21 - 25 years', 12: '26 - 29 years', 13: '30 - 39 years', 14: '40 - 49 years',
+                      15: '50 - 59 years', 16: '60 - 64 years', 17: '65 - 69 years', 18: '70 - 74 years'},
+            'elder': {19: '75 - 79 years', 20: '80 - 84 years', 21: '85 years +'}
+        },
+
+        # gender
+        sex_01id = {
+            'male': {1: 'male'},
+            'female': {2: 'female'}
+        },
+        # work status
+        eco_01id = {
+            'fte': {1: 'employees: full-time', 3: 'self-employed: full-time'},
+            'pte': {2: 'employees: part-time', 4: 'self-employed: part-time'},
+            'stu': {7: 'economically inactive: student'},
+            'unm': {5: 'ILO unemployed', 6: 'economically inactive: retired',
+                    8: 'economically inactive: looking after family / home',
+                    9: 'economically inactive: permanently sick / disabled',
+                    10: 'economically inactive: temporarily sick / injured',
+                    11: 'economically inactive: other'},
+            'dna': {-8: 'na', -9: 'dna', -10: 'dead', 0: '0'}
+        },
+
+        # standard occupational classification (individual)
+        soc_02id = {
+            'hig': {1: 'managers and senior officials', 2: 'professional occupations',
+                    3: 'associate professional and technical occupations'},
+            'med': {4: 'administrative and secretarial occupations', 5: 'skilled trades occupations',
+                    6: 'personal service occupations', 7: 'sales and customer service occupations'},
+            'low': {8: 'process, plant and machine operatives', 9: 'elementary occupations'},
+            'dna': {-8: 'na', -9: 'dna'}
+        },
+
+        # national statistics - social economic classification (individual)
+        sec_03id = {
+            'ns1': {1: 'managerial and professional occupations'},
+            'ns2': {2: 'intermediate occupations and small employers'},
+            'ns3': {3: 'routine and manual occupations'},
+            'ns4': {4: 'never worked and long-term unemployed'},
+            'ns5': {5: 'not classified (including students)'},
+            'dna': {-9: 'dna'}
+        },
+
+        # wfh frequency
+        wfh_01id = {
+            3.000: {1: '3 or more times a week'},  # 3
+            1.500: {2: 'once or twice a week'},  # 1.5
+            0.750: {3: 'less than once a week more than twice a month'},  # 0.75
+            0.375: {4: 'once or twice a month'},  # 0.375
+            0.100: {5: 'less than one a month more than twice a year'},  # 0.10
+            0.030: {6: 'once or twice a year'},  # 0.03
+            0.015: {7: 'less than once a year or never'},  # 0.015
+            0.000: {-8: 'na', -9: 'dna'}
+        },
+
+        # individual/household income 2002
+        i02_01id = {
+            500: {1: 'Less than £1,000'},
+            1500: {2: '£1,000 - £1,999'},
+            2500: {3: '£2,000 - £2,999'},
+            3500: {4: '£3,000 - £3,999'},
+            4500: {5: '£4,000 - £4,999'},
+            5500: {6: '£5,000 - £5,999'},
+            6500: {7: '£6,000 - £6,999'},
+            7500: {8: '£7,000 - £7,999'},
+            8500: {9: '£8,000 - £8,999'},
+            9500: {10: '£9,000 - £9,999'},
+            11250: {11: '£10,000 - £12,499'},
+            13750: {12: '£12,500 - £14,999'},
+            16250: {13: '£15,000 - £17,499'},
+            18750: {14: '£17,500 - £19,999'},
+            22500: {15: '£20,000 - £24,999'},
+            27500: {16: '£25,000 - £29,999'},
+            32500: {17: '£30,000 - £34,999'},
+            37500: {18: '£35,000 - £39,999'},
+            45000: {19: '£40,000 - £49,999'},
+            55000: {20: '£50,000 - £59,999'},
+            65000: {21: '£60,000 - £69,999'},
+            72500: {22: '£70,000 - £74,999'},
+            87500: {23: '£75,000 to £99,999'},
+            112500: {24: '£100,000 to £124,999'},
+            137500: {25: '£125,000 to £149,999'},
+            150000: {26: '£150,000 or more'},
+            -1: {-8: 'NA', 0: 'NA'},
+            0: {-9: 'DNA (under 16)'}
+        },
+
+        # aggregate income
+        i02_02id = {
+            '£0k-£25k': {key: key for key in range(1, 16)},  # Less than £25,000
+            '£25k-£50k': {key: key for key in range(16, 20)},  # £25,000 to £49,999
+            '£50k+': {key: key for key in range(20, 28)},  # £50,000 and over
+            'na': {-8: 'na', 0: 'na'}
+        },
+
+        # household reference person
+        hrp_01id = {
+            1: {99: 'Household reference person'},
+            0: {1: 'Spouse', 2: 'Cohabitee', 3: 'Son/daughter', 4: 'Step-son/daughter', 5: 'Foster child',
+                6: 'Son/daughter-in-law', 7: 'Parent/guardian', 8: 'Step-parent', 9: 'Foster parent',
+                10: 'Parent-in-law', 11: 'Brother/sister', 12: 'Step-brother/sister', 13: 'Foster brother/sister',
+                14: 'Brother/sister-in-law', 15: 'Grand-child', 16: 'Grand-parent', 17: 'Other relative',
+                18: 'Other non-relative', 19: 'Civil partner', -8: 'NA', -9: 'DNA'}
+        },
+
+        # SIC1992 codes
+        s92_02id = {
+            'A': {1: 'A - Agriculture, hunting and forestry', 2: 'B - Fishing'},
+            'B': {3: 'C - Mining and quarrying'},
+            'C': {4: 'D - Manufacturing'},
+            'D/E': {5: 'E - Electricity, gas and water supply'},
+            'F': {6: 'F - Construction'},
+            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles, '
+                     'motorcycles and personal and household goods'},
+            'I': {8: 'H - Hotels and restaurants'},
+            'H/J': {9: 'I - Transport, storage and communication'},
+            'K': {10: 'J - Financial intermediation'},
+            'L/M/N': {11: 'K - Real estate, renting and business activities'},
+            'O': {12: 'L - Public administration and defence; compulsory social security'},
+            'P': {13: 'M - Education'},
+            'Q': {14: 'N - Health and social work'},
+            'E/J/R/S': {15: 'O - Other community, social and personal service activities'},
+            'T/U': {16: 'P - Private households with employed persons',
+                    17: 'Q - Extra-territorial organisations and bodies'},
+            'na': {-8: 'na', 18: 'Workplace outside UK (Pre 2002)'},
+            'dna': {-9: 'dna'}
+        },
+
+        # SIC2007 codes
+        s07_02id = {
+            'A': {1: 'A - Agriculture, forestry and fishing'},
+            'B': {2: 'B - Mining and quarrying'},
+            'C': {3: 'C - Manufacturing'},
+            'D/E': {4: 'D - Electricity, gas, steam and air conditioning supply',
+                    5: 'E - Water supply; sewerage, waste management and remediation activities'},
+            'F': {6: 'F - Construction'},
+            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles and motorcycles'},
+            'H': {8: 'H - Transportation and storage'},
+            'I': {9: 'I - Accommodation and food service activities'},
+            'J': {10: 'J - Information and communication'},
+            'K': {11: 'K - Financial and insurance activities'},
+            'L': {12: 'L - Real estate activities'},
+            'M': {13: 'M - Professional, scientific and technical activities'},
+            'N': {14: 'N - Administrative and support service activities'},
+            'O': {15: 'O - Public administration and defence; compulsory social security'},
+            'P': {16: 'P - Education'},
+            'Q': {17: 'Q - Human health and social work activities'},
+            'R': {18: 'R - Arts, entertainment and recreation'},
+            'S': {19: 'S - Other service activities'},
+            'T/U': {20: 'T - Activities of households as employers',
+                    21: 'U - Activities of extraterritorial organisations and bodies'},
+            'na': {-8: 'na'},
+            'dna': {-9: 'dna'}
+        },
+
+        # settlement ruc 2011
+        set_01id = {
+            'major': {'a1': 'Urban - major conurbation'},
+            'minor': {'b1': 'Urban - minor conurbation', '1': 'Large urban area - scotland'},
+            'city': {'c1': 'Urban - city and town', 'c2': 'Urban - city and town in a sparse setting',
+                     '2': 'Other urban area - scotland'},
+            'town': {'d1': 'Rural - town and fringe', 'd2': 'Rural - town and fringe in a sparse setting',
+                     '3': 'Accessible small town - Scotland', '4': 'Remote small town - Scotland',
+                     '5': 'Very remote small town - Scotland'},
+            'village': {'e1': 'Rural - village', 'e2': 'rural - village in a sparse setting',
+                        'f1': 'Rural - hamlets and isolated dwellings',
+                        'f2': 'Rural - hamlets and isolated dwellings in a sparse setting',
+                        '6': 'Accessible rural area - Scotland', '7': 'Remote rural area - Scotland',
+                        '8': 'Very remote rural area - Scotland'}
+        },
+
+        # ntem area type2: {hhold/triporig/tripdest}areatype2_b01id
+        at2_01id = {
+            1: {1: 'inner london'},
+            2: {2: 'outer london built-up areas'},
+            3: {3: 'west midlands built-up areas', 4: 'greater manchester built-up areas',
+                5: 'west yorkshire built-up areas', 6: 'glasgow built-up areas', 7: 'liverpool built-up areas',
+                8: 'tyneside built-up areas', 9: 'south yorkshire built-up areas'},
+            4: {10: 'other urban areas - over 250k population'},
+            5: {11: 'other urban areas - 100k to 250k population'},
+            6: {12: 'other urban areas - 50k to 100k population', 13: 'other urban areas - 25k to 50k population'},
+            7: {14: 'other urban areas - 10k to 25k population', 15: 'other urban areas - 3k to 10k population'},
+            8: {16: 'rural'},
+            0: {-8: 'na', -9: 'dna', -10: 'dead'}
+        },
+
+        # gor: {hhold/triporig/tripdest}gor_b02id
+        gor_02id = {1: 'North East', 2: 'North West', 3: 'Yorks and Humber',
+                         4: 'East Midlands', 5: 'West Midlands', 6: 'East of England',
+                         7: 'London', 8: 'South East', 9: 'South West',
+                         10: 'Wales', 11: 'Scotland', -8: 'NA', -9: 'DNA', -10: 'DEAD'
+                         },
+
+        # vehicle fuel type: vehproptype_b01id
+        vp1_01id = {
+            1: {1: 'unleaded petrol', 94: 'unleaded petrol and lead replacement petrol (LRP)',
+                95: 'lead replacement petrol (LRP)', 96: 'leaded (classic cars)'},
+            2: {2: 'diesel'},
+            3: {3: 'electric'},
+            4: {},
+            5: {},
+            6: {4: 'liquefied petroleum gas (LPG)'},
+            7: {5: 'bi-fuel'},
+            8: {97: 'other', -8: 'na', -9: 'dna'},
+            0: {0: ''},
+            -10: {-10: 'dead'}
+        },
+        # vehicle fuel type: vehproptypen_b01id
+        vp2_01id = {
+            1: {1: 'petrol'},
+            2: {2: 'diesel'},
+            3: {3: 'electric/battery only'},
+            4: {4: 'hybrid'},
+            5: {5: 'plug-in hybrid'},
+            6: {6: 'liquefied petroleum gas (LPG)'},
+            7: {7: 'bi-fuel'},
+            8: {97: 'other', -8: 'na', -9: 'dna'},
+            0: {0: ''},
+            -10: {-10: 'dead'}
+        })
+
+    print('debugging')

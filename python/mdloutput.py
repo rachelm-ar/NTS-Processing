@@ -4,7 +4,10 @@ from typing import Union, List
 import mdllookup as luk
 import pandas as pd
 import numpy as np
-
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_validate
 
 class Output:
     """ outputs from NTS classified build, including:
@@ -27,7 +30,7 @@ class Output:
         fun.log_stderr('\n***** NTS TRIP OUTPUTS *****')
         # read config
         self.cfg = mdlconfig.Config(nts_fldr)
-        self.luk = luk.Lookup(self.cfg.nts_dtype)
+        self.luk = luk.Lookup.load_yaml(r"E:\NTS\analysis\outputs\lookup.yml")
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.cb_version, self.tfn_mode = cb_version, self.cfg.tfn_modes
         self.tvt_list = self.luk.tt_to_dfr(self.tfn_ttype, self.cfg.def_ttype)
@@ -40,11 +43,12 @@ class Output:
 
             # pre-processing
             nts_data = self._preprocess(nts_data)
-            self._work_from_home(nts_data)
-            self._trip_rates_production(nts_data, self.tfn_mode, None, 'surveyyear', False)
-            self._mts_hbase(nts_data, self.tfn_mode, 'tfn_at', ['hh_type', 'tt'], 2018)  # 'tfn_at', self.tfn_ttype
-            self._trip_rates_nhbase(nts_data, self.tfn_mode, 'tfn_at', None)
-            self._mts_nhbase(nts_data, self.tfn_mode, 'tfn_at', None)
+            # self._work_from_home(nts_data)
+            # self._trip_rates_production(nts_data, self.tfn_mode, None, 'surveyyear', False)
+            # self._mts_hbase(nts_data, self.tfn_mode, 'tfn_at', ['hh_type', 'tt'], 2018)  # 'tfn_at', self.tfn_ttype
+            # self._trip_rates_nhbase(nts_data, self.tfn_mode, 'tfn_at', None)
+            # self._mts_nhbase(nts_data, self.tfn_mode, 'tfn_at', None)
+            self._tld_ml_prep(nts_data, ['mode', 'purpose', 'direction', 'period'], 'trav_dist')
             self._trip_length(nts_data, self.tfn_mode, 'gor', None, True)
             self._tour_proportion(nts_data, self.tfn_mode, 'tfn_at', None)
             self._veh_occupancy(nts_data, [3, 4], 'gor', None, [0, 5, 10, 25, 50, 100, 200, 1999])
@@ -438,3 +442,63 @@ class Output:
         out = out.groupby(self.tfn_ttype + ['surveyyear', 'wfh'])[['w2']].sum()
         out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_other}'
         fun.dfr_to_csv(out, out_fldr, 'work_fr_home.csv', True)
+
+    def _tld_ml_prep(self, cb, seg_cols, dis_col, threshold = 300):
+        update = {}
+        for i, j in self.luk.dct_to_specs(self.luk.set_01id).items():
+            for k in j:
+                if isinstance(k, str):
+                    update[k.upper()] = i
+                else:
+                    update[k] = i
+        update = pd.DataFrame.from_dict(update, orient='index', columns=['at'])
+        modes = {}
+        for mode in cb['mode'].unique():
+            inner = cb[cb['mode'] == mode]
+            dists = inner[dis_col].values
+            bands = fun.dist_band(dists.max())
+            inner['band'] = pd.cut(dists, bands)
+            modes[mode] = inner
+            inner_df = pd.merge(inner, update, left_on='settlement2011ew_b01id', right_index=True)
+            inner_df.drop(columns=['band']).to_hdf(r"E:\NTS\analysis\int\data.h5", key=str(mode), mode='a')
+            inner_df['count'] = 1
+            seg_cols += ['at', 'triporiggor_b02id']
+            big_count = inner_df.groupby(seg_cols)[['count','trips']].sum()
+            small_count = inner_df.groupby(seg_cols + ['band'], observed=False)['trips'].sum().reset_index(level='band')
+            big_count.columns = ['sample size', 'agg trips']
+            joined = small_count.join(big_count, how='inner')
+            joined['norm_trips'] = joined['trips'] / joined['agg trips']
+            joined['band start'] = pd.IntervalIndex(joined['band']).left
+            joined.set_index('band start', append=True, inplace=True)
+            joined.reset_index(level='mode', inplace=True)
+            joined.drop(['mode','band'], axis=1, inplace=True)
+            joined.drop(0, inplace=True)
+            joined.drop([0,5,6], level='period', inplace=True)
+            enc = OneHotEncoder()
+            enc.fit(joined.index.to_frame())
+            cols = []
+            iterator = joined.index.names
+            for i, cat in enumerate(enc.categories_):
+                for j in cat:
+                    cols.append(f"{iterator[i]}_{j}")
+            index = enc.transform(joined.index.to_frame()).toarray()
+            encoded_index = pd.MultiIndex.from_frame(pd.DataFrame(index, columns=cols))
+            ready_data = pd.DataFrame(joined[['norm_trips', 'sample size']].values, index=encoded_index, columns = ['norm_trips', 'sample size'])
+            training = ready_data.loc[ready_data['sample size'] > threshold, 'norm_trips']
+            to_predict = ready_data.loc[ready_data['sample size'] <= threshold, 'norm_trips']
+            X = training.index.to_frame()
+            y = training.values
+            X_train, X_test, y_train, y_test = train_test_split(X, y)
+            regr = RandomForestRegressor()
+            score = cross_validate(regr, X, y, cv=5, scoring=("r2"))
+            regr.fit(X_train, y_train)
+            test = regr.predict(X_test)
+            pred = regr.predict(to_predict.index.to_frame())
+
+        return ready_data
+
+def _rfr_tld(data):
+    regr = RandomForestRegressor()
+    regr.fit(data.index, data.values)
+
+
