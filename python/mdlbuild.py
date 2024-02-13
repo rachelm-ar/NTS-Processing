@@ -50,7 +50,7 @@ class ClassifiedBuild:
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.m2k_fact, self.tfn_modes = self.cfg.m2k_fact, self.cfg.tfn_modes
         self.csv_county = fr'{self.cfg.dir_import}\NTS_county_lookup.csv'
-        self.luk = luk.Lookup(self.nts_dtype)
+        self.luk = luk.Lookup.load_yaml(r"E:\NTS\analysis\22\lookup.yml")
         self.cb_version = cb_version
 
         # import & pre-process
@@ -228,13 +228,13 @@ class ClassifiedBuild:
             dfr['tfn_at_o'] = self._lookup(dfr, self.luk.at_tfn('triporig'))
             dfr['tfn_at_d'] = self._lookup(dfr, self.luk.at_tfn('tripdest'))
         dfr['ruc_o'] = self._lookup(dfr, self.luk.settlement('triporig'))
-        dfr['edu_age'] = self._lookup(dfr, self.luk.edu_level())
-        dfr['aws'] = self._lookup(dfr, self.luk.aws())
-        dfr['gender'] = self._lookup(dfr, self.luk.gender())
-        dfr['hh_type'] = self._lookup(dfr, self.luk.hh_type())
-        dfr['hh_child'] = self._lookup(dfr, self.luk.hh_child())
+        dfr['edu_age'] = self._lookup(dfr, self.luk.edu_level)
+        dfr['aws'] = self._lookup(dfr, self.luk.aws)
+        dfr['gender'] = self._lookup(dfr, self.luk.gender)
+        dfr['hh_type'] = self._lookup(dfr, self.luk.hh_type)
+        dfr['hh_child'] = self._lookup(dfr, self.luk.hh_child)
         # ns-sec
-        dfr['ns_ind'] = self._lookup(dfr, self.luk.ns_sec())  # individual
+        dfr['ns_ind'] = self._lookup(dfr, self.luk.ns_sec)  # individual
         # if aws = 2.fte/3.pte & ns-sec = 4.unemployed -> ns-sec = 5.not classified
         dfr.loc[(dfr['aws'].isin([2, 3])) & (dfr['ns_ind'] == 4), 'ns_ind'] = 5
         # if aws = 4.stu -> ns-sec = 5.not classified
@@ -248,7 +248,7 @@ class ClassifiedBuild:
         dfr.loc[(dfr['soc'] == 0) & (dfr['ns_ind'] == 5), 'soc'] = 3  # move to low skilled
         dfr.loc[(dfr['soc'] == 3) & (dfr['ns_ind'] == 1), 'ns_ind'] = 2
         # final household ns-sec
-        dfr['ns'] = self._lookup(dfr, self.luk.hrp()).mul(dfr['ns_ind'])
+        dfr['ns'] = self._lookup(dfr, self.luk.hrp).mul(dfr['ns_ind'])
         dfr['ns'] = dfr.groupby('householdid')['ns'].transform('max')
         dfr.loc[dfr['ns'] == 0, 'ns'] = dfr.groupby('householdid')['ns_ind'].transform('min')
         # sic & incomes
@@ -275,7 +275,10 @@ class ClassifiedBuild:
         dfr_type, col_calc = self.dfr_ttype.copy(), ['tt']
         for col in tfn_ttype:
             val = f'{col}_sec' if col == 'ns' else col
-            dct_type = eval(f'self.luk.{val}()')['out']
+            try:
+                dct_type = eval(f'self.luk.{val}()')['out']
+            except TypeError:
+                dct_type = eval(f'self.luk.{val}')['out']
             dfr_type[f'{col}_desc'] = dfr_type[col].apply(lambda x: dct_type.get(x, x))
             col_calc = col_calc + [col, f'{col}_desc']
         fun.dfr_to_csv(dfr_type[col_calc], f'{self.cfg.dir_cbuild}', f'traveller_type_{def_ttype}', False)
@@ -572,7 +575,7 @@ class ClassifiedBuild:
             arg = arg[:1] + [f'("{arg[1]}")' if len(arg) > 1 else '()']
             try:
                 luk_eval = eval(f'self.luk.{arg[0]}{arg[1]}')
-            except AttributeError:
+            except:
                 luk_eval = {'col': func, 'val': {}}
             luk_eval['col'] = luk_eval['col'] if isinstance(luk_eval['col'], list) else [luk_eval['col']]
             dfr = {key: val for key, val in luk_eval['val'].items()}

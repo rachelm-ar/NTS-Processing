@@ -36,300 +36,19 @@ class Lookup(BaseConfig):
     @property
     def inc_purp(self):
         return [val for key in self.tpp_01id for val in self.tpp_01id[key] if key not in ['hom', 'esc']]
-class Lookup:
-    def __init__(self, col_type: type = int):
-        self.nts_dtype = col_type
-        # mode: {main/stage}mode_b11id - trip & stage table
-        mmd_11id = {
-            'swak': {1: 'walk, less than 1 mile'},
-            'walk': {2: 'walk, 1 mile or more'},
-            'bike': {3: 'pedal bicycle', 26: 'eBike', 27: 'eScooter', 28: 'Mobility scooter'},
-            'car_d': {5: 'private car: driver', 7: 'motorcycle / scooter / moped: driver',
-                      11: 'other private transport'},
-            'car_p': {6: 'private car: passenger', 8: 'motorcycle / scooter / moped: passenger',
-                      20: 'taxi', 21: 'minicab'},
-            'van_d': {9: 'van / lorry: driver'},
-            'van_p': {10: 'van / lorry: passenger'},
-            'bus_d': {},
-            'bus_p': {4: 'private (hire) bus', 12: 'london stage bus', 13: 'other stage bus',
-                      14: 'coach / express bus', 15: 'excursion / tour bus', 22: 'other public transport'},
-            'rail_l': {16: 'london underground', 18: 'light rail'},
-            'rail_h': {17: 'surface rail'},
-            'air': {19: 'air'},
-            'ferry': {29: 'ferry'},
-            'na': {23: 'na (public)', 24: 'na (private)', 25: 'na', -8: 'na', 0: '0'}
-        }
-        self.mmd_11id = self.dct_to_specs(mmd_11id, col_type)
 
-        # trip purpose: trippurp{from/to}_b01id
-        tpp_01id = {
-            'com': {1: 'work', 18: 'escort work'},
-            'emb': {2: 'in course of work', 19: 'escort in course of work'},
-            'edu': {3: 'education', 20: 'escort education'},
-            'shp': {4: 'food shopping', 5: 'non food shopping', 21: 'escort shopping / personal business'},
-            'peb': {6: 'personal business medical', 7: 'personal business eat / drink', 8: 'personal business other'},
-            'soc': {9: 'eat / drink with friends', 11: 'other social', 12: 'entertain /  public activity',
-                    13: 'sport: participate', 16: 'other non-escort', 22: 'other escort'},
-            'vis': {10: 'visit friends', 17: 'escort home'},
-            'hol': {14: 'holiday: base'},
-            'jwk': {15: 'day trip / just walk'},
-            'esc': {},  # {17: 'escort home', 16: 'other non-escort', 22: 'other escort'},
-            'hom': {23: 'home'}
-        }
-        # trip purpose included in analysis
-        self.inc_purp = [val for key in tpp_01id for val in tpp_01id[key] if key not in ['hom', 'esc']]
-        self.tpp_01id = self.dct_to_specs(tpp_01id, col_type)
+    @property
+    def edu_ages(self):
+        return self.dct_to_specs({'child': self.age_01id['child'], 'higher': self.age_01id['higher'],
+                                       'adult': {**self.age_01id['adult'], **self.age_01id['elder']}},
+                                      self.col_type)
 
-        # weekday & weekend
-        wkd_01id = {
-            'wkd': {1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday'},
-            'sat': {6: 'saturday'},
-            'sun': {7: 'sunday'}
-        }
-        self.wkd_01id = self.dct_to_specs(wkd_01id, col_type)
+    @property
+    def age_01id_spec(self):
+        return self.dct_to_specs({'child': self.age_01id['child'],
+                                       'adult': {**self.age_01id['higher'], **self.age_01id['adult']},
+                                       'elder': self.age_01id['elder']}, self.col_type)
 
-        # hours to periods
-        ttp_01id = {
-            'am': {8: '0700 - 0759', 9: '0800 - 0859', 10: '0900 - 0959'},
-            'ip': {11: '1000 - 1059', 12: '1100 - 1159', 13: '1200 - 1259',
-                   14: '1300 - 1359', 15: '1400 - 1459', 16: '1500 - 1559'},
-            'pm': {17: '1600 - 1659', 18: '1700 - 1759', 19: '1800 - 1859'},
-            'op': {1: '0000 - 0059', 2: '0100 - 0159', 3: '0200 - 0259', 4: '0300 - 0359',
-                   5: '0400 - 0459', 6: '0500 - 0559', 7: '0600 - 0659',
-                   20: '1900 - 1959', 21: '2000 - 2059', 22: '2100 - 2159', 23: '2200 - 2259', 24: '2300 - 2359'},
-            'na': {-8: 'na', -10: 'dead', 0: '0', '0': '0'}
-        }
-        self.ttp_01id = self.dct_to_specs(ttp_01id, col_type)
-
-        # age profile
-        age_01id = {
-            'child': {1: 'less than 1 year', 2: '1 - 2 years', 3: '3 - 4 years',
-                      4: '5 - 10 years', 5: '11 - 15 years'},
-            'higher': {6: '16 years', 7: '17 years'},
-            'adult': {8: '18 years', 9: '19 years', 10: '20 years',
-                      11: '21 - 25 years', 12: '26 - 29 years', 13: '30 - 39 years', 14: '40 - 49 years',
-                      15: '50 - 59 years', 16: '60 - 64 years', 17: '65 - 69 years', 18: '70 - 74 years'},
-            'elder': {19: '75 - 79 years', 20: '80 - 84 years', 21: '85 years +'}
-        }
-        self.edu_ages = self.dct_to_specs({'child': age_01id['child'], 'higher': age_01id['higher'],
-                                           'adult': {**age_01id['adult'], **age_01id['elder']}}, col_type)
-        self.age_01id = self.dct_to_specs({'child': age_01id['child'],
-                                           'adult': {**age_01id['higher'], **age_01id['adult']},
-                                           'elder': age_01id['elder']}, col_type)
-
-        # gender
-        sex_01id = {
-            'male': {1: 'male'},
-            'female': {2: 'female'}
-        }
-        self.sex_01id = self.dct_to_specs(sex_01id, col_type)
-
-        # work status
-        eco_01id = {
-            'fte': {1: 'employees: full-time', 3: 'self-employed: full-time'},
-            'pte': {2: 'employees: part-time', 4: 'self-employed: part-time'},
-            'stu': {7: 'economically inactive: student'},
-            'unm': {5: 'ILO unemployed', 6: 'economically inactive: retired',
-                    8: 'economically inactive: looking after family / home',
-                    9: 'economically inactive: permanently sick / disabled',
-                    10: 'economically inactive: temporarily sick / injured',
-                    11: 'economically inactive: other'},
-            'dna': {-8: 'na', -9: 'dna', -10: 'dead', 0: '0'}
-        }
-        self.eco_01id = self.dct_to_specs(eco_01id, col_type)
-
-        # standard occupational classification (individual)
-        soc_02id = {
-            'hig': {1: 'managers and senior officials', 2: 'professional occupations',
-                    3: 'associate professional and technical occupations'},
-            'med': {4: 'administrative and secretarial occupations', 5: 'skilled trades occupations',
-                    6: 'personal service occupations', 7: 'sales and customer service occupations'},
-            'low': {8: 'process, plant and machine operatives', 9: 'elementary occupations'},
-            'dna': {-8: 'na', -9: 'dna', -10: 'dead'}
-        }
-        self.soc_02id = self.dct_to_specs(soc_02id, col_type)
-
-        # national statistics - social economic classification (individual)
-        sec_03id = {
-            'ns1': {1: 'managerial and professional occupations'},
-            'ns2': {2: 'intermediate occupations and small employers'},
-            'ns3': {3: 'routine and manual occupations'},
-            'ns4': {4: 'never worked and long-term unemployed'},
-            'ns5': {5: 'not classified (including students)'},
-            'dna': {-9: 'dna'}
-        }
-        self.sec_03id = self.dct_to_specs(sec_03id, col_type)
-
-        # wfh frequency
-        wfh_01id = {
-            3.000: {1: '3 or more times a week'},  # 3
-            1.500: {2: 'once or twice a week'},  # 1.5
-            0.750: {3: 'less than once a week more than twice a month'},  # 0.75
-            0.375: {4: 'once or twice a month'},  # 0.375
-            0.100: {5: 'less than one a month more than twice a year'},  # 0.10
-            0.030: {6: 'once or twice a year'},  # 0.03
-            0.015: {7: 'less than once a year or never'},  # 0.015
-            0.000: {-8: 'na', -9: 'dna'}
-        }
-        self.wfh_01id = self.dct_to_specs(wfh_01id, col_type)
-
-        # individual/household income 2002
-        i02_01id = {
-            500: {1: 'Less than £1,000'}, 1500: {2: '£1,000 - £1,999'}, 2500: {3: '£2,000 - £2,999'},
-            3500: {4: '£3,000 - £3,999'}, 4500: {5: '£4,000 - £4,999'}, 5500: {6: '£5,000 - £5,999'},
-            6500: {7: '£6,000 - £6,999'}, 7500: {8: '£7,000 - £7,999'}, 8500: {9: '£8,000 - £8,999'},
-            9500: {10: '£9,000 - £9,999'}, 11250: {11: '£10,000 - £12,499'}, 13750: {12: '£12,500 - £14,999'},
-            16250: {13: '£15,000 - £17,499'}, 18750: {14: '£17,500 - £19,999'}, 22500: {15: '£20,000 - £24,999'},
-            27500: {16: '£25,000 - £29,999'}, 32500: {17: '£30,000 - £34,999'}, 37500: {18: '£35,000 - £39,999'},
-            45000: {19: '£40,000 - £49,999'}, 55000: {20: '£50,000 - £59,999'}, 65000: {21: '£60,000 - £69,999'},
-            72500: {22: '£70,000 - £74,999'}, 87500: {23: '£75,000 to £99,999'}, 112500: {24: '£100,000 to £124,999'},
-            137500: {25: '£125,000 to £149,999'}, 150000: {26: '£150,000 or more'},
-            -1: {-8: 'NA', 0: 'NA'}, 0: {-9: 'DNA (under 16)'}
-        }
-        self.i02_01id = self.dct_to_specs(i02_01id, col_type)
-
-        # aggregate income
-        i02_02id = {
-            '£0k-£25k': {key: key for key in range(1, 16)},  # Less than £25,000
-            '£25k-£50k': {key: key for key in range(16, 20)},  # £25,000 to £49,999
-            '£50k+': {key: key for key in range(20, 28)},  # £50,000 and over
-            'na': {-8: 'na', 0: 'na'}
-        }
-        self.i02_02id = self.dct_to_specs(i02_02id, col_type)
-
-        # household reference person
-        hrp_01id = {
-            1: {99: 'Household reference person'},
-            0: {1: 'Spouse', 2: 'Cohabitee', 3: 'Son/daughter', 4: 'Step-son/daughter', 5: 'Foster child',
-                6: 'Son/daughter-in-law', 7: 'Parent/guardian', 8: 'Step-parent', 9: 'Foster parent',
-                10: 'Parent-in-law', 11: 'Brother/sister', 12: 'Step-brother/sister', 13: 'Foster brother/sister',
-                14: 'Brother/sister-in-law', 15: 'Grand-child', 16: 'Grand-parent', 17: 'Other relative',
-                18: 'Other non-relative', 19: 'Civil partner', -8: 'NA', -9: 'DNA'}
-        }
-        self.hrp_01id = self.dct_to_specs(hrp_01id, col_type)
-
-        # SIC1992 codes
-        s92_02id = {
-            'A': {1: 'A - Agriculture, hunting and forestry', 2: 'B - Fishing'},
-            'B': {3: 'C - Mining and quarrying'},
-            'C': {4: 'D - Manufacturing'},
-            'D/E': {5: 'E - Electricity, gas and water supply'},
-            'F': {6: 'F - Construction'},
-            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles, '
-                     'motorcycles and personal and household goods'},
-            'I': {8: 'H - Hotels and restaurants'},
-            'H/J': {9: 'I - Transport, storage and communication'},
-            'K': {10: 'J - Financial intermediation'},
-            'L/M/N': {11: 'K - Real estate, renting and business activities'},
-            'O': {12: 'L - Public administration and defence; compulsory social security'},
-            'P': {13: 'M - Education'},
-            'Q': {14: 'N - Health and social work'},
-            'E/J/R/S': {15: 'O - Other community, social and personal service activities'},
-            'T/U': {16: 'P - Private households with employed persons',
-                    17: 'Q - Extra-territorial organisations and bodies'},
-            'na': {-8: 'na', 18: 'Workplace outside UK (Pre 2002)'},
-            'dna': {-9: 'dna'}
-        }
-        self.s92_02id = self.dct_to_specs(s92_02id, col_type)
-
-        # SIC2007 codes
-        s07_02id = {
-            'A': {1: 'A - Agriculture, forestry and fishing'},
-            'B': {2: 'B - Mining and quarrying'},
-            'C': {3: 'C - Manufacturing'},
-            'D/E': {4: 'D - Electricity, gas, steam and air conditioning supply',
-                    5: 'E - Water supply; sewerage, waste management and remediation activities'},
-            'F': {6: 'F - Construction'},
-            'G': {7: 'G - Wholesale and retail trade; repair of motor vehicles and motorcycles'},
-            'H': {8: 'H - Transportation and storage'},
-            'I': {9: 'I - Accommodation and food service activities'},
-            'J': {10: 'J - Information and communication'},
-            'K': {11: 'K - Financial and insurance activities'},
-            'L': {12: 'L - Real estate activities'},
-            'M': {13: 'M - Professional, scientific and technical activities'},
-            'N': {14: 'N - Administrative and support service activities'},
-            'O': {15: 'O - Public administration and defence; compulsory social security'},
-            'P': {16: 'P - Education'},
-            'Q': {17: 'Q - Human health and social work activities'},
-            'R': {18: 'R - Arts, entertainment and recreation'},
-            'S': {19: 'S - Other service activities'},
-            'T/U': {20: 'T - Activities of households as employers',
-                    21: 'U - Activities of extraterritorial organisations and bodies'},
-            'na': {-8: 'na'},
-            'dna': {-9: 'dna'}
-        }
-        self.s07_02id = self.dct_to_specs(s07_02id, col_type)
-
-        # settlement ruc 2011
-        set_01id = {
-            'major': {'a1': 'Urban - major conurbation'},
-            'minor': {'b1': 'Urban - minor conurbation', '1': 'Large urban area - scotland'},
-            'city': {'c1': 'Urban - city and town', 'c2': 'Urban - city and town in a sparse setting',
-                     '2': 'Other urban area - scotland'},
-            'town': {'d1': 'Rural - town and fringe', 'd2': 'Rural - town and fringe in a sparse setting',
-                     '3': 'Accessible small town - Scotland', '4': 'Remote small town - Scotland',
-                     '5': 'Very remote small town - Scotland'},
-            'village': {'e1': 'Rural - village', 'e2': 'rural - village in a sparse setting',
-                        'f1': 'Rural - hamlets and isolated dwellings',
-                        'f2': 'Rural - hamlets and isolated dwellings in a sparse setting',
-                        '6': 'Accessible rural area - Scotland', '7': 'Remote rural area - Scotland',
-                        '8': 'Very remote rural area - Scotland'}
-        }
-        self.set_01id = self.dct_to_specs(set_01id, col_type)
-
-        # ntem area type2: {hhold/triporig/tripdest}areatype2_b01id
-        at2_01id = {
-            1: {1: 'inner london'},
-            2: {2: 'outer london built-up areas'},
-            3: {3: 'west midlands built-up areas', 4: 'greater manchester built-up areas',
-                5: 'west yorkshire built-up areas', 6: 'glasgow built-up areas', 7: 'liverpool built-up areas',
-                8: 'tyneside built-up areas', 9: 'south yorkshire built-up areas'},
-            4: {10: 'other urban areas - over 250k population'},
-            5: {11: 'other urban areas - 100k to 250k population'},
-            6: {12: 'other urban areas - 50k to 100k population', 13: 'other urban areas - 25k to 50k population'},
-            7: {14: 'other urban areas - 10k to 25k population', 15: 'other urban areas - 3k to 10k population'},
-            8: {16: 'rural'},
-            0: {-8: 'na', -9: 'dna', -10: 'dead'}
-        }
-        self.at2_01id = self.dct_to_specs(at2_01id, col_type)
-
-        # gor: {hhold/triporig/tripdest}gor_b02id
-        self.gor_02id = {1: 'North East', 2: 'North West', 3: 'Yorks and Humber',
-                         4: 'East Midlands', 5: 'West Midlands', 6: 'East of England',
-                         7: 'London', 8: 'South East', 9: 'South West',
-                         10: 'Wales', 11: 'Scotland', -8: 'NA', -9: 'DNA', -10: 'DEAD'
-                         }
-
-        # vehicle fuel type: vehproptype_b01id
-        vp1_01id = {
-            1: {1: 'unleaded petrol', 94: 'unleaded petrol and lead replacement petrol (LRP)',
-                95: 'lead replacement petrol (LRP)', 96: 'leaded (classic cars)'},
-            2: {2: 'diesel'},
-            3: {3: 'electric'},
-            4: {},
-            5: {},
-            6: {4: 'liquefied petroleum gas (LPG)'},
-            7: {5: 'bi-fuel'},
-            8: {97: 'other', -8: 'na', -9: 'dna'},
-            0: {0: ''},
-            -10: {-10: 'dead'}
-        }
-        self.vp1_01id = self.dct_to_specs(vp1_01id, col_type)
-
-        # vehicle fuel type: vehproptypen_b01id
-        vp2_01id = {
-            1: {1: 'petrol'},
-            2: {2: 'diesel'},
-            3: {3: 'electric/battery only'},
-            4: {4: 'hybrid'},
-            5: {5: 'plug-in hybrid'},
-            6: {6: 'liquefied petroleum gas (LPG)'},
-            7: {7: 'bi-fuel'},
-            8: {97: 'other', -8: 'na', -9: 'dna'},
-            0: {0: ''},
-            -10: {-10: 'dead'}
-        }
-        self.vp2_01id = self.dct_to_specs(vp2_01id, col_type)
 
     @property
     def gender(self) -> Dict:
@@ -362,6 +81,7 @@ class Lookup:
         out_dict['val'] = self.val_to_key(out_dict['val'])
         return out_dict
 
+    @property
     def hh_type(self) -> Dict:
         # household type
         out_dict = {'col': ['hholdnumadults', 'numcarvan'],
@@ -509,7 +229,7 @@ class Lookup:
 
         # tt = [gender, aws, hh_type, soc, ns]
         par_dict: Dict = {'gender': self.gender, 'aws': self.aws, 'hh_type': self.hh_type,
-                          'soc': self.soc, 'ns': self.ns_sec}
+                          'soc': self.soc(), 'ns': self.ns_sec}
         gen, aws, hh = _dct_value(0), _dct_value(1), _dct_value(2)
         soc, sec = _dct_value(3), _dct_value(4)
 
@@ -644,9 +364,10 @@ class Lookup:
         # 1: 'north east', 2: 'north-west', 3: 'yorkshire and the humber', 4: 'east midlands',
         # 5: 'west midlands', 6: 'east of england', 7: 'london', 8: 'south-east', 9: 'south west',
         # 10: 'wales', 11: 'scotland', -8: 'na', -9: 'dna'
-        set_01id, at2_01id = self.set_01id, self.at2_01id
+        set_01id, at2_01id = self.dct_to_specs(self.set_01id), self.dct_to_specs(self.at2_01id)
         cty_list = [-8, -9, -10, 0] + list(range(10, 99))
         gor_rest = [1, 2, 3, 4, 5, 9, 10, 11, -8, -9, -10, 0]
+
         set_list = [val for key in set_01id for val in set_01id[key]]
         at2_list = [val for key in at2_01id for val in at2_01id[key]]
         at2_xlon = [val for val in at2_list if val not in at2_01id[1]]
@@ -713,7 +434,9 @@ class Lookup:
 
     def occupant(self, col_mode: str = 'main') -> Dict:
         # occupant
-        mmd_11id = self.mmd_11id
+        mmd_11id = self.dct_to_specs(self.mmd_11id)
+        if 'bus_d' not in mmd_11id:
+            mmd_11id['bus_d'] = []
         out_dict = {'col': [f'{col_mode}mode_b11id'],
                     'typ': [self.nts_dtype],
                     'log': f'occupancy ({col_mode})',
@@ -728,18 +451,21 @@ class Lookup:
 
     def mode(self, col_mode: str = 'main') -> Dict:
         # main mode
+        mmd_11id = self.dct_to_specs(self.mmd_11id)
+        if 'bus_d' not in mmd_11id:
+            mmd_11id['bus_d'] = []
         out_dict = {'col': [f'{col_mode}mode_b11id'],
                     'typ': [self.nts_dtype],
                     'log': f'{col_mode} mode',
-                    'val': {1: self.mmd_11id['swak'] + self.mmd_11id['walk'],  # walk
-                            2: self.mmd_11id['bike'],  # cycle
-                            3: self.mmd_11id['car_d'],
-                            4: self.mmd_11id['car_p'],  # car driver/passenger
-                            5: self.mmd_11id['van_d'] + self.mmd_11id['van_p'],  # van driver/passenger
-                            6: self.mmd_11id['bus_d'] + self.mmd_11id['bus_p'],  # bus
-                            7: self.mmd_11id['rail_h'],  # surface rail
-                            8: self.mmd_11id['rail_l'],  # light rail/underground
-                            9: self.mmd_11id['air']  # air
+                    'val': {1: mmd_11id['swak'] + mmd_11id['walk'],  # walk
+                            2: mmd_11id['bike'],  # cycle
+                            3: mmd_11id['car_d'],
+                            4: mmd_11id['car_p'],  # car driver/passenger
+                            5: mmd_11id['van_d'] + mmd_11id['van_p'],  # van driver/passenger
+                            6: mmd_11id['bus_d'] + mmd_11id['bus_p'],  # bus
+                            7: mmd_11id['rail_h'],  # surface rail
+                            8: mmd_11id['rail_l'],  # light rail/underground
+                            9: mmd_11id['air']  # air
                             },
                     'out': {1: 'Walk', 2: 'Cycle', 3: 'Car', 4: 'Van', 5: 'Bus', 6: 'Heavy rail',
                             7: 'Light rail', 8: 'Air'}
@@ -749,11 +475,15 @@ class Lookup:
 
     def purpose(self) -> Dict:
         # trip purpose
-        tpp_01id, end_home = self.tpp_01id, self.tpp_01id['hom']
-        tpp_from = self.inc_purp + self.tpp_01id['esc'] + end_home
-        all_mode = [val for key in self.mmd_11id for val in self.mmd_11id[key] if key != 'na']
-        non_walk = [val for key in self.mmd_11id for val in self.mmd_11id[key] if key not in ['na', 'swak', 'walk']]
-        jst_walk = self.mmd_11id['swak'] + self.mmd_11id['walk']
+        tpp_01id, mmd_11id = self.dct_to_specs(self.tpp_01id), self.dct_to_specs(self.mmd_11id)
+        end_home = tpp_01id['hom']
+        try:
+            tpp_from = self.inc_purp + tpp_01id['esc'] + end_home
+        except:
+            tpp_from = self.inc_purp + end_home
+        all_mode = [val for key in mmd_11id for val in mmd_11id[key] if key != 'na']
+        non_walk = [val for key in mmd_11id for val in mmd_11id[key] if key not in ['na', 'swak', 'walk']]
+        jst_walk = mmd_11id['swak'] + mmd_11id['walk']
         out_dict = {'col': ['mainmode_b11id', 'trippurpfrom_b01id', 'trippurpto_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype, self.nts_dtype],
                     'log': 'purpose',
@@ -786,7 +516,7 @@ class Lookup:
 
     def period(self, tse_type: str = 'start') -> Dict:
         # trip start/end time
-        wkd_01id, ttp_01id = self.wkd_01id, self.ttp_01id
+        wkd_01id, ttp_01id = self.dct_to_specs(self.wkd_01id), self.dct_to_specs(self.ttp_01id)
         all_24hr = ttp_01id['am'] + ttp_01id['ip'] + ttp_01id['pm'] + ttp_01id['op'] + ttp_01id['na']
         out_dict = {'col': ['travelweekday_b01id', f'trip{tse_type}_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
@@ -805,12 +535,16 @@ class Lookup:
 
     def direction(self) -> Dict:
         # direction of travel, hb_fr, hb_to, nhb
-        nhb_purp = self.inc_purp + self.tpp_01id['esc']
+        tpp_01id = self.dct_to_specs(self.tpp_01id)
+        try:
+            nhb_purp = self.inc_purp + tpp_01id['esc']
+        except KeyError:
+            nhb_purp = self.inc_purp
         out_dict = {'col': ['trippurpfrom_b01id', 'trippurpto_b01id'],
                     'typ': [self.nts_dtype, self.nts_dtype],
                     'log': 'direction',
-                    'val': {'hb_fr': fun.product(self.tpp_01id['hom'], nhb_purp),
-                            'hb_to': fun.product(nhb_purp, self.tpp_01id['hom']),
+                    'val': {'hb_fr': fun.product(tpp_01id['hom'], nhb_purp),
+                            'hb_to': fun.product(nhb_purp, tpp_01id['hom']),
                             'nhb': fun.product(nhb_purp, nhb_purp)},
                     'out': {'hb_fr': 'From Home', 'hb_to': 'Return Home', 'nhb': 'Non Home-Based'}
                     }
@@ -860,11 +594,10 @@ class Lookup:
         #                 dfr['purpose'])
         return dfr['purpose']
 
-    @staticmethod
-    def purpose_agg(dfr: pd.DataFrame) -> pd.DataFrame:
+    def purpose_agg(self, dfr: pd.DataFrame) -> pd.DataFrame:
         dct_purp = {1: 'Commute', 2: 'Business', 3: 'Other', 4: 'Other', 5: 'Other',
                     6: 'Other', 7: 'Other', 8: 'Other', 0: 0}
-        return np.where(dfr['direction'] == 'xxx', (10 if col_type is int else 'n') + dfr['purpose'],
+        return np.where(dfr['direction'] == 'xxx', (10 if self.col_type is int else 'n') + dfr['purpose'],
                         dfr['purpose'])
 
 if __name__ == "__main__":
@@ -872,7 +605,7 @@ if __name__ == "__main__":
     luk = Lookup(mmd_11id={
             'swak': {1: 'walk, less than 1 mile'},
             'walk': {2: 'walk, 1 mile or more'},
-            'bike': {3: 'bicycle'},
+            'bike': {3: 'pedal bicycle', 26: 'eBike', 27: 'eScooter', 28: 'Mobility scooter'},
             'car_d': {5: 'private car: driver', 7: 'motorcycle / scooter / moped: driver',
                       11: 'other private transport'},
             'car_p': {6: 'private car: passenger', 8: 'motorcycle / scooter / moped: passenger',
@@ -883,8 +616,9 @@ if __name__ == "__main__":
             'bus_p': {4: 'private (hire) bus', 12: 'london stage bus', 13: 'other stage bus',
                       14: 'coach / express bus', 15: 'excursion / tour bus', 22: 'other public transport'},
             'rail_l': {16: 'london underground', 18: 'light rail'},
-            'rail_s': {17: 'surface rail'},
+            'rail_h': {17: 'surface rail'},
             'air': {19: 'air'},
+            'ferry': {29: 'ferry'},
             'na': {23: 'na (public)', 24: 'na (private)', 25: 'na', -8: 'na', 0: '0'}
         },
 
@@ -896,11 +630,11 @@ if __name__ == "__main__":
             'shp': {4: 'food shopping', 5: 'non food shopping', 21: 'escort shopping / personal business'},
             'peb': {6: 'personal business medical', 7: 'personal business eat / drink', 8: 'personal business other'},
             'soc': {9: 'eat / drink with friends', 11: 'other social', 12: 'entertain /  public activity',
-                    13: 'sport: participate', },  # 16: 'other non-escort', 22: 'other escort'
-            'vis': {10: 'visit friends'},  # 17: 'escort home'
+                    13: 'sport: participate', 16: 'other non-escort', 22: 'other escort'},
+            'vis': {10: 'visit friends', 17: 'escort home'},
             'hol': {14: 'holiday: base'},
             'jwk': {15: 'day trip / just walk'},
-            'esc': {17: 'escort home', 16: 'other non-escort', 22: 'other escort'},
+            'esc': {},  # {17: 'escort home', 16: 'other non-escort', 22: 'other escort'},
             'hom': {23: 'home'}
         },
         # trip purpose included in analysis
@@ -928,7 +662,8 @@ if __name__ == "__main__":
         age_01id = {
             'child': {1: 'less than 1 year', 2: '1 - 2 years', 3: '3 - 4 years',
                       4: '5 - 10 years', 5: '11 - 15 years'},
-            'adult': {6: '16 years', 7: '17 years', 8: '18 years', 9: '19 years', 10: '20 years',
+            'higher': {6: '16 years', 7: '17 years'},
+            'adult': {8: '18 years', 9: '19 years', 10: '20 years',
                       11: '21 - 25 years', 12: '26 - 29 years', 13: '30 - 39 years', 14: '40 - 49 years',
                       15: '50 - 59 years', 16: '60 - 64 years', 17: '65 - 69 years', 18: '70 - 74 years'},
             'elder': {19: '75 - 79 years', 20: '80 - 84 years', 21: '85 years +'}
@@ -1149,5 +884,5 @@ if __name__ == "__main__":
             0: {0: ''},
             -10: {-10: 'dead'}
         })
-
+    luk.save_yaml(r"E:\NTS\analysis\22\lookup.yml")
     print('debugging')
