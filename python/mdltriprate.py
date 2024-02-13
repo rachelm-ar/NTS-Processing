@@ -1,46 +1,55 @@
 import numpy as np
 import pandas as pd
+import mdlconfig as cfg
+import mdllookup as luk
 import mdlfunction as fun
-import mdlconfig
-import mdllookup
+from typing import Union, List
 import statsmodels.api as sm
 import rpy2.robjects as r2
 from rpy2.robjects import pandas2ri as pd2r, packages as rpkg
-from typing import Union, List
 
 
 class TripRate:
     """ calculate trip-rates u sing regression model
-        require: R4.3.2, utils, MASS 7.3.54 and pscl 1.5.5
+        require: R4.3.2, utils, MASS 7.3.60 and pscl 1.5.5.1
     """
 
     def __init__(self, nts_fldr: str, cb_version: Union[str, int], over_write: bool = True):
         fun.log_stderr('\n***** TRIP-RATE REGRESSION MODEL - HB PRODUCTION *****')
         # read config
-        self.cfg = mdlconfig.Config(nts_fldr)
-        self.luk = mdllookup.Lookup(self.cfg.nts_dtype)
+        self.cfg = cfg.Config(nts_fldr)
+        self.luk = luk.Lookup(self.cfg.nts_dtype)
         self.cb_version, self.tfn_modes = cb_version, self.cfg.tfn_modes
         self.tfn_ttype = self.cfg.tfn_ttype
         self.ppx_list = set(self.luk.purpose()['val'].values())
         self.aws_list = set(self.luk.aws()['val'].values())
         self.hhx_list = list(set(self.luk.hh_type()['val'].values()))
+        self.fld_prod = fr'{self.cfg.dir_output}\{self.cfg.fld_prod}'
+        self.fld_attr = fr'{self.cfg.dir_output}\{self.cfg.fld_attr}'
+
+        out_prod, out_tlds = False, True
 
         # read in cb data
         if over_write:
             self._install_r()
-            self._regx_form()
             fun.log_stderr('\nImport cb data')
             nts_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_fldr)
 
-            # prepare database
-            self._trip_rates_hb(nts_data)
+            # hb trip-rates
+            if out_prod:
+                reg_grby = None
+                self._regx_form(reg_grby)
+                self._hb_trip_rates(nts_data, reg_grby)
+                # self._regx_model_py()  # run with python codes
+                self._regx_model_rs(reg_grby)  # run with R codes
+                self._regx_output()
+                # self._compare_python_vs_r()
+                self._analysis()
 
-            # self._regx_model_py()  # run with python codes
-            self._regx_model_rs()  # run with R codes
-            self._regx_output()
-            # self._compare_python_vs_r()
-            self._analysis()
+            if out_tlds:
+                self._regx_model_ml(nts_data)
+
         else:
             fun.log_stderr(f' .. skipped!')
 
@@ -68,68 +77,75 @@ class TripRate:
         fun.log_stderr(f' .. !!! be mindful of result differences when upgrading to a newer version !!!')
         pd2r.activate()
 
-    def _trip_rates_hb(self, dfr: pd.DataFrame):
+    def _hb_trip_rates(self, dfr: pd.DataFrame, reg_grby: Union[List, str, None] = None, out_2csv: bool = False):
         fun.log_stderr('\nProcess NTS data')
         fun.log_stderr(f' .. prepare data')
-        self.dfr_ttype = self.luk.tt_to_dfr(self.cfg.tfn_ttype, self.cfg.def_ttype)
-        pop = dfr.groupby(['individualid', 'w2'])[['trips']].sum().reset_index().drop(columns='trips')
-        dfr = dfr.loc[(dfr['direction'] == 'hb_fr') & (dfr['w1'] == 1)].copy()
+        self.dfr_ttype = self.luk.tt_to_dfr(self.tfn_ttype, self.cfg.def_ttype)
+        reg_grby = ['purpose'] + ([] if reg_grby is None else fun.str_to_list(reg_grby))
+        # population
+        col_grby = ['individualid', 'tt', 'tfn_at', 'w2'] + self.tfn_ttype
+        pop = dfr.groupby(col_grby)[['trips']].sum().reset_index().drop(columns='trips')
+        pop = pop.groupby(['tt', 'tfn_at'] + self.tfn_ttype)['w2'].sum().reset_index()
+        dfr = dfr.loc[(dfr['direction'] == 'hb_fr') & (dfr['w1'] == 1) & (dfr['mode'].isin(self.tfn_modes))].copy()
         dfr['w5xhh'] = dfr['jjxsc'].mul(dfr['w5xhh']).fillna(0)
         # prepare data
-        tfn_type = ['tt'] + self.tfn_ttype + ['tfn_at', 'purpose']
-        col_grby = tfn_type + ['surveyyear', 'individualid', 'mode', 'w2']
-        dfr = dfr.groupby(col_grby, observed=True)[['w1', 'jjxsc', 'w5xhh', 'trips']].sum()
-        dfr = fun.dfr_complete(dfr, None, 'purpose')
-        dfr = fun.dfr_complete(dfr, None, 'mode').reset_index()
-        dfr = fun.dfr_filter_mode(dfr, self.cfg.tfn_modes)
-
+        tfn_type = ['tt', 'tfn_at'] + self.tfn_ttype + reg_grby
+        col_grby = tfn_type + ['surveyyear', 'individualid', 'w2']
+        dfr = dfr.groupby(col_grby, observed=True)[['w1', 'jjxsc', 'w5xhh', 'trips']].sum().reset_index()
+        dfr = fun.dfr_filter_zero(dfr, col_grby).set_index(col_grby)
+        dfr = fun.dfr_complete(dfr, None, reg_grby).reset_index()
         # weighted trip rates
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
+        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\{self.cfg.fld_rates}'
         fun.log_stderr(f' .. weighted trip rates')
-        ppx_list = dfr['purpose'].unique()
-        out = dfr.groupby(tfn_type + ['individualid'])[['trips']].sum()
-        col_grby = [col for col in tfn_type if col != 'purpose']
-        out = pd.pivot_table(out, values='trips', index=col_grby + ['individualid'], columns='purpose').fillna(0)
-        out.rename(columns={pp: f'p{pp}' for pp in ppx_list}, inplace=True)
-        out = out.groupby(col_grby + ['individualid']).sum().reset_index()
-        out = pd.merge(out, pop, how='left', on='individualid', suffixes=('', ''))
+        out = dfr.groupby(tfn_type)[['trips']].sum()
+        col_grby = [col for col in tfn_type if col not in reg_grby]
+        out = pd.pivot_table(out, values='trips', index=col_grby, columns=reg_grby).fillna(0)
+        reg_name = [col[0] for col in [col if col != 'period' else 'time' for col in reg_grby]]
+        if len(reg_grby) > 1:
+            out.columns = out.columns.map(lambda x: '.'.join([f'{cx}{cv}' for cv, cx in zip(x, reg_name)]))
+        else:
+            out.columns = [f'{reg_name[0]}{cv}' for cv in out.columns]
+        out = pd.merge(pop, out, how='right', on=['tt', 'tfn_at'] + self.tfn_ttype, suffixes=('', ''))
         out = pd.merge(out, self.dfr_ttype, how='outer', on=['tt'] + self.cfg.tfn_ttype).fillna(0)
         out[['tt', 'tfn_at']] = out[['tt', 'tfn_at']].astype(int)
-        out = out.groupby(col_grby).sum().drop(columns='individualid')
+        out = out.groupby(col_grby).sum()
         out = fun.dfr_complete(out, None, 'tfn_at')
         out = fun.dfr_filter_zero(out.reset_index(), col_grby)
         fun.dfr_to_csv(out, out_fldr, 'trip_rates_hb', False)
-        out.rename(columns={f'p{pp}': pp for pp in ppx_list}, inplace=True)
         out = out.groupby(col_grby + ['w2']).sum().stack().reset_index()
-        out.rename(columns={f'level_{len(col_grby) + 1}': 'purpose', 0: 'trip_rates'}, inplace=True)
-        out = fun.dfr_filter_zero(out, ['purpose'])
+        out.rename(columns={f'level_{len(col_grby) + 1}': 'segment', 0: 'trip_rates'}, inplace=True)
+        out[reg_grby] = out['segment'].str.split('.', expand=True) if len(reg_grby) > 1 else out[['segment']]
+        for col in reg_grby:
+            out[col] = out[col].str[1:].astype(int)
+        out = fun.dfr_filter_zero(out, reg_grby).drop(columns='segment')
         out['trip_rates'] = out['trip_rates'].div(out['w2']).fillna(0)
         fun.dfr_to_csv(out, out_fldr, 'trip_rates_hb_long', False)
         # travel diary
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_dbase}'
+        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_dbase}'
         fun.log_stderr(f' .. trip rates sample')
-        dfr = fun.dfr_filter_zero(dfr, tfn_type)
-        col_grby = ['surveyyear', 'individualid'] + col_grby + ['purpose', 'w2']
+        col_grby = ['surveyyear', 'individualid', 'w2'] + tfn_type
         out = dfr.groupby(col_grby, observed=True)[['jjxsc', 'w5xhh', 'trips']].sum()
         out.rename(columns={'jjxsc': 'weekly_trips', 'trips': 'trips_nts'}, inplace=True)
-        fun.dfr_to_csv(out, out_fldr, f'hb_trip_rates_build', True)
+        fun.dfr_to_csv(out, out_fldr, f'hb_trip_rates_build', True) if out_2csv else None
         self.obs_trip = out.reset_index()
         # response weight
         fun.log_stderr(f' .. response weights')
         dfr['w2'] = dfr['w2'].mul(dfr['jjxsc']).fillna(0)  # weighted individual
         dfr = dfr.groupby(['surveyyear', 'purpose'], observed=True)[['w1', 'w2', 'jjxsc', 'trips']].sum()
         dfr.rename(columns={'trips': 'trips_nts'}, inplace=True)
-        fun.dfr_to_csv(dfr, out_fldr, f'hb_trip_rates_response_weights', True)
+        fun.dfr_to_csv(dfr, out_fldr, f'hb_trip_rates_response_weights', True) if out_2csv else None
         self.obs_resw = dfr.reset_index()
 
-    def _regx_form(self):
+    def _regx_form(self, reg_grby: Union[List, str, None] = None):
         def _str_remove(str_main: str, str_removed: str) -> str:
             return str_main.replace(f' + {str_removed}', '').replace(f'{str_removed} + ', '')
 
         # create model forms by purpose/aws
+        reg_grby = [] if reg_grby is None else fun.str_to_list(reg_grby)
+        reg_grby = ' + '.join(col for col in reg_grby + ['purpose'])
         self.mdl_form = {}
-        tfn_ttype = f'weekly_trips ~ surveyyear + tfn_at + {" + ".join(col for col in self.tfn_ttype)}'
-        tfn_ttype = _str_remove(tfn_ttype, 'aws')  # aws is part of regression
+        tfn_ttype = f'weekly_trips ~ surveyyear + tfn_at + {reg_grby} + {" + ".join(col for col in self.tfn_ttype)}'
+        tfn_ttype = _str_remove(_str_remove(tfn_ttype, 'purpose'), 'aws')  # purpose & aws are part of regression
         for pp in self.ppx_list:
             self.mdl_form[pp] = {}
             for aws in self.aws_list:
@@ -146,13 +162,14 @@ class TripRate:
                 mdl_spec = _str_remove(mdl_spec, 'soc') if aws in [1, 4, 5, 6] else mdl_spec
                 self.mdl_form[pp][aws]['spec'] = f'{mdl_spec}{inf_zero}'
 
-    def _regx_model_rs(self):
+    def _regx_model_rs(self, reg_grby: Union[List, str, None] = None):
         fun.log_stderr(f'\nRegression model (R)')
         obs_trip, obs_resw = self.obs_trip, self.obs_resw
         self.unw_trip, self.reg_trip, self.reg_stat = [], [], []
         tfn_ttype = self.tfn_ttype + ['tfn_at']
-        col_grby = tfn_ttype + ['purpose']
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\analysis'
+        reg_grby = ['purpose'] + ([] if reg_grby is None else fun.str_to_list(reg_grby))
+        col_grby = tfn_ttype + reg_grby
+        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\\analysis'
         fun.mkdir(out_fldr)
         for pp in self.ppx_list:
             reg_stat = []
@@ -163,34 +180,24 @@ class TripRate:
                 dfr = obs_trip.loc[dfr].reset_index(drop=True)
                 # old method
                 old = self._regx_engine_rs(mdl_form, mdl_spec, dfr, tfn_ttype, 'old')
-                old = old.groupby(tfn_ttype + ['surveyyear', 'purpose'], observed=False)[['trip_rates']].mean()
+                old = old.groupby(tfn_ttype + ['surveyyear'] + reg_grby, observed=False)[['trip_rates']].mean()
                 old = pd.merge(old.reset_index(), obs_resw, how='left', on=['surveyyear', 'purpose'])
                 yrs_fact = old['w1'].div(old.groupby(col_grby, observed=True)['w1'].transform('sum')).fillna(1)
                 res_fact = old['trips_nts'].div(old['w2']).fillna(1)
                 old['trip_rates'] = old['trip_rates'].mul(yrs_fact).mul(res_fact)
                 old = old.groupby(col_grby, observed=True)[['trip_rates']].sum()
-                # new method (df1)
-                df1 = self._regx_engine_rs_nw(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
-                df1['trip_rates'] = df1['trip_rates'].mul(df1['w2_weights'])
-                agg_func = {'w2': 'sum', 'w2_weights': 'sum', 'weekly_trips': 'sum', 'trips_nts': 'sum',
-                            'trip_rates': 'sum'}
-                df1 = df1.groupby(col_grby, observed=True).agg(agg_func)
-                df1['trip_rates'] = df1['trip_rates'].div(df1['w2_weights'])
-                df1.drop(columns=['w2', 'w2_weights', 'weekly_trips', 'trips_nts'], inplace=True)
-                # new method (final)
+                # new method
                 dfr = self._regx_engine_rs(mdl_form, mdl_spec, dfr, tfn_ttype, 'new')
-                self.unw_trip.append(dfr.groupby(['purpose', 'aws'])[['trip_rates']].mean())
+                self.unw_trip.append(dfr.groupby(['aws'] + reg_grby)[['trip_rates']].mean())
                 dfr['trip_rates'] = dfr['trip_rates'].mul(dfr['w2_weights'])
                 agg_func = {'w2': 'sum', 'w2_weights': 'sum', 'weekly_trips': 'sum', 'trips_nts': 'sum',
                             'trip_rates': 'sum'}
                 dfr = dfr.groupby(col_grby, observed=True).agg(agg_func)
                 dfr['trip_rates'] = dfr['trip_rates'].div(dfr['w2_weights'])
                 # combine data
-                dfr = pd.merge(dfr, df1, how='left', on=col_grby, suffixes=('', '_df1'))
                 dfr = pd.merge(dfr, old, how='left', on=col_grby, suffixes=('', '_old'))
-                self.reg_trip.append(dfr[['trip_rates', 'trip_rates_df1', 'trip_rates_old']])
+                self.reg_trip.append(dfr[['trip_rates', 'trip_rates_old']])
                 dfr['trips_new'] = dfr['trip_rates'].mul(dfr['w2'])
-                dfr['trips_df1'] = dfr['trip_rates_df1'].mul(dfr['w2'])
                 dfr['trips_old'] = dfr['trip_rates_old'].mul(dfr['w2'])
                 reg_stat.append(dfr.drop(columns='w2_weights'))
 
@@ -199,20 +206,19 @@ class TripRate:
             fun.dfr_to_csv(reg_stat, out_fldr, f'Regression_p{pp}', True)
             fun.plt_scatter(f'Regression_p{pp}', reg_stat['trips_nts'], reg_stat['trips_old'],
                             'nts', 'old', out_fldr)
-            fun.plt_scatter(f'Regression_p{pp}', reg_stat['trips_nts'], reg_stat['trips_df1'],
-                            'nts', 'df1', out_fldr)
             fun.plt_scatter(f'Regression_p{pp}', reg_stat['trips_nts'], reg_stat['trips_new'],
                             'nts', 'new', out_fldr)
             self.reg_stat.append(reg_stat)
         self.reg_stat = pd.concat(self.reg_stat, axis=0)
-        col_item = ['w2', 'weekly_trips', 'trips_nts', 'trips_new', 'trips_df1', 'trips_old']
-        self.reg_stat = self.reg_stat.groupby(['purpose', 'aws'], observed=False)[col_item].sum()
+        col_item = ['w2', 'weekly_trips', 'trips_nts', 'trips_new', 'trips_old']
+        self.reg_stat = self.reg_stat.groupby(['purpose', 'aws'] + reg_grby, observed=False)[col_item].sum()
         fun.dfr_to_csv(self.reg_stat, out_fldr, 'Regression_summary')
 
-    def _regx_model_py(self):
+    def _regx_model_py(self, reg_grby: Union[List, str, None] = None):
         fun.log_stderr(f'\nRegression model (python)')
         obs_trip, obs_resw = self.obs_trip, self.obs_resw
-        self.unw_trip, self.reg_trip, tfn_ttype = [], [], self.tfn_ttype + ['tfn_at']
+        reg_grby = [] if reg_grby is None else fun.str_to_list(reg_grby)
+        self.unw_trip, self.reg_trip, tfn_ttype = [], [], self.tfn_ttype + ['tfn_at'] + reg_grby
         for pp in self.ppx_list:
             for aws in self.aws_list:
                 mdl_form, mdl_spec = self.mdl_form[pp][aws]['form'], self.mdl_form[pp][aws]['spec']
@@ -234,7 +240,7 @@ class TripRate:
     def _regx_output(self, reg_type: str = None):
         fun.log_stderr(f'\nWrite output trip-rates')
         # weighted & unweighted trip-rates
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
+        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\{self.cfg.fld_rates}'
         out_fldr = f'{out_fldr}\\{reg_type}' if reg_type not in [None, ''] else out_fldr
         fun.mkdir(out_fldr)
         tfn_grby = self.tfn_ttype + ['tfn_at', 'purpose']
@@ -255,19 +261,18 @@ class TripRate:
         fun.log_stderr(f'\nAnalysis')
         tfn_atyp = self.cfg.tfn_atype
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}\\{self.cfg.fld_rates}'
+        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\{self.cfg.fld_rates}'
         nts_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_long.csv', tfn_ttype + ['w2', 'trip_rates'])
         cte_trip = fun.csv_to_dfr(f'{self.cfg.dir_import}\\trip_rates_hb_ctripend.csv', tfn_ttype + ['trips'])
 
         # back to original codes
         out_fldr = f'{out_fldr}\\{reg_type}' if reg_type not in [None, ''] else out_fldr
-        reg_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_weighted.csv',
-                                  tfn_ttype + ['trip_rates', 'trip_rates_df1', 'trip_rates_old'])
+        reg_trip = tfn_ttype + ['trip_rates', 'trip_rates_old']
+        reg_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_weighted.csv', reg_trip)
         fun.mkdir(f'{out_fldr}\\{self.cfg.fld_graph}')
         # merge database
         nts_trip.rename(columns={'trip_rates': 'trips'}, inplace=True)
-        reg_trip.rename(columns={'trip_rates': 'trips', 'trip_rates_df1': 'trips_df1', 'trip_rates_old': 'trips_old'},
-                        inplace=True)
+        reg_trip.rename(columns={'trip_rates': 'trips', 'trip_rates_old': 'trips_old'}, inplace=True)
         all_trip = pd.merge(nts_trip, reg_trip, how='outer', on=tfn_ttype, suffixes=('_nts', '_reg')).fillna(0)
         all_trip.rename(columns={'w2': 'pop'}, inplace=True)
         if tfn_atyp == 'ntem':
@@ -285,10 +290,6 @@ class TripRate:
             col_list = ('cte', 'old') if tfn_atyp == 'ntem' else ('nts', 'old')
             col_trip = [f'trips_{col.lower()}' for col in col_list]
             fun.plt_scatter(f'TripRate_p{pp}_old', dfr_pp[col_trip[0]], dfr_pp[col_trip[1]], *col_list,
-                            f'{out_fldr}\\{self.cfg.fld_graph}')
-            col_list = ('cte', 'df1') if tfn_atyp == 'ntem' else ('nts', 'df1')
-            col_trip = [f'trips_{col.lower()}' for col in col_list]
-            fun.plt_scatter(f'TripRate_p{pp}_df1', dfr_pp[col_trip[0]], dfr_pp[col_trip[1]], *col_list,
                             f'{out_fldr}\\{self.cfg.fld_graph}')
 
             # for col in col_trip:
@@ -310,7 +311,7 @@ class TripRate:
     def _compare_python_vs_r(self):
         fun.log_stderr(f'\nAnalysis')
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_hbase}'
+        out_fldr = f'{self.fld_prod}\\{self.cfg.fld_hbase}'
         pyx_trip = fun.csv_to_dfr(f'{out_fldr}\\python\\trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
         rst_trip = fun.csv_to_dfr(f'{out_fldr}\\rstudio\\trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
         # merge database
@@ -350,6 +351,14 @@ class TripRate:
                 predict(model, data, type = "response")
             }
         ''')
+
+        # test
+        r2.r('''
+            run_model2 <- function(formula, data) {
+                lm(formula = formula, data = data)
+            }
+        ''')
+
         # run regression model: trip_rate = sum(w2*w5xhh*jjxsc)/sum(w2)
         method = method.lower()
         _, col_grby = self._reg_to_list(formula)
@@ -406,9 +415,9 @@ class TripRate:
 
         # back to codes
         dfr[col_grby] = dfr[col_grby].astype(str).astype('category')
-        if method == 'old':  # set offset and weight to 1
-            dfr['w5xhh'], dfr['w2'] = dfr['weekly_trips'], 1
         dfr['w2_weights'], dfr['w1'] = dfr['w2'], 1
+        dfr[['w5xhh', 'w2']] = dfr[['weekly_trips', 'w1']] if method == 'old' else dfr[['w5xhh', 'w2']]
+
         w5x_fill = self._nan_fill(dfr, col_grby, 'w5xhh', 'weekly_trips')
         dfr['w5_weights'] = dfr['w5xhh'].div(dfr['weekly_trips']).fillna(w5x_fill)  # offset
         reg = r2.r['run_model'](form, formula, pd2r.py2rpy(dfr))
@@ -533,3 +542,39 @@ class TripRate:
         dct_2agg['l3'] = nts_trip.groupby(col_grby[:-2])[['w2', 'trips']].sum()  # all. hh type
         dct_2agg['l4'] = nts_trip.groupby(col_grby[:-3])[['w2', 'trips']].sum()  # all. ns
         dct_2agg['l5'] = nts_trip.groupby(col_grby[:-4])[['w2', 'trips']].sum()  # all. soc
+
+    def _regx_model_ml(self, dfr: pd.DataFrame):
+        fun.log_stderr('\nProcess NTS data')
+        fun.log_stderr(f' .. prepare data')
+        # prepare data
+        dfr = dfr.loc[(dfr['mode'].isin(self.tfn_modes)) & (dfr['direction'] != 'hb_to')].reset_index(drop=True)
+        # aggregate ruc
+        dfr = dfr.rename(columns={'triporiggor_b02id': 'gor'})
+        # dfr = fun.dfr_filter_zero(dfr, ['purpose', 'ruc', 'triporiggor_b02id'])
+        dfr = dfr[['individualid', 'mode', 'purpose', 'direction', 'period', 'ruc_o', 'gor', 'trav_dist', 'trips']]
+
+        # build model
+        col_grby, col_trip = ['gor', 'ruc_o', 'period'], 'trips'
+        for md in self.tfn_modes:
+            dfr_mode = dfr.loc[(dfr['mode'] == md) & (dfr['period'] > 0)].reset_index(drop=True)
+            col_dist = dfr_mode['trav_dist'].values
+            rng_dist = fun.dist_band(col_dist.max(), 2.3)
+            dfr_mode['dist_band'] = pd.cut(col_dist, rng_dist, right=False, labels=rng_dist[1:])
+            for pp in [1, 2, 3, 4, 5, 6, 7, 8]:
+                for di in ['hb_fr', 'nhb']:
+                    out = (dfr_mode['purpose'] == pp) & (dfr_mode['direction'] == di)
+                    out = dfr_mode.loc[out].reset_index(drop=True)
+                    # run regression model
+                    out[col_grby + ['dist_band']] = out[col_grby + ['dist_band']].astype('category')
+                    reg = sm.ZeroInflatedGeneralizedPoisson(out[col_trip], self._dfr_to_dcat(out, col_grby + ['dist_band']))
+                    reg = reg.fit(maxiter=9999)
+                    print(reg.summary())
+                    # add predictions
+                    agg_func = {'individualid': 'count', 'trips': 'sum'}
+                    out = out.groupby(col_grby + ['dist_band'], observed=False).agg(func=agg_func).reset_index()
+                    # out.drop(columns='trips', inplace=True)
+                    out['rates'] = reg.predict(self._dfr_to_dcat(out, col_grby + ['dist_band']))
+                    out['mode'], out['purpose'], out['direction'] = md, pp, di
+                    # weighted trip rates
+                    out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_tlds}'
+                    fun.dfr_to_csv(out, out_fldr, 'test.csv', False)

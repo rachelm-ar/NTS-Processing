@@ -7,13 +7,13 @@ class Config:
     def __init__(self, out_fldr: str):
         # specs
         self.nts_dtype = int
-        self.def_years = [yr for yr in range(2002, 2022)]
+        self.def_years = [yr for yr in range(2002, 9999)]
         self.tfn_atype = 'tfn'  # ntem (8), ruc2011 (5), or tfn (20)
         self.def_ttype = 'tfn'  # ntem (88) or tfn (712)
         self.tfn_ttype = (['gender', 'aws', 'hh_type'] if self.def_ttype == 'ntem' else
                           ['gender', 'aws', 'hh_type', 'soc', 'ns'])
         # mode: 1-walk, 2-cycle, 3-car, 4-lgv, 5-bus, 6-surface rail, 7-light rail
-        self.tfn_modes = [1, 2, 3, 5, 6, 7]
+        self.tfn_modes = [1, 2, 3, 4, 5, 6, 7, 8]
         self.m2k_fact = 1.6093
         self.csv_cbuild = 'cb_tfn'
 
@@ -67,4 +67,3 @@ class Config:
         mkdir(fr'{self.dir_output}\{self.fld_stage}')
         # others
         mkdir(fr'{self.dir_output}\{self.fld_other}')
-
