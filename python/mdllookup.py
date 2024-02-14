@@ -597,8 +597,7 @@ class Lookup(BaseConfig):
     def purpose_agg(self, dfr: pd.DataFrame) -> pd.DataFrame:
         dct_purp = {1: 'Commute', 2: 'Business', 3: 'Other', 4: 'Other', 5: 'Other',
                     6: 'Other', 7: 'Other', 8: 'Other', 0: 0}
-        return np.where(dfr['direction'] == 'xxx', (10 if self.col_type is int else 'n') + dfr['purpose'],
-                        dfr['purpose'])
+        return dfr.apply(lambda x: dct_purp[x])
 
 if __name__ == "__main__":
 

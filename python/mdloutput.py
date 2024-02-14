@@ -30,7 +30,7 @@ class Output:
         fun.log_stderr('\n***** NTS TRIP OUTPUTS *****')
         # read config
         self.cfg = mdlconfig.Config(nts_fldr)
-        self.luk = luk.Lookup.load_yaml(r"E:\NTS\analysis\outputs\lookup.yml")
+        self.luk = luk.Lookup.load_yaml(r"E:\NTS\analysis\22\lookup.yml")
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.cb_version, self.tfn_mode = cb_version, self.cfg.tfn_modes
         self.tvt_list = self.luk.tt_to_dfr(self.tfn_ttype, self.cfg.def_ttype)

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import mdlconfig as cfg
@@ -18,14 +20,16 @@ class TripRate:
         fun.log_stderr('\n***** TRIP-RATE REGRESSION MODEL - HB PRODUCTION *****')
         # read config
         self.cfg = cfg.Config(nts_fldr)
-        self.luk = luk.Lookup(self.cfg.nts_dtype)
+        self.luk = luk.Lookup.load_yaml(r"E:\NTS\analysis\22\lookup.yml")
         self.cb_version, self.tfn_modes = cb_version, self.cfg.tfn_modes
         self.tfn_ttype = self.cfg.tfn_ttype
         self.ppx_list = set(self.luk.purpose()['val'].values())
-        self.aws_list = set(self.luk.aws()['val'].values())
-        self.hhx_list = list(set(self.luk.hh_type()['val'].values()))
-        self.fld_prod = fr'{self.cfg.dir_output}\{self.cfg.fld_prod}'
-        self.fld_attr = fr'{self.cfg.dir_output}\{self.cfg.fld_attr}'
+        self.aws_list = set(self.luk.aws['val'].values())
+        self.hhx_list = list(set(self.luk.hh_type['val'].values()))
+        self.dir_out = Path(self.cfg.dir_output)
+        self.dir_cbuild = Path(self.cfg.dir_cbuild)
+        self.fld_prod = self.dir_out / self.cfg.fld_prod
+        self.fld_attr = self.dir_out / self.cfg.fld_attr
 
         out_prod, out_tlds = False, True
 
@@ -33,7 +37,7 @@ class TripRate:
         if over_write:
             self._install_r()
             fun.log_stderr('\nImport cb data')
-            nts_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
+            nts_fldr = self.dir_cbuild / f'{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_fldr)
 
             # hb trip-rates
@@ -246,7 +250,7 @@ class TripRate:
         tfn_grby = self.tfn_ttype + ['tfn_at', 'purpose']
         self.unw_trip = pd.concat(self.unw_trip, axis=0).reset_index()
         self.unw_trip = self.unw_trip.pivot(columns='aws', index='purpose', values='trip_rates')
-        self.unw_trip.rename(columns=self.luk.aws()['out'], inplace=True)
+        self.unw_trip.rename(columns=self.luk.aws['out'], inplace=True)
         fun.dfr_to_csv(self.unw_trip, out_fldr, 'trip_rates_hb_unweighted')
         self.reg_trip = pd.concat(self.reg_trip, axis=0).reset_index()
         self.reg_trip[tfn_grby] = self.reg_trip[tfn_grby].astype(int)
@@ -576,5 +580,5 @@ class TripRate:
                     out['rates'] = reg.predict(self._dfr_to_dcat(out, col_grby + ['dist_band']))
                     out['mode'], out['purpose'], out['direction'] = md, pp, di
                     # weighted trip rates
-                    out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_tlds}'
+                    out_fldr = self.dir_out / self.cfg.fld_tlds
                     fun.dfr_to_csv(out, out_fldr, 'test.csv', False)

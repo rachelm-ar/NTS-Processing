@@ -1,4 +1,5 @@
 from typing import Union, List, Dict, Any
+from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import subprocess
@@ -31,10 +32,13 @@ def dfr_complete(dfr: pd.DataFrame, col_index: Union[List, str, None], col_unstk
 
 
 # import csv to dataframe
-def csv_to_dfr(csv_file: str, col_incl: Union[List, str] = None, nts_dtype: type = object
+def csv_to_dfr(csv_file: str | Path, col_incl: Union[List, str] = None, nts_dtype: type = object
                ) -> Union[pd.DataFrame, bool]:
     log_stderr(f' .. read {csv_file}')
-    _, _, _, csv_extn = split_file(csv_file)
+    if isinstance(csv_file, str):
+        _, _, _, csv_extn = split_file(csv_file)
+    else:
+        csv_extn = csv_file.parts[-1].split('.')[-1]
     csv_extn = '\t' if csv_extn.lower() == '.tab' else ','
     if col_incl is not None:
         col_incl = [str_lower(col) for col in str_to_list(col_incl)]
