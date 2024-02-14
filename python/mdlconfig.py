@@ -21,7 +21,7 @@ class Config:
 
         # main directory
         self.dir_import = self.out_fldr / 'imports'
-        self.dir_cbuild = self.out_fldr / 'builds'
+        self.dir_cbuild = self.out_fldr / 'classified builds'
         self.dir_output = self.out_fldr / 'outputs'
 
         # sub-folders

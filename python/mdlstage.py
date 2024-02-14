@@ -29,11 +29,11 @@ class Stage:
             self.dfr_itax = self.dfr_itax.astype(float)
             self.dct_itax = self.dfr_itax.to_dict()
             # fuel costs
-            self.dfr_fuel = fun.csv_to_dfr(f'{self.cfg.dir_import}\\fuel_cost_per_litre.csv')
+            self.dfr_fuel = fun.csv_to_dfr(self.cfg.dir_import / 'fuel_cost_per_litre.csv')
             self.dfr_fuel.set_index('year', inplace=True)
             self.dfr_fuel = self.dfr_fuel.astype(float)
             # nts classified build
-            nts_data = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_stage_v{self.cb_version}.csv'
+            nts_data = self.cfg.dir_cbuild / f'{self.cfg.csv_cbuild}_stage_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_data)
             self._veh_occupancy(nts_data, [3, 4], 'gor', None, None, [0, 5, 10, 25, 50, 100, 200, 1999])
             self._affordability(nts_data, ['surveyyear', 'hholdgor_b02id', 'ns'])
@@ -80,7 +80,7 @@ class Stage:
         if 'hholdgor_b02id' in seg_incl:
             out = out.set_index('hholdgor_b02id').rename(index=self.luk.gor_02id).reset_index()
         # write result
-        fun.dfr_to_csv(out, f'{self.cfg.dir_output}\\{self.cfg.fld_stage}', 'personal_affordability', False)
+        fun.dfr_to_csv(out, self.cfg.dir_output / self.cfg.fld_stage, 'personal_affordability', False)
 
     def _veh_occupancy(self, dfr: pd.DataFrame, mode: List = None, geo_incl: Union[str, None] = None,
                        geo_list: Union[List, Dict] = None, seg_incl: Union[List, str] = None,
@@ -105,7 +105,7 @@ class Stage:
         dfr = dfr.groupby(col_used + seg_incl, observed=True)[['trips']].sum(col_type).reset_index()
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = f'{self.cfg.dir_output}\\{self.cfg.fld_occs}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_occs
         mode = self.tfn_mode if mode is None else mode
         if geo_list is not None and geo_incl is not None:
             dct = fun.list_to_dict(geo_list)

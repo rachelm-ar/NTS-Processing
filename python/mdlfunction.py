@@ -39,7 +39,7 @@ def csv_to_dfr(csv_file: str | Path, col_incl: Union[List, str] = None, nts_dtyp
         _, _, _, csv_extn = split_file(csv_file)
     else:
         csv_extn = csv_file.parts[-1].split('.')[-1]
-    csv_extn = '\t' if csv_extn.lower() == '.tab' else ','
+    csv_extn = '\t' if csv_extn.lower().endswith('tab') else ','
     if col_incl is not None:
         col_incl = [str_lower(col) for col in str_to_list(col_incl)]
     dfr = pd.read_csv(csv_file, sep=csv_extn, low_memory=False)
@@ -47,7 +47,7 @@ def csv_to_dfr(csv_file: str | Path, col_incl: Union[List, str] = None, nts_dtyp
     try:
         dfr = dfr[col_incl] if col_incl is not None else dfr
     except KeyError as err:
-        log_stderr(f'    !!! {split_file(csv_file)[2]} -> {err} !!!')
+        log_stderr(f'    !!! {split_file(str(csv_file))[2]} -> {err} !!!')
         dfr = dfr[[col for col in col_incl if col in dfr.columns]] if col_incl is not None else dfr
 
     dfr = dfr.fillna('0').replace(' ', '0')
