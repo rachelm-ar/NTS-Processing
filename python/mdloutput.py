@@ -38,7 +38,7 @@ class Output:
         # read in cb data
         if over_write:
             fun.log_stderr('Import cb data')
-            nts_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
+            nts_fldr = self.cfg.dir_cbuild / f'{self.cfg.csv_cbuild}_v{self.cb_version}.csv'
             nts_data = fun.csv_to_dfr(nts_fldr)
 
             # pre-processing
@@ -94,7 +94,7 @@ class Output:
         dfr = dfr.groupby(col_used + seg_incl, observed=True)[['trips', 'trav_dist_total']].sum().reset_index()
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_tlds}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_tlds
         mode = self.tfn_mode if mode is None else mode
         dfr['purpose'] = self.luk.nhb_renumber(dfr, col_type)
         dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl)
@@ -121,7 +121,7 @@ class Output:
         dfr = pd.merge(dfr, pop, how='left', on=col_grby, suffixes=('', ''))
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_prod}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_prod
         mode = self.tfn_mode if mode is None else mode
         dfr['purpose'] = self.luk.nhb_renumber(dfr, col_type)
         dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl)
@@ -155,7 +155,7 @@ class Output:
         dfr = fun.dfr_complete(dfr, col_grby, lev_dest)
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_attr}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_attr
         fun.dfr_to_csv(dfr.sort_index(), out_fldr, 'trip_rates_attractions', True)
 
     def _tour_proportion(self, dfr: pd.DataFrame, mode: Union[List, None] = None, geo_incl: Union[str, None] = None,
@@ -181,7 +181,7 @@ class Output:
         # dfr = dfr.groupby(col_used + seg_incl + ['period_return'])[['trips']].sum().reset_index()
         # write tour_prop output
         fun.log_stderr(f' .. write output - tour proportion')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_prod}\{self.cfg.fld_hbase}\\{self.cfg.fld_phis}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_prod / self.cfg.fld_hbase / self.cfg.fld_phis
         mode = self.tfn_mode if mode is None else mode
         dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl + col_return)
         dfr = fun.dfr_filter_mode(dfr, mode)
@@ -321,7 +321,7 @@ class Output:
 
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_prod}\{self.cfg.fld_hbase}\\{self.cfg.fld_split}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_prod / self.cfg.fld_hbase / self.cfg.fld_split
         fun.dfr_to_csv(dfr, out_fldr, 'mode_time_split_hb', False)
 
     def _trip_rates_nhbase(self, dfr: pd.DataFrame, mode: Union[List, None] = None, geo_incl: Union[str, None] = None,
@@ -359,7 +359,7 @@ class Output:
         nhb = nhb.rename(columns={lev_dest: lev_prod}) if geo_incl is not None else nhb
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_prod}\{self.cfg.fld_nhbase}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_prod / self.cfg.fld_nhbase
         fun.dfr_to_csv(nhb.sort_index(), out_fldr, 'trip_rates_nhb', False)
 
     def _mts_nhbase(self, dfr: pd.DataFrame, mode: Union[List, None] = None, geo_incl: Union[str, None] = None,
@@ -398,7 +398,7 @@ class Output:
         dfr = dfr.rename(columns={lev_orig: lev_prod}) if geo_incl is not None else dfr
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_prod}\{self.cfg.fld_nhbase}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_prod / self.cfg.fld_nhbase
         fun.dfr_to_csv(dfr.sort_index(), out_fldr, 'mode_time_split_nhb', False)
 
     def _mts_attraction(self, dfr: pd.DataFrame, mode: Union[List, None] = None, geo_incl: Union[str, None] = None,
@@ -423,7 +423,7 @@ class Output:
 
         # write output
         fun.log_stderr(f' .. write output')
-        out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_attr}'
+        out_fldr = self.cfg.dir_output / self.cfg.fld_attr
         fun.dfr_to_csv(dfr, out_fldr, 'mode_time_split_hb', False)
 
     def _work_from_home(self, dfr: pd.DataFrame, geo_incl: Union[str, None] = None,

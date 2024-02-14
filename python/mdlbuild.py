@@ -1,4 +1,5 @@
 from typing import Union, List, Dict
+from pathlib import Path
 import multiprocessing as mp
 import mdlfunction as fun
 import mdllookup as luk
@@ -42,14 +43,14 @@ class ClassifiedBuild:
         self._nts_tables(nts_name), self._nts_columns()
         xls_name = nts_name.replace('-', '_to_').replace('_protect', '')
         self.xls_spec = f'7553_nts_lookup_table_response_levels_{xls_name}.xlsx'
-        self.nts_fldr, self.out_fldr = nts_fldr, cbo_fldr
+        self.nts_fldr, self.out_fldr = Path(nts_fldr), Path(cbo_fldr)
 
         # nts configs
         self.cfg = cfg.Config(cbo_fldr)
         self.nts_dtype, def_years = self.cfg.nts_dtype, self.cfg.def_years
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.m2k_fact, self.tfn_modes = self.cfg.m2k_fact, self.cfg.tfn_modes
-        self.csv_county = fr'{self.cfg.dir_import}\NTS_county_lookup.csv'
+        self.csv_county = self.cfg.dir_import / 'NTS_county_lookup.csv'
         self.luk = luk.Lookup.load_yaml(r"E:\NTS\analysis\22\lookup.yml")
         self.cb_version = cb_version
 
@@ -75,17 +76,17 @@ class ClassifiedBuild:
     def _exist(self):
         fun.log_stderr('\nCheck file existence')
         self.err_indx = fun.exist_path(self.nts_fldr, self.err_indx)
-        self.err_indx = fun.exist_file(f'{self.nts_fldr}\\mrdoc\\excel\\{self.xls_spec}', self.err_indx)
+        self.err_indx = fun.exist_file(self.nts_fldr / 'mrdoc' / 'excel' / self.xls_spec, self.err_indx)
         for key in self.nts_file:
             for col in self.nts_file[key]:
-                self.err_indx = fun.exist_file(f'{self.nts_fldr}\\tab\\{self.nts_file[key][col]}', self.err_indx)
+                self.err_indx = fun.exist_file(self.nts_fldr / 'tab' / self.nts_file[key][col], self.err_indx)
         self.err_indx = fun.exist_file(self.csv_county, self.err_indx)
         os.makedirs(self.out_fldr, exist_ok=True)
         fun.log_stderr(' .. specified files OK') if self.err_indx else None
         exit() if not self.err_indx else None
 
     def _import_spec(self) -> pd.DataFrame:
-        dfr = pd.read_excel(f'{self.nts_fldr}\\mrdoc\\excel\\{self.xls_spec}', engine='openpyxl')
+        dfr = pd.read_excel(self.nts_fldr / 'mrdoc' / 'excel' / self.xls_spec, engine='openpyxl')
         dfr.rename(columns={col: col.strip().lower() for col in dfr.columns}, inplace=True)
         for col in ['table', 'variable']:
             dfr[col] = dfr[col].str.lower().str.strip()
@@ -102,7 +103,7 @@ class ClassifiedBuild:
         dct: Union[Dict, pd.DataFrame] = {}
         pool, nts_spec = mp.Pool(self.num_cpus), nts_spec.lower().strip()
         for key in self.nts_file[nts_spec]:
-            csv_file = f'{self.nts_fldr}\\tab\\{self.nts_file[nts_spec][key]}'
+            csv_file = self.nts_fldr / 'tab' / self.nts_file[nts_spec][key]
             dct[key] = pool.apply_async(fun.csv_to_dfr, [csv_file, self.col_incl[key], self.cfg.nts_dtype])
         pool.close()
         pool.join()
@@ -281,7 +282,7 @@ class ClassifiedBuild:
                 dct_type = eval(f'self.luk.{val}')['out']
             dfr_type[f'{col}_desc'] = dfr_type[col].apply(lambda x: dct_type.get(x, x))
             col_calc = col_calc + [col, f'{col}_desc']
-        fun.dfr_to_csv(dfr_type[col_calc], f'{self.cfg.dir_cbuild}', f'traveller_type_{def_ttype}', False)
+        fun.dfr_to_csv(dfr_type[col_calc], self.cfg.dir_cbuild, f'traveller_type_{def_ttype}', False)
         out = fun.dfr_to_tuple(dfr, tfn_ttype)
         return out.apply(lambda x: dct.get(x, 0))
 
@@ -510,7 +511,7 @@ class ClassifiedBuild:
         out = fun.dfr_complete(out, None, 'mode').reset_index()
         pop = pop.groupby(col_grby + ['direction'])[['w2']].sum().reset_index()
         out = pd.merge(out, pop, how='left', on=col_grby + ['direction'])
-        fun.dfr_to_csv(out, f'{self.cfg.dir_cbuild}\\{self.cfg.fld_report}', 'NTS_cb_trip_rates_production', False)
+        fun.dfr_to_csv(out, self.cfg.dir_cbuild / self.cfg.fld_report, 'NTS_cb_trip_rates_production', False)
 
         # write attraction trips by at/sic for analysis
         col_grby = ['tfn_at_d', 'sic']
@@ -522,7 +523,7 @@ class ClassifiedBuild:
         out = fun.dfr_complete(out, None, 'mode').reset_index()
         pop = pop.groupby(col_grby + ['direction'])[['w2']].sum().reset_index()
         out = pd.merge(out, pop, how='left', on=col_grby + ['direction'])
-        fun.dfr_to_csv(out, f'{self.cfg.dir_cbuild}\\{self.cfg.fld_report}', 'NTS_cb_trip_rates_attraction', False)
+        fun.dfr_to_csv(out, self.cfg.dir_cbuild / self.cfg.fld_report, 'NTS_cb_trip_rates_attraction', False)
 
     def _preprocess_stage(self, dfr: pd.DataFrame, agg_to_trip: bool = False) -> pd.DataFrame:
         fun.log_stderr('\nProcess stage database')
@@ -555,7 +556,7 @@ class ClassifiedBuild:
         col_grby = [col.lower() for col in fun.str_to_list(col_grby)]
         fun.log_stderr(f' .. write {col_grby} -> {csv_name}') if csv_name is not None else None
         out = dfr.groupby(col_grby)[['trips']].sum()
-        out_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.fld_report}'
+        out_fldr = self.cfg.dir_cbuild / self.cfg.fld_report
         fun.dfr_to_csv(out, out_fldr, csv_name) if csv_name is not None else None
         return out
 
@@ -567,7 +568,7 @@ class ClassifiedBuild:
 
     def _write_lookups(self):
         # output folder
-        out_fldr = f'{self.cfg.dir_cbuild}\\{self.cfg.fld_lookup}'
+        out_fldr = self.cfg.dir_cbuild / self.cfg.fld_lookup
 
         # local function
         def _lookup(func: str):

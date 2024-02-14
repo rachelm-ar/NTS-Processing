@@ -16,7 +16,7 @@ class Stage:
         fun.log_stderr('\n***** NTS STAGE OUTPUTS *****')
         # read config
         self.cfg = mdlconfig.Config(nts_fldr)
-        self.luk = luk.Lookup(self.cfg.nts_dtype)
+        self.luk = luk.Lookup.load_yaml(r"E:\NTS\analysis\22\lookup.yml")
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.cb_version, self.tfn_mode = cb_version, self.cfg.tfn_modes
 
@@ -24,7 +24,7 @@ class Stage:
         if over_write:
             fun.log_stderr('Import cb data')
             # income tax/ni bracket
-            self.dfr_itax = fun.csv_to_dfr(f'{self.cfg.dir_import}\\income_tax_brackets.csv')
+            self.dfr_itax = fun.csv_to_dfr(self.cfg.dir_import / 'income_tax_brackets.csv')
             self.dfr_itax.set_index(['year', 'type'], inplace=True)
             self.dfr_itax = self.dfr_itax.astype(float)
             self.dct_itax = self.dfr_itax.to_dict()

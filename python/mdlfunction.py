@@ -70,9 +70,9 @@ def mkdir(sub_fldr: str):
 
 
 # write dataframe to csv
-def dfr_to_csv(dfr: pd.DataFrame, csv_path: str, csv_name: str, index: bool = True):
+def dfr_to_csv(dfr: pd.DataFrame, csv_path: Path, csv_name: str, index: bool = True):
     csv_name = f'{csv_name}.csv' if '.csv' not in csv_name.lower() else csv_name
-    dfr.to_csv(f'{csv_path}\\{csv_name}', index=index)
+    dfr.to_csv(csv_path / csv_name, index=index)
 
 
 # convert string to list
@@ -111,7 +111,7 @@ def str_lower(val: Any) -> Any:
 
 
 # scatter plots
-def plt_scatter(title, x_val, y_val, x_label: str, y_label: str, out_fldr: str):
+def plt_scatter(title, x_val, y_val, x_label: str, y_label: str, out_fldr: Path):
     x_label, y_label = x_label.upper(), y_label.upper()
     plt.rc('font', size=8)
     plt.grid(True)
@@ -130,7 +130,7 @@ def plt_scatter(title, x_val, y_val, x_label: str, y_label: str, out_fldr: str):
     plt.annotate(f'Slope = {p_fit[0]:.3f}\nIntercept = {p_fit[1]:.3f}\nR2 = {r_sqr:.3f}',
                  (0.02 * v_max, 0.98 * v_max), ha='left', va='top',
                  bbox=dict(boxstyle='round', fc='w'), size=8)
-    plt.savefig(f'{out_fldr}\\{title}_{y_label}_vs_{x_label}.png', dpi=300)
+    plt.savefig(out_fldr / f'{title}_{y_label}_vs_{x_label}.png', dpi=300)
     plt.close()
 
 

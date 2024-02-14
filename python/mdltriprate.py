@@ -99,7 +99,7 @@ class TripRate:
         dfr = fun.dfr_filter_zero(dfr, col_grby).set_index(col_grby)
         dfr = fun.dfr_complete(dfr, None, reg_grby).reset_index()
         # weighted trip rates
-        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\{self.cfg.fld_rates}'
+        out_fldr = self.fld_prod / self.cfg.fld_hbase / 'self.cfg.fld_rates'
         fun.log_stderr(f' .. weighted trip rates')
         out = dfr.groupby(tfn_type)[['trips']].sum()
         col_grby = [col for col in tfn_type if col not in reg_grby]
@@ -125,7 +125,7 @@ class TripRate:
         out['trip_rates'] = out['trip_rates'].div(out['w2']).fillna(0)
         fun.dfr_to_csv(out, out_fldr, 'trip_rates_hb_long', False)
         # travel diary
-        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_dbase}'
+        out_fldr = self.fld_prod / self.cfg.fld_dbase
         fun.log_stderr(f' .. trip rates sample')
         col_grby = ['surveyyear', 'individualid', 'w2'] + tfn_type
         out = dfr.groupby(col_grby, observed=True)[['jjxsc', 'w5xhh', 'trips']].sum()
@@ -173,7 +173,7 @@ class TripRate:
         tfn_ttype = self.tfn_ttype + ['tfn_at']
         reg_grby = ['purpose'] + ([] if reg_grby is None else fun.str_to_list(reg_grby))
         col_grby = tfn_ttype + reg_grby
-        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\\analysis'
+        out_fldr = self.fld_prod / self.cfg.fld_hbase / 'analysis'
         fun.mkdir(out_fldr)
         for pp in self.ppx_list:
             reg_stat = []
@@ -244,8 +244,8 @@ class TripRate:
     def _regx_output(self, reg_type: str = None):
         fun.log_stderr(f'\nWrite output trip-rates')
         # weighted & unweighted trip-rates
-        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\{self.cfg.fld_rates}'
-        out_fldr = f'{out_fldr}\\{reg_type}' if reg_type not in [None, ''] else out_fldr
+        out_fldr = self.fld_prod / self.cfg.fld_hbase / self.cfg.fld_rates
+        out_fldr = out_fldr / reg_type if reg_type not in [None, ''] else out_fldr
         fun.mkdir(out_fldr)
         tfn_grby = self.tfn_ttype + ['tfn_at', 'purpose']
         self.unw_trip = pd.concat(self.unw_trip, axis=0).reset_index()
@@ -265,15 +265,15 @@ class TripRate:
         fun.log_stderr(f'\nAnalysis')
         tfn_atyp = self.cfg.tfn_atype
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
-        out_fldr = fr'{self.fld_prod}\{self.cfg.fld_hbase}\{self.cfg.fld_rates}'
-        nts_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_long.csv', tfn_ttype + ['w2', 'trip_rates'])
-        cte_trip = fun.csv_to_dfr(f'{self.cfg.dir_import}\\trip_rates_hb_ctripend.csv', tfn_ttype + ['trips'])
+        out_fldr = self.fld_prod / self.cfg.fld_hbase/ self.cfg.fld_rates
+        nts_trip = fun.csv_to_dfr(out_fldr / 'trip_rates_hb_long.csv', tfn_ttype + ['w2', 'trip_rates'])
+        cte_trip = fun.csv_to_dfr(self.cfg.dir_import / 'trip_rates_hb_ctripend.csv', tfn_ttype + ['trips'])
 
         # back to original codes
-        out_fldr = f'{out_fldr}\\{reg_type}' if reg_type not in [None, ''] else out_fldr
+        out_fldr = out_fldr / reg_type if reg_type not in [None, ''] else out_fldr
         reg_trip = tfn_ttype + ['trip_rates', 'trip_rates_old']
-        reg_trip = fun.csv_to_dfr(f'{out_fldr}\\trip_rates_hb_weighted.csv', reg_trip)
-        fun.mkdir(f'{out_fldr}\\{self.cfg.fld_graph}')
+        reg_trip = fun.csv_to_dfr(out_fldr / 'trip_rates_hb_weighted.csv', reg_trip)
+        fun.mkdir(out_fldr / self.cfg.fld_graph)
         # merge database
         nts_trip.rename(columns={'trip_rates': 'trips'}, inplace=True)
         reg_trip.rename(columns={'trip_rates': 'trips', 'trip_rates_old': 'trips_old'}, inplace=True)
@@ -290,11 +290,11 @@ class TripRate:
             col_list = ('cte', 'reg') if tfn_atyp == 'ntem' else ('nts', 'reg')
             col_trip = [f'trips_{col.lower()}' for col in col_list]
             fun.plt_scatter(f'TripRate_p{pp}_new', dfr_pp[col_trip[0]], dfr_pp[col_trip[1]], *col_list,
-                            f'{out_fldr}\\{self.cfg.fld_graph}')
+                            out_fldr / self.cfg.fld_graph)
             col_list = ('cte', 'old') if tfn_atyp == 'ntem' else ('nts', 'old')
             col_trip = [f'trips_{col.lower()}' for col in col_list]
             fun.plt_scatter(f'TripRate_p{pp}_old', dfr_pp[col_trip[0]], dfr_pp[col_trip[1]], *col_list,
-                            f'{out_fldr}\\{self.cfg.fld_graph}')
+                            out_fldr / self.cfg.fld_graph)
 
             # for col in col_trip:
             #     dfr_pp[col] = dfr_pp['pop'].mul(dfr_pp[col], fill_value=0).fillna(0)
@@ -304,33 +304,33 @@ class TripRate:
             # for col in col_trip:
             #     dfr[col] = dfr[col].div(dfr['pop'], fill_value=0).fillna(0)
             # fun.plt_scatter(f'TripRate_p{pp}_hh', dfr[col_trip[0]], dfr[col_trip[1]], *col_list,
-            #                 f'{out_fldr}\\{self.cfg.fld_graph}')
+            #                 out_fldr / {self.cfg.fld_graph}')
             # # aggregate by area_type
             # dfr = dfr_pp.groupby(['gender', 'aws', 'tfn_at'])[['pop'] + col_trip].sum()
             # for col in col_trip:
             #     dfr[col] = dfr[col].div(dfr['pop'], fill_value=0).fillna(0)
             # fun.plt_scatter(f'TripRate_p{pp}_at', dfr[col_trip[0]], dfr[col_trip[1]], *col_list,
-            #                 f'{out_fldr}\\{self.cfg.fld_graph}')
+            #                 out_fldr / {self.cfg.fld_graph}')
 
     def _compare_python_vs_r(self):
         fun.log_stderr(f'\nAnalysis')
         tfn_ttype = self.tfn_ttype + ['tfn_at', 'purpose']
-        out_fldr = f'{self.fld_prod}\\{self.cfg.fld_hbase}'
-        pyx_trip = fun.csv_to_dfr(f'{out_fldr}\\python\\trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
-        rst_trip = fun.csv_to_dfr(f'{out_fldr}\\rstudio\\trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
+        out_fldr = self.fld_prod / self.cfg.fld_hbase
+        pyx_trip = fun.csv_to_dfr(out_fldr / 'python' / 'trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
+        rst_trip = fun.csv_to_dfr(out_fldr / 'rstudio' / 'trip_rates_hb_weighted.csv', tfn_ttype + ['trips'])
         # merge database
         all_trip = pd.merge(pyx_trip, rst_trip, how='left', on=tfn_ttype, suffixes=('_py', '_rs'))
         # output scatter plots
         for pp in all_trip['purpose'].unique():
             dfr = all_trip.loc[all_trip['purpose'] == pp].reset_index(drop=True)
             pyx, rst = dfr['trips_py'].values, dfr['trips_rs'].values
-            fun.plt_scatter(f'p{pp}_aws0', pyx, rst, 'PY', 'RS', f'{out_fldr}\\{self.cfg.fld_graph}')
+            fun.plt_scatter(f'p{pp}_aws0', pyx, rst, 'PY', 'RS', out_fldr / self.cfg.fld_graph)
             for aws in all_trip['aws'].unique():
                 mdl_form = self.mdl_form[pp][aws]['form']
                 dfr = all_trip.loc[(all_trip['purpose'] == pp) & (all_trip['aws'] == aws)].reset_index(drop=True)
                 pyx, rst = dfr['trips_py'].values, dfr['trips_rs'].values
                 fun.plt_scatter(f'p{pp}_aws{aws}_{mdl_form}', pyx, rst, 'PY', 'RS',
-                                f'{out_fldr}\\{self.cfg.fld_graph}')
+                                out_fldr / self.cfg.fld_graph)
 
     def _regx_engine_rs_nw(self, form: str, formula: str, dfr: pd.DataFrame, tfn_ttype: List,
                            method: str = 'new') -> pd.DataFrame:

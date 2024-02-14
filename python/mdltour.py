@@ -19,7 +19,7 @@ class TourModel:
         fun.log_stderr('\n***** NTS TOUR MODEL *****')
         self.cfg = mdlconfig.Config(nts_fldr)
         self.num_cpus = max(os.cpu_count() - 2, 1)
-        self.out_fldr = fr'{self.cfg.dir_output}\{self.cfg.fld_tour}'
+        self.out_fldr = self.cfg.dir_output / self.cfg.fld_tour
         self.fld_report, self.tmz_leve = self.cfg.fld_report, tmz_leve
 
         # read specs
@@ -41,22 +41,22 @@ class TourModel:
     def _specs(self):
         nts_spec = 'gor' if self.tmz_leve == 'region' else 'ua1998'
         # activity, .csv: taz_p, tour_id, freq, trip
-        self.csv_tour = fr'{self.out_fldr}\activity_{nts_spec}.csv'
+        self.csv_tour = self.out_fldr / f'activity_{nts_spec}.csv'
 
         # mode time split, .csv: taz_o, taz_d, main_mode, purpose, trip_direction, start_time, freq, trip
-        self.csv_dist = fr'{self.out_fldr}\distribution_{nts_spec}.csv'
+        self.csv_dist = self.out_fldr / 'distribution_{nts_spec}.csv'
 
         # tmz to taz lookup, csv: tmz, taz
-        self.csv_ztaz = fr'{self.cfg.dir_import}\GOR_to_TAZ.csv'
+        self.csv_ztaz = self.cfg.dir_import / 'GOR_to_TAZ.csv'
 
         # nts to taz lookup, csv: nts, taz
-        self.csv_ntaz = fr'{self.cfg.dir_import}\NTS_to_TAZ.csv'
+        self.csv_ntaz = self.cfg.dir_import / 'NTS_to_TAZ.csv'
 
         # mode-specific hb_production trip-end, csv: tmz_id, purpose, mode, trip
-        self.csv_prod = fr'{self.cfg.dir_import}\tripend\NTEM7_prod_gor.csv'
+        self.csv_prod = self.cfg.dir_import / 'tripend' / 'NTEM7_prod_gor.csv'
 
         # mode-specific hb_attraction trip-end, csv: tmz_id, purpose, mode, trip
-        self.csv_attr = fr'{self.cfg.dir_import}\tripend\NTEM7_attr_gor.csv'
+        self.csv_attr = self.cfg.dir_import / 'tripend' / 'NTEM7_attr_gor.csv'
 
     # READ DATA SPECS
     def _read_input(self):
@@ -132,7 +132,7 @@ class TourModel:
         dfr_prod = dfr_prod.set_index(self.col_prod).rename(index=self.dct_ptaz).reset_index()
         dfr_prod = dfr_prod.loc[(dfr_prod['p'] <= 8) & (dfr_prod['d'] == 'hb_fr')]
         dfr_prod = dfr_prod.groupby(by=[self.col_prod, 'p'])[['val']].sum()
-        dfr_prod.to_csv(fr'{self.out_fldr}\{self.fld_report}\prod_{self.tmz_leve}_input.csv') if for_test else None
+        dfr_prod.to_csv(self.out_fldr / self.fld_report / f'prod_{self.tmz_leve}_input.csv') if for_test else None
         self.dct_prod = dfr_prod['val'].to_dict()
 
         # get proportion of tmz trip-end per taz
@@ -170,7 +170,7 @@ class TourModel:
         # mode-time %split
         col_grby = [self.col_dist['o'], self.col_dist['d'], 'purpose', 'direction', 'mode', 'period']
         dfr_mode = dfr_mode.groupby(by=col_grby, observed=True).sum()
-        dfr_mode.to_csv(fr'{self.out_fldr}\{self.fld_report}\nts_mts_output.csv') if for_test else None
+        dfr_mode.to_csv(self.out_fldr / self.fld_report / 'nts_mts_output.csv') if for_test else None
         self.dct_mode = dfr_mode[col_used].to_dict()
 
     # DISTRIBUTION PROBABILITY
@@ -183,7 +183,7 @@ class TourModel:
         # distribution %split
         col_grby = [self.col_dist['o'], 'purpose', 'direction', self.col_dist['d']]
         dfr_dist = dfr_dist.groupby(by=col_grby, observed=True).sum()
-        dfr_dist.to_csv(fr'{self.out_fldr}\{self.fld_report}\nts_distr_output.csv') if for_test else None
+        dfr_dist.to_csv(self.out_fldr / self.fld_report / 'nts_distr_output.csv') if for_test else None
         self.dct_dist = dfr_dist[col_used].to_dict()
 
     # ACTIVITY PROBABILITY
@@ -212,7 +212,7 @@ class TourModel:
 
         # calculate tour %split
         est_tour = est_tour.div(est_tour.sum(axis=1, numeric_only=True), axis=0).fillna(0)
-        est_tour.to_csv(fr'{self.out_fldr}\{self.fld_report}\nts_tour_output.csv') if for_test else None
+        est_tour.to_csv(self.out_fldr / self.fld_report / 'nts_tour_output.csv') if for_test else None
         self.dct_tour = est_tour.to_dict('index')
 
     def _tour_breakdown(self, tor: str, pp_first: int, col_used: str) -> pd.DataFrame:
@@ -327,7 +327,7 @@ class TourModel:
         fun.log_stderr('\nAdjust NoTEM trip-ends')
         # produce adjusted trip-ends by mode/time-specific
         out_data = {'o': [], 'd': []}
-        cur_path = fr'{self.out_fldr}\tripend'
+        cur_path = self.out_fldr / 'tripend'
         fun.mkdir(cur_path)
         # hb_fr (PA - mode agnostic at 24hr to mode specific & time period)
         pool = mp.Pool(2)
@@ -364,7 +364,7 @@ class TourModel:
         out_data = {od: pd.concat(out_data['o'], axis=0).rename(columns={'val': odx})
                     for od, odx in zip(out_data, ['orig', 'dest'])}
         out_data = pd.concat([out_data['o'], out_data['d']], axis=1)
-        out_data.to_csv(fr'{self.out_fldr}\{self.fld_report}\notem_summary_output.csv')
+        out_data.to_csv(self.out_fldr / self.fld_report / 'notem_summary_output.csv')
 
     @staticmethod
     def _stack_dfr(dfr: pd.DataFrame, col_grby: Union[List, str]) -> pd.DataFrame:
@@ -487,13 +487,13 @@ class TourModel:
             ted_data = ted_data.set_index(['purpose']).rename(index=col_purp).reset_index()
             ted_data = ted_data.set_index(['mode']).rename(index=col_mode).reset_index()
             ted_data = ted_data.set_index([f'tmz_{od}']).rename(index=col_zone)
-            ted_data.to_csv(fr'{self.out_fldr}\{self.fld_report}\{odx}_{self.tmz_leve}_output.csv', index=True)
+            ted_data.to_csv(self.out_fldr / self.fld_report / f'{odx}_{self.tmz_leve}_output.csv', index=True)
 
         # output matrix for analysis
         est_trip = est_trip.set_index(['purpose']).rename(index=col_purp).reset_index()
         est_trip = est_trip.set_index(['mode']).rename(index=col_mode).reset_index()
         est_trip = est_trip.set_index(['tmz_o', 'tmz_d']).rename(index=col_zone)
-        est_trip.to_csv(fr'{self.out_fldr}\{self.fld_report}\matrix_{self.tmz_leve}_output.csv', index=True)
+        est_trip.to_csv(self.out_fldr / self.fld_report / f'matrix_{self.tmz_leve}_output.csv', index=True)
 
     # SUPPORTING MODULES
     def _extract_prod(self, taz_o: int, pp: int) -> float:

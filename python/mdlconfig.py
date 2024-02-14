@@ -1,5 +1,6 @@
 import os
 from mdlfunction import mkdir
+from pathlib import Path
 os.environ['R_HOME'] = r'C:\Program Files\R\R-4.3.2'
 
 
@@ -16,11 +17,12 @@ class Config:
         self.tfn_modes = [1, 2, 3, 4, 5, 6, 7, 8]
         self.m2k_fact = 1.6093
         self.csv_cbuild = 'cb_tfn'
+        self.out_fldr = Path(out_fldr)
 
         # main directory
-        self.dir_import = f'{out_fldr}\\imports'
-        self.dir_cbuild = f'{out_fldr}\\classified builds'
-        self.dir_output = f'{out_fldr}\\outputs'
+        self.dir_import = self.out_fldr / 'imports'
+        self.dir_cbuild = self.out_fldr / 'builds'
+        self.dir_output = self.out_fldr / 'outputs'
 
         # sub-folders
         self.fld_dbase = 'database'
@@ -45,25 +47,25 @@ class Config:
 
     def _setup_directory(self):
         # classified build
-        mkdir(fr'{self.dir_cbuild}\{self.fld_report}')
+        mkdir(self.dir_cbuild / self.fld_report)
         # lookups
-        mkdir(fr'{self.dir_cbuild}\{self.fld_lookup}')
+        mkdir(self.dir_cbuild / self.fld_lookup)
         # production
-        mkdir(fr'{self.dir_output}\{self.fld_prod}\{self.fld_dbase}')
-        mkdir(fr'{self.dir_output}\{self.fld_prod}\{self.fld_hbase}\{self.fld_graph}')
-        mkdir(fr'{self.dir_output}\{self.fld_prod}\{self.fld_hbase}\{self.fld_phis}')
-        mkdir(fr'{self.dir_output}\{self.fld_prod}\{self.fld_hbase}\{self.fld_rates}')
-        mkdir(fr'{self.dir_output}\{self.fld_prod}\{self.fld_hbase}\{self.fld_split}')
-        mkdir(fr'{self.dir_output}\{self.fld_prod}\{self.fld_nhbase}')
+        mkdir(self.dir_output / self.fld_prod / self.fld_dbase)
+        mkdir(self.dir_output / self.fld_prod / self.fld_hbase / self.fld_graph)
+        mkdir(self.dir_output / self.fld_prod / self.fld_hbase / self.fld_phis)
+        mkdir(self.dir_output / self.fld_prod / self.fld_hbase / self.fld_rates)
+        mkdir(self.dir_output / self.fld_prod / self.fld_hbase / self.fld_split)
+        mkdir(self.dir_output / self.fld_prod / self.fld_nhbase)
         # attraction
-        mkdir(fr'{self.dir_output}\{self.fld_attr}')
+        mkdir(self.dir_output / self.fld_attr)
         # tour model
-        mkdir(fr'{self.dir_output}\{self.fld_tour}\{self.fld_report}')
+        mkdir(self.dir_output / self.fld_tour / self.fld_report)
         # occupancy
-        mkdir(fr'{self.dir_output}\{self.fld_occs}')
+        mkdir(self.dir_output / self.fld_occs)
         # tlds
-        mkdir(fr'{self.dir_output}\{self.fld_tlds}')
+        mkdir(self.dir_output / self.fld_tlds)
         # stage
-        mkdir(fr'{self.dir_output}\{self.fld_stage}')
+        mkdir(self.dir_output / self.fld_stage)
         # others
-        mkdir(fr'{self.dir_output}\{self.fld_other}')
+        mkdir(self.dir_output / self.fld_other)
