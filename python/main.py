@@ -26,13 +26,13 @@ if __name__ == "__main__":
     ClassifiedBuild(data_fldr, main_fldr, cb_version, False)
 
     # trip-rate model
-    TripRate(main_fldr, cb_version, False, run_r=True, run_py=False)
+    TripRate(main_fldr, cb_version, False, run_r=False, run_py=False)
 
     # NTS outputs
-    Output(main_fldr, cb_version, True)
+    Output(main_fldr, cb_version, False)
 
     # Tour Model
-    TourModel(main_fldr, "region", True)
+    TourModel(main_fldr, "region", False)
 
     # NTS stage analysis
     Stage(main_fldr, cb_version, True)

@@ -804,6 +804,8 @@ class Lookup(BaseConfig):
 
 
 if __name__ == "__main__":
+    # Lookup file created below, but easier to edit the file directly if any
+    # changes are needed.
     luk = Lookup(
         mmd_11id={
             "swak": {1: "walk, less than 1 mile"},
@@ -1226,5 +1228,4 @@ if __name__ == "__main__":
             -10: {-10: "dead"},
         },
     )
-    luk.save_yaml(r"E:\NTS\analysis\22\lookup.yml")
-    print("debugging")
+    luk.save_yaml("lookup.yml")
