@@ -5,13 +5,14 @@ to reflect lasting travel changes due to covid.
 import mdlconfig
 import mdlfunction as fun
 from typing import Union, List
+from pathlib import Path
 import mdllookup as luk
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_validate
+# from sklearn.preprocessing import OneHotEncoder
+# from sklearn.ensemble import RandomForestRegressor
+# from sklearn.model_selection import train_test_split
+# from sklearn.model_selection import cross_validate
 
 
 class Output:
@@ -37,7 +38,7 @@ class Output:
         fun.log_stderr("\n***** NTS TRIP OUTPUTS *****")
         # read config
         self.cfg = mdlconfig.Config(nts_fldr)
-        self.luk = luk.Lookup.load_yaml("lookup.yml")
+        self.luk = luk.Lookup.load_yaml(Path("lookup.yml"))
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.cb_version, self.tfn_mode = cb_version, self.cfg.tfn_modes
         self.tvt_list = self.luk.tt_to_dfr(self.tfn_ttype, self.cfg.def_ttype)
@@ -59,8 +60,7 @@ class Output:
             )  # 'tfn_at', self.tfn_ttype
             self._trip_rates_nhbase(nts_data, self.tfn_mode, "tfn_at", "hh_type")
             self._mts_nhbase(nts_data, self.tfn_mode, "tfn_at", "hh_type")
-            keep = nts_data.copy()
-            self._trip_length(nts_data, geo_incl="tfn_at", agg_band=True)
+            self._trip_length(nts_data, self.tfn_mode, "gor", 'ruc_o', True)
             self._tour_proportion(nts_data, self.tfn_mode, "tfn_at", None)
             self._veh_occupancy(
                 nts_data, [3, 4], "gor", None, [0, 5, 10, 25, 50, 100, 200, 1999]
@@ -98,7 +98,7 @@ class Output:
         ----------
         mode: list of modes to be processed
         geo_incl: geo_area to be included: either gor, county, tfn_at
-        seg_inc: segments to include to produce distributions for
+        seg_incl: segments to include to produce distributions for
         agg_band: False, True, or a list of user-defined distance bands
         """
         # geo_incl: geo_area to be included: either gor, county, tfn_at
@@ -113,21 +113,21 @@ class Output:
         seg_incl = fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = ["mode", "purpose", "direction", "period", "trav_dist"]
         col_used = [lev_orig] + col_used if geo_incl is not None else col_used
-        dfr = dfr[col_used + seg_incl + ["trips"]].copy()
-        dfr["trav_dist_total"] = dfr["trips"].mul(dfr["trav_dist"])
+        out = dfr[col_used + seg_incl + ["trips"]].copy()
+        out["trav_dist_total"] = out["trips"].mul(out["trav_dist"])
         if agg_band or isinstance(agg_band, List):
-            col_dist = dfr["trav_dist"].values
+            col_dist = out["trav_dist"].values
             rng_dist = (
                 np.array(agg_band)
                 if isinstance(agg_band, List)
                 else fun.dist_band(col_dist.max())
             )
-            dfr["dist_band"] = pd.cut(
+            out["dist_band"] = pd.cut(
                 col_dist, rng_dist, right=False, labels=rng_dist[1:]
             )
-            dfr["trav_dist"], col_used = 999, col_used + ["dist_band"]
-        dfr = (
-            dfr.groupby(col_used + seg_incl, observed=True)[
+            out["trav_dist"], col_used = 999, col_used + ["dist_band"]
+        out = (
+            out.groupby(col_used + seg_incl, observed=True)[
                 ["trips", "trav_dist_total"]
             ]
             .sum()
@@ -137,10 +137,10 @@ class Output:
         fun.log_stderr(f" .. write output")
         out_fldr = self.cfg.dir_output / self.cfg.fld_tlds
         mode = self.tfn_mode if mode is None else mode
-        dfr["purpose"] = self.luk.nhb_renumber(dfr, col_type)
-        dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl)
-        dfr = fun.dfr_filter_mode(dfr, mode)
-        fun.dfr_to_csv(dfr, out_fldr, "trip_length_distribution", False)
+        out["purpose"] = self.luk.nhb_renumber(out, col_type)
+        out = fun.dfr_filter_zero(out, col_used + seg_incl)
+        out = fun.dfr_filter_mode(out, mode)
+        fun.dfr_to_csv(out, out_fldr, "trip_length_distribution", False)
 
     def _trip_rates_production(
         self,
@@ -157,7 +157,7 @@ class Output:
         ----------
         mode: list of modes to be processed
         geo_incl: geo_area to be included: either gor, county, tfn_at
-        seg_inc: segments to include to produce distributions for
+        seg_incl: segments to include to produce distributions for
         inc_dist: whether to include distances in calculations
         """
         fun.log_stderr("\nNTS trip rates (productions)")
@@ -167,26 +167,26 @@ class Output:
         lev_prod, col_used = lev_2col["h"], ["mode", "purpose", "direction", "period"]
         col_used = [lev_prod] + col_used if geo_incl is not None else col_used
         col_used = col_used + ["trav_dist"] if inc_dist else col_used
-        dfr = dfr[col_used + seg_incl + ["individualid", "w2", "trips"]].copy()
+        out = dfr[col_used + seg_incl + ["individualid", "w2", "trips"]].copy()
         # calculate trip-rates
         col_grby = [lev_prod] + seg_incl if geo_incl is not None else seg_incl
         pop = (
-            dfr.groupby(col_grby + ["individualid"])["w2"]
+            out.groupby(col_grby + ["individualid"])["w2"]
             .mean()
             .fillna(0)
             .reset_index()
         )
         pop = pop.groupby(col_grby)["w2"].sum().reset_index()
-        dfr = dfr.groupby(col_used + seg_incl)[["trips"]].sum().reset_index()
-        dfr = pd.merge(dfr, pop, how="left", on=col_grby, suffixes=("", ""))
+        out = out.groupby(col_used + seg_incl)[["trips"]].sum().reset_index()
+        out = pd.merge(out, pop, how="left", on=col_grby, suffixes=("", ""))
         # write output
         fun.log_stderr(f" .. write output")
         out_fldr = self.cfg.dir_output / self.cfg.fld_prod
         mode = self.tfn_mode if mode is None else mode
-        dfr["purpose"] = self.luk.nhb_renumber(dfr, col_type)
-        dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl)
-        dfr = fun.dfr_filter_mode(dfr, mode)
-        fun.dfr_to_csv(dfr, out_fldr, "trip_rates_productions", False)
+        out["purpose"] = self.luk.nhb_renumber(out, col_type)
+        out = fun.dfr_filter_zero(out, col_used + seg_incl)
+        out = fun.dfr_filter_mode(out, mode)
+        fun.dfr_to_csv(out, out_fldr, "trip_rates_productions", False)
 
     def _trip_rates_attraction(
         self,
@@ -202,7 +202,7 @@ class Output:
         ----------
         mode: list of modes to be processed
         geo_incl: geo_area to be included: either gor, county, tfn_at
-        seg_inc: segments to include to produce distributions for
+        seg_incl: segments to include to produce distributions for
         """
         fun.log_stderr("\nNTS trip rates (attractions)")
         fun.log_stderr(f" .. process data")
@@ -255,7 +255,7 @@ class Output:
         ----------
         mode: list of modes to be processed
         geo_incl: geo_area to be included: either gor, county, tfn_at
-        seg_inc: segments to include to produce distributions for
+        seg_incl: segments to include to produce distributions for
         """
         # TODO: further disaggregated by area type, o.mode, o.purpose, o.time, r.mode, r.purpose. r.time
         # TODO: add in adjustment to reflect NorMITs base year?
@@ -329,7 +329,7 @@ class Output:
         ----------
         mode: list of modes to be processed
         geo_incl: geo_area to be included: either gor, county, tfn_at
-        seg_inc: segments to include to produce distributions for
+        seg_incl: segments to include to produce distributions for
         agg_band: False, True, or a list of user-defined distance bands
         """
         # TODO: add in GOR as area type for trip starting
@@ -342,31 +342,31 @@ class Output:
         seg_incl = fun.str_to_list(seg_incl) if seg_incl is not None else []
         col_used = ["mode", "purpose", "direction", "period", "occupant", "trav_dist"]
         col_used = [lev_orig, lev_dest] + col_used if geo_incl is not None else col_used
-        dfr = dfr[col_used + seg_incl + ["trips"]].copy()
+        out = dfr[col_used + seg_incl + ["trips"]].copy()
         if agg_band or isinstance(agg_band, List):
-            col_dist = dfr["trav_dist"].values
+            col_dist = out["trav_dist"].values
             rng_dist = (
                 np.array(agg_band)
                 if isinstance(agg_band, List)
                 else fun.dist_band(col_dist.max())
             )
-            dfr["dist_band"] = pd.cut(
+            out["dist_band"] = pd.cut(
                 col_dist, rng_dist, right=False, labels=rng_dist[1:]
             )
-            dfr["trav_dist"], col_used = 999, col_used + ["dist_band"]
-        dfr = (
-            dfr.groupby(col_used + seg_incl, observed=True)[["trips"]]
+            out["trav_dist"], col_used = 999, col_used + ["dist_band"]
+        out = (
+            out.groupby(col_used + seg_incl, observed=True)[["trips"]]
             .sum(col_type)
             .reset_index()
         )
         # write output
         fun.log_stderr(f" .. write output")
-        out_fldr = f"{self.cfg.dir_output}\\{self.cfg.fld_occs}"
+        out_fldr = Path(f"{self.cfg.dir_output}\\{self.cfg.fld_occs}")
         mode = self.tfn_mode if mode is None else mode
-        dfr["purpose"] = self.luk.nhb_renumber(dfr, col_type)
-        dfr = fun.dfr_filter_zero(dfr, col_used + seg_incl)
-        dfr = fun.dfr_filter_mode(dfr, mode)
-        fun.dfr_to_csv(dfr, out_fldr, "vehicle_occupancy", False)
+        out["purpose"] = self.luk.nhb_renumber(out, col_type)
+        out = fun.dfr_filter_zero(out, col_used + seg_incl)
+        out = fun.dfr_filter_mode(out, mode)
+        fun.dfr_to_csv(out, out_fldr, "vehicle_occupancy", False)
 
     def _activity(
         self,
@@ -421,7 +421,7 @@ class Output:
         dfr = fun.dfr_filter_mode(dfr, mode)
         # write activity
         fun.log_stderr(f" .. write output")
-        out_fldr = f"{self.cfg.dir_output}\\{self.cfg.fld_tour}"
+        out_fldr = Path(f"{self.cfg.dir_output}\\{self.cfg.fld_tour}")
         act = dfr.groupby([lev_prod, "tour_id"])[["freq", "trip"]].sum()
         fun.dfr_to_csv(
             act, out_fldr, f'activity_{"all" if geo_incl is None else geo_incl}'
@@ -675,6 +675,7 @@ class Output:
         dfr = dfr[seg_incl + ["mode", "purpose", "direction", "period", "trips"]].copy()
         mode = self.tfn_mode if mode is None else mode
         dfr = dfr.loc[dfr["direction"].isin(["hb_fr", "nhb"])]
+        dfr = fun.dfr_filter_mode(dfr, mode)
 
         # aggregate split
         dfr = dfr.groupby(seg_incl + ["mode", "period"])[["trips"]].sum().reset_index()

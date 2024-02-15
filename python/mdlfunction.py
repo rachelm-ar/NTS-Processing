@@ -30,7 +30,7 @@ def dfr_complete(
     col_unstk = str_to_list(col_unstk)
     dfr = dfr.set_index(col_index) if len(col_index) > 0 else dfr
     for col in col_unstk:
-        dfr = dfr.unstack(level=col, fill_value=0).stack()
+        dfr = dfr.unstack(level=col, fill_value=0).stack(future_stack=True)
     return dfr
 
 
@@ -86,7 +86,7 @@ def csv_to_dfr(
 
 
 # create directory
-def mkdir(sub_fldr: str):
+def mkdir(sub_fldr: str | Path):
     os.makedirs(sub_fldr, exist_ok=True)
 
 
@@ -237,14 +237,14 @@ def list_to_dict_item(uni_list: Union[List, Dict], key_start: int = 0) -> Dict:
 
 
 # split filename to path, name, extn
-def split_file(str_file: str) -> List:
+def split_file(str_file: str | Path) -> List:
     str_path = os.path.dirname(str_file)
     str_name, str_extn = os.path.splitext(str_file.replace("\\", "/").split("/")[-1])
     return [str_file, str_path, str_name, str_extn]
 
 
 # file existence
-def exist_file(str_file: str, err_index: bool = True) -> bool:
+def exist_file(str_file: str | Path, err_index: bool = True) -> bool:
     if not os.path.isfile(str_file):
         err_index = False
         log_stderr(f"    >> file not found [{txt_truncate(str_file)}]")
@@ -252,7 +252,7 @@ def exist_file(str_file: str, err_index: bool = True) -> bool:
 
 
 # path existence
-def exist_path(str_path: str, err_index: bool = True) -> bool:
+def exist_path(str_path: str | Path, err_index: bool = True) -> bool:
     if not os.path.isdir(str_path):
         err_index = False
         log_stderr(f"    >> path not found [{txt_truncate(str_path)}]")

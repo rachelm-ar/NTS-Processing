@@ -1,5 +1,6 @@
 import mdlconfig
 import mdlfunction as fun
+from pathlib import Path
 from typing import Union, List, Dict
 import mdllookup as luk
 import pandas as pd
@@ -18,7 +19,7 @@ class Stage:
         fun.log_stderr("\n***** NTS STAGE OUTPUTS *****")
         # read config
         self.cfg = mdlconfig.Config(nts_fldr)
-        self.luk = luk.Lookup.load_yaml("lookup.yml")
+        self.luk = luk.Lookup.load_yaml(Path("lookup.yml"))
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.cb_version, self.tfn_mode = cb_version, self.cfg.tfn_modes
 

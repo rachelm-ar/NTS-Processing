@@ -57,7 +57,7 @@ class ClassifiedBuild:
         self.tfn_ttype, self.tfn_atype = self.cfg.tfn_ttype, self.cfg.tfn_atype
         self.m2k_fact, self.tfn_modes = self.cfg.m2k_fact, self.cfg.tfn_modes
         self.csv_county = self.cfg.dir_import / "NTS_county_lookup.csv"
-        self.luk = luk.Lookup.load_yaml("lookup.yml")
+        self.luk = luk.Lookup.load_yaml(Path("lookup.yml"))
         self.cb_version = cb_version
 
         # import & pre-process
@@ -259,7 +259,6 @@ class ClassifiedBuild:
         # infill invalid hholdcounty
         dfr = self._infill_cty(dfr)
 
-        # if first trip not from home, infer from home using the 23-
         # populate tour
         def fr_home(x):
             return (
@@ -280,7 +279,7 @@ class ClassifiedBuild:
         """
         Apply lookups to NTS table.
 
-        Lookups are read from the 'lookups.yml' file, with methods and properties
+        Lookups are read from the 'lookup.yml' file, with methods and properties
         in the Lookup class.
         """
         fun.log_stderr(f"\nApply lookup tables")
@@ -304,7 +303,8 @@ class ClassifiedBuild:
             dfr["tfn_at_o"] = self._lookup(dfr, self.luk.at_tfn("triporig"))
             dfr["tfn_at_d"] = self._lookup(dfr, self.luk.at_tfn("tripdest"))
         dfr["ruc_o"] = self._lookup(dfr, self.luk.settlement("triporig"))
-        dfr["edu_age"] = self._lookup(dfr, self.luk.edu_level)
+        dfr["age_edu"] = self._lookup(dfr, self.luk.edu_level)
+        dfr["escort"] = self._lookup(dfr, self.luk.escort(), 'main')
         dfr["aws"] = self._lookup(dfr, self.luk.aws)
         dfr["gender"] = self._lookup(dfr, self.luk.gender)
         dfr["hh_type"] = self._lookup(dfr, self.luk.hh_type)
@@ -520,8 +520,8 @@ class ClassifiedBuild:
 
     @staticmethod
     def _lookup(
-        dfr: pd.DataFrame, col_dict: Dict
-    ) -> Union[pd.DataFrame, pd.Series, int]:
+        dfr: pd.DataFrame, col_dict: Dict, err_retn: Union[int, str] = 0
+    ) -> Union[pd.DataFrame, pd.Series, int, str]:
         col_name = fun.str_to_list(col_dict["col"])
         if all([col in dfr.columns for col in col_name]):
             col_type = fun.str_to_list(col_dict["typ"])
@@ -536,7 +536,7 @@ class ClassifiedBuild:
                     )
                 )
             dfr = fun.dfr_to_tuple(dfr, col_name)
-            dfr = dfr.apply(lambda x: col_dict["val"].get(x, 0))
+            dfr = dfr.apply(lambda x: col_dict["val"].get(x, err_retn))
             return dfr
         else:
             fun.log_stderr(f" .. {col_name} not found -> set to zero !!!")
@@ -863,7 +863,7 @@ class ClassifiedBuild:
             arg = arg[:1] + [f'("{arg[1]}")' if len(arg) > 1 else "()"]
             try:
                 luk_eval = eval(f"self.luk.{arg[0]}{arg[1]}")
-            except:
+            except (AttributeError, TypeError):
                 luk_eval = {"col": func, "val": {}}
             luk_eval["col"] = (
                 luk_eval["col"]

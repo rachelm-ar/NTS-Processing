@@ -1,9 +1,8 @@
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import mdlconfig as cfg
 import mdllookup as luk
+from pathlib import Path
 import mdlfunction as fun
 from typing import Union, List
 import statsmodels.api as sm
@@ -21,13 +20,13 @@ class TripRate:
         nts_fldr: str,
         cb_version: Union[str, int],
         over_write: bool = True,
-        run_r: bool = True,
+        run_rs: bool = True,
         run_py: bool = False,
     ):
         fun.log_stderr("\n***** TRIP-RATE REGRESSION MODEL - HB PRODUCTION *****")
         # read config
         self.cfg = cfg.Config(nts_fldr)
-        self.luk = luk.Lookup.load_yaml("lookup.yml")
+        self.luk = luk.Lookup.load_yaml(Path("lookup.yml"))
         self.cb_version, self.tfn_modes = cb_version, self.cfg.tfn_modes
         self.tfn_ttype = self.cfg.tfn_ttype
         self.ppx_list = set(self.luk.purpose()["val"].values())
@@ -37,8 +36,6 @@ class TripRate:
         self.dir_cbuild = Path(self.cfg.dir_cbuild)
         self.fld_prod = self.dir_out / self.cfg.fld_prod
         self.fld_attr = self.dir_out / self.cfg.fld_attr
-
-        out_prod, out_tlds = True, False
 
         # read in cb data
         if over_write:
@@ -53,10 +50,10 @@ class TripRate:
             self._hb_trip_rates(nts_data, reg_grby)
             if run_py:
                 self._regx_model_py()  # run with python codes
-            if run_r:
+            if run_rs:
                 self._regx_model_rs(reg_grby)  # run with R codes
             self._regx_output()
-            if run_py and run_r:
+            if run_py and run_rs:
                 self._compare_python_vs_r()
             self._analysis()
 
@@ -124,7 +121,7 @@ class TripRate:
         dfr = fun.dfr_filter_zero(dfr, col_grby).set_index(col_grby)
         dfr = fun.dfr_complete(dfr, None, reg_grby).reset_index()
         # weighted trip rates
-        out_fldr = self.fld_prod / self.cfg.fld_hbase / "self.cfg.fld_rates"
+        out_fldr = self.fld_prod / self.cfg.fld_hbase / self.cfg.fld_rates
         fun.log_stderr(f" .. weighted trip rates")
         out = dfr.groupby(tfn_type)[["trips"]].sum()
         col_grby = [col for col in tfn_type if col not in reg_grby]
@@ -155,7 +152,7 @@ class TripRate:
         out = fun.dfr_complete(out, None, "tfn_at")
         out = fun.dfr_filter_zero(out.reset_index(), col_grby)
         fun.dfr_to_csv(out, out_fldr, "trip_rates_hb", False)
-        out = out.groupby(col_grby + ["w2"]).sum().stack().reset_index()
+        out = out.groupby(col_grby + ["w2"]).sum().stack(future_stack=True).reset_index()
         out.rename(
             columns={f"level_{len(col_grby) + 1}": "segment", 0: "trip_rates"},
             inplace=True,

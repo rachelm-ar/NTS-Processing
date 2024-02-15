@@ -1,5 +1,6 @@
 from typing import Dict, List
 import mdlfunction as fun
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from typing import Union
@@ -25,6 +26,7 @@ class Lookup(BaseConfig):
     set_01id: dict[str, dict[str, str]]
     at2_01id: dict[int, dict[int, str]]
     gor_02id: dict[int, str]
+    esc_trip: dict[str, dict[int, str]]
     vp1_01id: dict[int, dict[int, str]]
     vp2_01id: dict[int, dict[int, str]]
     col_type: type = int
@@ -43,7 +45,7 @@ class Lookup(BaseConfig):
         ]
 
     @property
-    def edu_ages(self):
+    def age_01id_edu(self):
         return self.dct_to_specs(
             {
                 "child": self.age_01id["child"],
@@ -54,7 +56,7 @@ class Lookup(BaseConfig):
         )
 
     @property
-    def age_01id_spec(self):
+    def age_01id_pop(self):
         return self.dct_to_specs(
             {
                 "child": self.age_01id["child"],
@@ -67,9 +69,7 @@ class Lookup(BaseConfig):
     @property
     def gender(self) -> Dict:
         # gender
-        age_01id, sex_01id = self.dct_to_specs(self.age_01id), self.dct_to_specs(
-            self.sex_01id
-        )
+        age_01id, sex_01id = self.age_01id_pop, self.dct_to_specs(self.sex_01id)
         out_dict = {
             "col": ["sex_b01id", "age_b01id"],
             "typ": [self.nts_dtype, self.nts_dtype],
@@ -92,15 +92,14 @@ class Lookup(BaseConfig):
 
     @property
     def edu_level(self) -> Dict:
-        age_01id = self.edu_ages
         out_dict = {
             "col": "age_b01id",
             "typ": self.nts_dtype,
-            "log": "education level",
+            "log": " age (education)",
             "val": {
-                1: age_01id["child"],  # child
-                2: age_01id["higher"],  # higher education
-                3: age_01id["adult"],  # adult
+                1: self.age_01id_edu["child"],  # child
+                2: self.age_01id_edu["higher"],  # higher education
+                3: self.age_01id_edu["adult"],  # adult
             },
             "out": {1: "Child", 2: "Higher", 3: "Adult"},  # for output
         }
@@ -154,9 +153,7 @@ class Lookup(BaseConfig):
     @property
     def aws(self) -> Dict:
         # age, work, status
-        eco_01id, age_01id = self.dct_to_specs(self.eco_01id), self.dct_to_specs(
-            self.age_01id
-        )
+        eco_01id, age_01id = self.dct_to_specs(self.eco_01id), self.age_01id_pop
         eco_over = eco_01id["fte"] + eco_01id["pte"] + eco_01id["unm"] + eco_01id["dna"]
         out_dict = {
             "col": ["age_b01id", "ecostat_b01id"],
@@ -187,8 +184,7 @@ class Lookup(BaseConfig):
     def soc(self, soc_year: int = 2020) -> Dict:
         # soc
         soc_02id, age_01id, eco_01id = (
-            self.dct_to_specs(self.soc_02id),
-            self.dct_to_specs(self.age_01id),
+            self.dct_to_specs(self.soc_02id), self.age_01id_pop,
             self.dct_to_specs(self.eco_01id),
         )
         all_xsoc = soc_02id["hig"] + soc_02id["med"] + soc_02id["low"] + soc_02id["dna"]
@@ -210,12 +206,10 @@ class Lookup(BaseConfig):
                     soc_02id["low"], age_01id["adult"], emp_ecos
                 ),  # low skill
                 4: (
-                    fun.product(all_xsoc, all_ages, eco_01id["stu"])
-                    + fun.product(  # student
-                        all_xsoc, age_01id["adult"], eco_01id["unm"]
-                    )
-                    + fun.product(all_xsoc, age_01id["child"], all_ecos)  # unemployed
-                    + fun.product(all_xsoc, age_01id["elder"], all_ecos)  # children
+                        fun.product(all_xsoc, all_ages, eco_01id["stu"])
+                        + fun.product(all_xsoc, age_01id["adult"], eco_01id["unm"])
+                        + fun.product(all_xsoc, age_01id["child"], all_ecos)  # unemployed
+                        + fun.product(all_xsoc, age_01id["elder"], all_ecos)  # children
                 ),  # over 75
                 #  0: fun.product(soc_02id['dna'], age_01id['adult'], emp_ecos)  # other
             },
@@ -262,7 +256,7 @@ class Lookup(BaseConfig):
             "col": "hrprelation_b01id",
             "typ": self.nts_dtype,
             "log": "hrp",
-            "val": {1: self.hrp_01id[1]},
+            "val": {1: self.dct_to_specs(self.hrp_01id)[1]},
             "out": {1: "household reference person", 0: "other"},
         }
         out_dict["val"] = self.val_to_key(out_dict["val"])
@@ -275,7 +269,7 @@ class Lookup(BaseConfig):
             "col": col_name,
             "typ": self.nts_dtype,
             "log": f"income {lev_name}",
-            "val": eval(f"self.i02_{lev_name}id"),
+            "val": self.dct_to_specs(eval(f"self.i02_{lev_name}id")),
         }
         out_dict["val"] = self.val_to_key(out_dict["val"])
         return out_dict
@@ -286,7 +280,7 @@ class Lookup(BaseConfig):
             "col": col_name,
             "typ": int,
             "log": "work from home",
-            "val": self.wfh_01id,
+            "val": self.dct_to_specs(self.wfh_01id),
         }
         out_dict["val"] = self.val_to_key(out_dict["val"])
         return out_dict
@@ -296,7 +290,7 @@ class Lookup(BaseConfig):
             "col": f"sic{sic_year}_b02id",
             "typ": self.nts_dtype,
             "log": f"sic{sic_year}",
-            "val": eval(f"self.s{sic_year[2:]}_02id"),
+            "val": self.dct_to_specs(eval(f"self.s{sic_year[2:]}_02id")),
         }
         out_dict["val"] = self.val_to_key(out_dict["val"])
         return out_dict
@@ -376,7 +370,7 @@ class Lookup(BaseConfig):
             "col": f"{col_name}areatype_b01id",
             "typ": self.nts_dtype,
             "log": "ntem_at",
-            "val": self.at2_01id,
+            "val": self.dct_to_specs(self.at2_01id),
             "out": {
                 1: "Inner London",
                 2: "Outer London",
@@ -404,7 +398,7 @@ class Lookup(BaseConfig):
 
         set_list = [val for key in set_01id for val in set_01id[key]]
         at2_list = [val for key in at2_01id for val in at2_01id[key]]
-        at2_xlon = [val for val in at2_list if val not in at2_01id[1]]
+        at2_xlon = [val for val in at2_list if val not in at2_01id[1]]  # outer london + rest GB
         out_dict = {
             "col": [
                 f"{col_type}gor_b02id",
@@ -418,13 +412,9 @@ class Lookup(BaseConfig):
                 1: fun.product([7], cty_list, at2_01id[1], set_list),  # inner london
                 2: fun.product([7], cty_list, at2_xlon, set_list),  # outer london
                 # major
-                3: fun.product(
-                    [6, 8], cty_list, at2_list, set_01id["major"]
-                ),  # east + se
+                3: fun.product([6, 8], cty_list, at2_list, set_01id["major"]),  # east + se
                 4: fun.product([5], cty_list, at2_list, set_01id["major"]),  # wm
-                5: fun.product(
-                    [2, 4], cty_list, at2_list, set_01id["major"]
-                ),  # nw + em
+                5: fun.product([2, 4], cty_list, at2_list, set_01id["major"]),  # nw + em
                 6: fun.product([1], cty_list, at2_list, set_01id["major"]),  # ne
                 7: fun.product([3], cty_list, at2_list, set_01id["major"]),  # yh
                 # minor
@@ -435,19 +425,17 @@ class Lookup(BaseConfig):
                 9: fun.product([6], cty_list, at2_list, set_01id["city"]),  # east
                 10: fun.product([8], cty_list, at2_list, set_01id["city"]),  # se
                 11: (
-                    fun.product([9], cty_list, at2_list, set_01id["city"])
-                    + fun.product(  # sw
-                        [10], [62, 64, 66, 67], at2_list, set_01id["city"]
-                    )
+                        fun.product([9], cty_list, at2_list, set_01id["city"])
+                        + fun.product([10], [62, 64, 66, 67], at2_list, set_01id["city"])
                 ),  # south wales
                 12: (
-                    fun.product([5], cty_list, at2_list, set_01id["city"])
-                    + fun.product([10], [61, 65], at2_list, set_01id["city"])  # wm
+                        fun.product([5], cty_list, at2_list, set_01id["city"])
+                        + fun.product([10], [61, 65], at2_list, set_01id["city"])  # wm
                 ),  # mid-wales
                 13: fun.product([4], cty_list, at2_list, set_01id["city"]),  # em
                 14: (
-                    fun.product([2], cty_list, at2_list, set_01id["city"])
-                    + fun.product([10], [60, 63, -8], at2_list, set_01id["city"])  # nw
+                        fun.product([2], cty_list, at2_list, set_01id["city"])
+                        + fun.product([10], [60, 63, -8], at2_list, set_01id["city"])  # nw
                 ),  # north wales
                 15: fun.product(
                     [1, 3], cty_list, at2_list, set_01id["city"]
@@ -491,16 +479,17 @@ class Lookup(BaseConfig):
 
     def settlement(self, col_type: str) -> Dict:
         # ruc 2011 to area type
+        set_01id = self.dct_to_specs(self.set_01id)
         out_dict = {
             "col": f"{col_type}ruc2011_b01id",
             "typ": str,
             "log": f"{col_type}ruc_2011",
             "val": {
-                1: self.set_01id["major"],
-                2: self.set_01id["minor"],
-                3: self.set_01id["city"],
-                4: self.set_01id["town"],
-                5: self.set_01id["village"],
+                1: set_01id["major"],
+                2: set_01id["minor"],
+                3: set_01id["city"],
+                4: set_01id["town"],
+                5: set_01id["village"],
             },
             "out": {
                 1: "Major conurbation",
@@ -524,20 +513,20 @@ class Lookup(BaseConfig):
             "log": f"occupancy ({col_mode})",
             "val": {
                 "driver": (
-                    mmd_11id["swak"]
-                    + mmd_11id["walk"]
-                    + mmd_11id["bike"]
-                    + mmd_11id["car_d"]
-                    + mmd_11id["van_d"]
-                    + mmd_11id["bus_d"]
+                        mmd_11id["swak"]
+                        + mmd_11id["walk"]
+                        + mmd_11id["bike"]
+                        + mmd_11id["car_d"]
+                        + mmd_11id["van_d"]
+                        + mmd_11id["bus_d"]
                 ),
                 "passenger": (
-                    mmd_11id["car_p"]
-                    + mmd_11id["van_p"]
-                    + mmd_11id["bus_p"]
-                    + mmd_11id["rail_h"]
-                    + mmd_11id["rail_l"]
-                    + mmd_11id["air"]
+                        mmd_11id["car_p"]
+                        + mmd_11id["van_p"]
+                        + mmd_11id["bus_p"]
+                        + mmd_11id["rail_h"]
+                        + mmd_11id["rail_l"]
+                        + mmd_11id["air"]
                 ),
             },
         }
@@ -559,9 +548,9 @@ class Lookup(BaseConfig):
                 3: mmd_11id["car_d"] + mmd_11id["car_p"],
                 4: mmd_11id["van_d"] + mmd_11id["van_p"],  #
                 5: mmd_11id["bus_d"] + mmd_11id["bus_p"],  # bus
-                7: mmd_11id["rail_h"],  # surface rail
-                8: mmd_11id["rail_l"],  # light rail/underground
-                9: mmd_11id["air"],  # air
+                6: mmd_11id["rail_h"],  # surface rail
+                7: mmd_11id["rail_l"],  # light rail/underground
+                8: mmd_11id["air"],  # air
             },
             "out": {
                 1: "Walk",
@@ -585,7 +574,7 @@ class Lookup(BaseConfig):
         end_home = tpp_01id["hom"]
         try:
             tpp_from = self.inc_purp + tpp_01id["esc"] + end_home
-        except:
+        except KeyError:
             tpp_from = self.inc_purp + end_home
         all_mode = [val for key in mmd_11id for val in mmd_11id[key] if key != "na"]
         non_walk = [
@@ -601,42 +590,40 @@ class Lookup(BaseConfig):
             "log": "purpose",
             "val": {
                 1: (
-                    fun.product(all_mode, tpp_from, tpp_01id["com"])
-                    + fun.product(  # from home/non-home base
-                        all_mode, tpp_01id["com"], end_home
-                    )
+                        fun.product(all_mode, tpp_from, tpp_01id["com"])
+                        + fun.product(all_mode, tpp_01id["com"], end_home)  # from home/non-home base
                 ),  # return home
                 2: (
-                    fun.product(all_mode, tpp_from, tpp_01id["emb"])
-                    + fun.product(all_mode, tpp_01id["emb"], end_home)
+                        fun.product(all_mode, tpp_from, tpp_01id["emb"])
+                        + fun.product(all_mode, tpp_01id["emb"], end_home)
                 ),
                 3: (
-                    fun.product(all_mode, tpp_from, tpp_01id["edu"])
-                    + fun.product(all_mode, tpp_01id["edu"], end_home)
+                        fun.product(all_mode, tpp_from, tpp_01id["edu"])
+                        + fun.product(all_mode, tpp_01id["edu"], end_home)
                 ),
                 4: (
-                    fun.product(all_mode, tpp_from, tpp_01id["shp"])
-                    + fun.product(all_mode, tpp_01id["shp"], end_home)
+                        fun.product(all_mode, tpp_from, tpp_01id["shp"])
+                        + fun.product(all_mode, tpp_01id["shp"], end_home)
                 ),
                 5: (
-                    fun.product(all_mode, tpp_from, tpp_01id["peb"])
-                    + fun.product(all_mode, tpp_01id["peb"], end_home)
+                        fun.product(all_mode, tpp_from, tpp_01id["peb"])
+                        + fun.product(all_mode, tpp_01id["peb"], end_home)
                 ),
                 6: (
-                    fun.product(all_mode, tpp_from, tpp_01id["soc"])
-                    + fun.product(all_mode, tpp_01id["soc"], end_home)
-                    + fun.product(jst_walk, tpp_from, tpp_01id["jwk"])
-                    + fun.product(jst_walk, tpp_01id["jwk"], end_home)
+                        fun.product(all_mode, tpp_from, tpp_01id["soc"])
+                        + fun.product(all_mode, tpp_01id["soc"], end_home)
+                        + fun.product(jst_walk, tpp_from, tpp_01id["jwk"])
+                        + fun.product(jst_walk, tpp_01id["jwk"], end_home)
                 ),
                 7: (
-                    fun.product(all_mode, tpp_from, tpp_01id["vis"])
-                    + fun.product(all_mode, tpp_01id["vis"], end_home)
+                        fun.product(all_mode, tpp_from, tpp_01id["vis"])
+                        + fun.product(all_mode, tpp_01id["vis"], end_home)
                 ),
                 8: (
-                    fun.product(all_mode, tpp_from, tpp_01id["hol"])
-                    + fun.product(all_mode, tpp_01id["hol"], end_home)
-                    + fun.product(non_walk, tpp_from, tpp_01id["jwk"])
-                    + fun.product(non_walk, tpp_01id["jwk"], end_home)
+                        fun.product(all_mode, tpp_from, tpp_01id["hol"])
+                        + fun.product(all_mode, tpp_01id["hol"], end_home)
+                        + fun.product(non_walk, tpp_from, tpp_01id["jwk"])
+                        + fun.product(non_walk, tpp_01id["jwk"], end_home)
                 ),
             },
             "out": {
@@ -653,17 +640,44 @@ class Lookup(BaseConfig):
         out_dict["val"] = self.val_to_key(out_dict["val"])
         return out_dict
 
+    def escort(self) -> Dict:
+        # trip purpose
+        tpp_01id, esc_trip = self.dct_to_specs(self.tpp_01id), self.dct_to_specs(self.esc_trip)
+        end_home = tpp_01id["hom"]
+        try:
+            tpp_from = self.inc_purp + tpp_01id["esc"] + end_home
+        except KeyError:
+            tpp_from = self.inc_purp + end_home
+
+        out_dict = {
+            "col": ["trippurpfrom_b01id", "trippurpto_b01id"],
+            "typ": [self.nts_dtype, self.nts_dtype],
+            "log": "escort trip",
+            "val": {
+                'esc': (
+                        fun.product(tpp_from, esc_trip['esc'])
+                        + fun.product(esc_trip['esc'], end_home)
+                ),  # from home + return home
+                'main': [],
+            },
+            "out": {
+                'esc': "Escort",
+                'main': "Main purpose",
+            },
+        }
+        out_dict["val"] = self.val_to_key(out_dict["val"])
+        return out_dict
+
     def period(self, tse_type: str = "start") -> Dict:
         # trip start/end time
-        wkd_01id, ttp_01id = self.dct_to_specs(self.wkd_01id), self.dct_to_specs(
-            self.ttp_01id
-        )
+        wkd_01id, ttp_01id = (self.dct_to_specs(self.wkd_01id),
+                              self.dct_to_specs(self.ttp_01id))
         all_24hr = (
-            ttp_01id["am"]
-            + ttp_01id["ip"]
-            + ttp_01id["pm"]
-            + ttp_01id["op"]
-            + ttp_01id["na"]
+                ttp_01id["am"]
+                + ttp_01id["ip"]
+                + ttp_01id["pm"]
+                + ttp_01id["op"]
+                + ttp_01id["na"]
         )
         out_dict = {
             "col": ["travelweekday_b01id", f"trip{tse_type}_b01id"],
@@ -716,13 +730,13 @@ class Lookup(BaseConfig):
 
     def fuel_type(self, col_name: str) -> Dict:
         # vehicle fuel type: vehproptype_b01id, vehproptypen_b01id
+        vpx_01id = self.dct_to_specs(self.vp1_01id if col_name == "vehproptype_b01id"
+                                     else self.vp2_01id)
         out_dict = {
             "col": col_name,
             "typ": self.nts_dtype,
             "log": "fuel type",
-            "val": (
-                self.vp1_01id if col_name == "vehproptype_b01id" else self.vp2_01id
-            ),
+            "val": vpx_01id,
             "out": {
                 1: "Petrol",
                 2: "Diesel",
@@ -757,7 +771,7 @@ class Lookup(BaseConfig):
 
     @staticmethod
     def lev_to_name(level: str = None) -> Dict:
-        # get column names from level: county or gor
+        # get column names from level: tfn_at, county or gor
         if level is not None:
             if level.lower() in ["county", "gor"]:
                 home = (
@@ -788,7 +802,9 @@ class Lookup(BaseConfig):
         #                 dfr['purpose'])
         return dfr["purpose"]
 
-    def purpose_agg(self, dfr: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def purpose_agg(dfr: pd.DataFrame) -> pd.DataFrame:
+        # aggregate purposes to TAG
         dct_purp = {
             1: "Commute",
             2: "Business",
@@ -871,7 +887,17 @@ if __name__ == "__main__":
             "esc": {},  # {17: 'escort home', 16: 'other non-escort', 22: 'other escort'},
             "hom": {23: "home"},
         },
-        # trip purpose included in analysis
+        # escort trips
+        esc_trip={
+            "esc": {18: "escort work",
+                    19: "escort in course of work",
+                    20: "escort education",
+                    21: "escort shopping / personal business",
+                    16: "other non-escort",
+                    22: "other escort",
+                    17: "escort home"},
+            "non": {},
+        },
         # weekday & weekend
         wkd_01id={
             "wkd": {
@@ -1067,7 +1093,7 @@ if __name__ == "__main__":
             "F": {6: "F - Construction"},
             "G": {
                 7: "G - Wholesale and retail trade; repair of motor vehicles, "
-                "motorcycles and personal and household goods"
+                   "motorcycles and personal and household goods"
             },
             "I": {8: "H - Hotels and restaurants"},
             "H/J": {9: "I - Transport, storage and communication"},
@@ -1226,5 +1252,5 @@ if __name__ == "__main__":
             -10: {-10: "dead"},
         },
     )
-    luk.save_yaml(r"E:\NTS\analysis\22\lookup.yml")
+    luk.save_yaml(Path("lookup.yml"))
     print("debugging")

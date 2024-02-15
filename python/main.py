@@ -13,11 +13,11 @@ mp.freeze_support()
 
 # main application
 if __name__ == "__main__":
-    data_fldr = (
-        r"E:\NTS\UKDA-7553-tab_22"  # This is the folder containing the tab files
-    )
-    # main_fldr = r'D:\NTS\NoTEM\nts_data\2002_2021'
-    main_fldr = r"E:\NTS\analysis\22"  # This folder must contain imports, classified builds, and outputs
+    # This is the folder containing the tab files
+    data_fldr = r"C:\Users\NhanNguyen\OneDrive - Transport for the North\Projects\NTS\UKDA-7553-tab"
+
+    # This folder must contain imports
+    main_fldr = r"C:\Projects\NTS_Analysis"
 
     cfg = cfg.Config(main_fldr)
     cb_version = "5_test"
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     ClassifiedBuild(data_fldr, main_fldr, cb_version, False)
 
     # trip-rate model
-    TripRate(main_fldr, cb_version, False, run_r=True, run_py=False)
+    TripRate(main_fldr, cb_version, True, run_rs=True, run_py=False)
 
     # NTS outputs
     Output(main_fldr, cb_version, True)
@@ -35,4 +35,4 @@ if __name__ == "__main__":
     TourModel(main_fldr, "region", True)
 
     # NTS stage analysis
-    Stage(main_fldr, cb_version, True)
+    Stage(main_fldr, cb_version, False)

@@ -23,7 +23,7 @@ class Config:
             if self.def_ttype == "ntem"
             else ["gender", "aws", "hh_type", "soc", "ns"]
         )
-        # mode: 1-walk, 2-cycle, 3-car, 4-lgv, 5-bus, 6-surface rail, 7-light rail
+        # mode: 1-walk, 2-cycle, 3-car, 4-lgv, 5-bus, 6-national rail, 7-light rail
         self.tfn_modes = [1, 2, 3, 4, 5, 6, 7, 8]
         self.m2k_fact = 1.6093
         self.csv_cbuild = "cb_tfn"

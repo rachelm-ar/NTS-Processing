@@ -1,4 +1,4 @@
-# Lookup config written on 2024-02-13 at 14:15
+# Lookup config written on 2024-02-15 at 16:10
 mmd_11id:
   swak:
     1: walk, less than 1 mile
@@ -490,6 +490,15 @@ gor_02id:
   -8: NA
   -9: DNA
   -10: DEAD
+esc_trip:
+  esc:
+    18: escort work
+    19: escort in course of work
+    20: escort education
+    21: escort shopping / personal business
+    16: other non-escort
+    22: other escort
+    17: escort home
 vp1_01id:
   1:
     1: unleaded petrol

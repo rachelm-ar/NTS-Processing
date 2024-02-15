@@ -48,7 +48,7 @@ class TourModel:
         self.csv_tour = self.out_fldr / f"activity_{nts_spec}.csv"
 
         # mode time split, .csv: taz_o, taz_d, main_mode, purpose, trip_direction, start_time, freq, trip
-        self.csv_dist = self.out_fldr / "distribution_{nts_spec}.csv"
+        self.csv_dist = self.out_fldr / f"distribution_{nts_spec}.csv"
 
         # tmz to taz lookup, csv: tmz, taz
         self.csv_ztaz = self.cfg.dir_import / "GOR_to_TAZ.csv"
@@ -549,7 +549,7 @@ class TourModel:
         lev = len(col_grby)
         dfr = (
             dfr.set_index(col_grby)
-            .stack()
+            .stack(future_stack=True)
             .reset_index(name="val")
             .rename(columns={f"level_{lev}": "period"})
         )
