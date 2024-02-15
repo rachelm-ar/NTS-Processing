@@ -559,9 +559,9 @@ class Lookup(BaseConfig):
                 3: mmd_11id["car_d"] + mmd_11id["car_p"],
                 4: mmd_11id["van_d"] + mmd_11id["van_p"],  #
                 5: mmd_11id["bus_d"] + mmd_11id["bus_p"],  # bus
-                7: mmd_11id["rail_h"],  # surface rail
-                8: mmd_11id["rail_l"],  # light rail/underground
-                9: mmd_11id["air"],  # air
+                6: mmd_11id["rail_h"],  # surface rail
+                7: mmd_11id["rail_l"],  # light rail/underground
+                8: mmd_11id["air"],  # air
             },
             "out": {
                 1: "Walk",
