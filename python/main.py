@@ -6,30 +6,33 @@ from mdltour import TourModel
 import mdlconfig as cfg
 import multiprocessing as mp
 import matplotlib.pyplot as plt
-plt.switch_backend('agg')
+
+plt.switch_backend("agg")
 mp.freeze_support()
 
 
 # main application
-if __name__ == '__main__':
-    nts_fldr = r'D:\OneDrive - Transport for the North\Projects\NTS\UKDA-7553'
-    # out_fldr = r'D:\NTS\NoTEM\nts_data\2002_2021'
-    out_fldr = r'C:\Projects\NTS_analysis'
+if __name__ == "__main__":
+    data_fldr = (
+        r"E:\NTS\UKDA-7553-tab_22"  # This is the folder containing the tab files
+    )
+    # main_fldr = r'D:\NTS\NoTEM\nts_data\2002_2021'
+    main_fldr = r"E:\NTS\analysis\22"  # This folder must contain imports, classified builds, and outputs
 
-    cfg = cfg.Config(out_fldr)
-    cb_version = '5_test'
+    cfg = cfg.Config(main_fldr)
+    cb_version = "5_test"
 
     # classified build
-    ClassifiedBuild(nts_fldr, out_fldr, cb_version, False)
+    ClassifiedBuild(data_fldr, main_fldr, cb_version, False)
 
     # trip-rate model
-    TripRate(out_fldr, cb_version, False)
+    TripRate(main_fldr, cb_version, False, run_r=True, run_py=False)
 
     # NTS outputs
-    Output(out_fldr, cb_version, True)
+    Output(main_fldr, cb_version, True)
 
     # Tour Model
-    TourModel(out_fldr, 'region', False)
+    TourModel(main_fldr, "region", True)
 
     # NTS stage analysis
-    Stage(out_fldr, cb_version, False)
+    Stage(main_fldr, cb_version, True)
