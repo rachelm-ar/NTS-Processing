@@ -91,7 +91,16 @@ class Output:
         seg_incl: Union[List, str, None] = None,
         agg_band: Union[bool, List] = False,
     ):
-        """Produce trip-length distributions."""
+        """
+        Produce trip-length distributions.
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_inc: segments to include to produce distributions for
+        agg_band: False, True, or a list of user-defined distance bands
+        """
         # geo_incl: geo_area to be included: either gor, county, tfn_at
         # agg_band: False, True, or a list of user-defined distance bands
         # TODO: need further disaggregation by 5 rucs & by 11 gors -> 40 TLDs,
@@ -141,7 +150,16 @@ class Output:
         seg_incl: Union[List, str, None] = None,
         inc_dist: bool = True,
     ):
-        """Produce production trip-rates without regression models."""
+        """
+        Produce production trip-rates without regression models.
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_inc: segments to include to produce distributions for
+        inc_dist: whether to include distances in calculations
+        """
         fun.log_stderr("\nNTS trip rates (productions)")
         fun.log_stderr(f" .. process data")
         lev_2col, col_type = self.luk.lev_to_name(geo_incl), self.luk.nts_dtype
@@ -177,7 +195,15 @@ class Output:
         geo_incl: Union[str, None] = None,
         seg_incl: Union[List, str, None] = None,
     ):
-        # trip attraction rates Alpha1 (by purpose, land-use type, soc, and area_type)
+        """
+        trip attraction rates Alpha1 (by purpose, land-use type, soc, and area_type)
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_inc: segments to include to produce distributions for
+        """
         fun.log_stderr("\nNTS trip rates (attractions)")
         fun.log_stderr(f" .. process data")
         lev_2col, col_type = self.luk.lev_to_name(geo_incl), self.luk.nts_dtype
@@ -224,8 +250,13 @@ class Output:
     ):
         """
         Produce tour proportions from NTS data.
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_inc: segments to include to produce distributions for
         """
-        # geo_incl: geo_area to be included: either gor, county, tfn_at
         # TODO: further disaggregated by area type, o.mode, o.purpose, o.time, r.mode, r.purpose. r.time
         # TODO: add in adjustment to reflect NorMITs base year?
         fun.log_stderr("\nNTS tour proportions")
@@ -291,9 +322,16 @@ class Output:
         seg_incl: Union[List, str, None] = None,
         agg_band: Union[bool, List] = True,
     ):
-        """Vehicle occupancies."""
-        # geo_incl: geo_area to be included: either gor, county, tfn_at
-        # agg_band: False, True, or a list of user-defined distance bands
+        """
+        Vehicle occupancies.
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_inc: segments to include to produce distributions for
+        agg_band: False, True, or a list of user-defined distance bands
+        """
         # TODO: add in GOR as area type for trip starting
         # TODO: aggregation to address low sample issue (e.g. combine with other purposes, or dist. bands)
         # TODO: add in base year for adjustment from NTS average to base year model
@@ -337,7 +375,6 @@ class Output:
         geo_incl: Union[str, None] = None,
         seg_incl: Union[List, str, None] = None,
     ):
-        # geo_incl: geo_area to be included: either gor, county, tfn_at
         # TODO: will think about how to address low sample size issue with distribution data
         fun.log_stderr("\nNTS activities")
         fun.log_stderr(f" .. process data")
@@ -409,7 +446,16 @@ class Output:
         seg_incl: Union[List, str, None] = None,
         yrx_base: Union[int, None] = None,
     ):
-        """Produce home based mode time splits."""
+        """Produce home based mode time splits.
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_incl: segments to include to produce distributions for
+        yrx_base: set as int to select a base year for data. This will filter to
+        the year, reducing sample size
+        """
         fun.log_stderr("\nNTS mode-time split - hb")
         fun.log_stderr(f" .. process data")
         lev_prod, col_type = self.luk.lev_to_name(geo_incl)["h"], self.luk.nts_dtype
@@ -502,7 +548,9 @@ class Output:
 
         Parameters
         ----------
+        mode: list of modes to be processed
         geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_incl: segments to include to produce distributions for
         """
         #
         # TODO: address low sample size (from from_home trips) through aggregation
@@ -551,7 +599,15 @@ class Output:
         geo_incl: Union[str, None] = None,
         seg_incl: Union[List, str, None] = None,
     ):
-        """Produce nhb mode time splits."""
+        """
+        Produce nhb mode time splits.
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_incl: segments to include to produce distributions for
+        """
         # geo_incl: geo_area to be included: either gor, county, tfn_at
         # TODO: address low sample size (24hr sample) through aggregation by area type
         # TODO: add in adjustment to reflect post-COVID
@@ -598,7 +654,15 @@ class Output:
         geo_incl: Union[str, None] = None,
         seg_incl: Union[List, str, None] = None,
     ):
-        # trip attraction mode-time split ALPHA2 (area_type, by purpose, mode, time)
+        """
+        Trip attraction mode-time split ALPHA2 (area_type, by purpose, mode, time)
+
+        Parameters
+        ----------
+        mode: list of modes to be processed
+        geo_incl: geo_area to be included: either gor, county, tfn_at
+        seg_incl: segments to include to produce distributions for
+        """
         # TODO: address low sample size (from from_home trips) through aggregation
         # TODO: add in adjustment to reflect post-COVID
         # TODO: perhaps produce HB MTS for now, and we can think about NHB MTS later
@@ -624,8 +688,6 @@ class Output:
     def _work_from_home(
         self,
         dfr: pd.DataFrame,
-        geo_incl: Union[str, None] = None,
-        seg_incl: Union[List, str, None] = None,
     ):
         """Infer work from home statistics from NTS data."""
         # method 1 - from individual table
@@ -655,78 +717,3 @@ class Output:
         out = out.groupby(self.tfn_ttype + ["surveyyear", "wfh"])[["w2"]].sum()
         out_fldr = self.cfg.dir_output / self.cfg.fld_other
         fun.dfr_to_csv(out, out_fldr, "work_fr_home.csv", True)
-
-    def _tld_ml_prep(self, cb, seg_cols, dis_col, threshold=300):
-        update = {}
-        for i, j in self.luk.dct_to_specs(self.luk.set_01id).items():
-            for k in j:
-                if isinstance(k, str):
-                    update[k.upper()] = i
-                else:
-                    update[k] = i
-        update = pd.DataFrame.from_dict(update, orient="index", columns=["at"])
-        modes = {}
-        for mode in cb["mode"].unique():
-            inner = cb[cb["mode"] == mode]
-            dists = inner[dis_col].values
-            bands = fun.dist_band(dists.max())
-            inner["band"] = pd.cut(dists, bands)
-            modes[mode] = inner
-            inner_df = pd.merge(
-                inner, update, left_on="settlement2011ew_b01id", right_index=True
-            )
-            inner_df.drop(columns=["band"]).to_hdf(
-                r"E:\NTS\analysis\int\data.h5", key=str(mode), mode="a"
-            )
-            inner_df["count"] = 1
-            seg_cols += ["at", "triporiggor_b02id"]
-            big_count = inner_df.groupby(seg_cols)[["count", "trips"]].sum()
-            small_count = (
-                inner_df.groupby(seg_cols + ["band"], observed=False)["trips"]
-                .sum()
-                .reset_index(level="band")
-            )
-            big_count.columns = ["sample size", "agg trips"]
-            joined = small_count.join(big_count, how="inner")
-            joined["norm_trips"] = joined["trips"] / joined["agg trips"]
-            joined["band start"] = pd.IntervalIndex(joined["band"]).left
-            joined.set_index("band start", append=True, inplace=True)
-            joined.reset_index(level="mode", inplace=True)
-            joined.drop(["mode", "band"], axis=1, inplace=True)
-            joined.drop(0, inplace=True)
-            joined.drop([0, 5, 6], level="period", inplace=True)
-            enc = OneHotEncoder()
-            enc.fit(joined.index.to_frame())
-            cols = []
-            iterator = joined.index.names
-            for i, cat in enumerate(enc.categories_):
-                for j in cat:
-                    cols.append(f"{iterator[i]}_{j}")
-            index = enc.transform(joined.index.to_frame()).toarray()
-            encoded_index = pd.MultiIndex.from_frame(pd.DataFrame(index, columns=cols))
-            ready_data = pd.DataFrame(
-                joined[["norm_trips", "sample size"]].values,
-                index=encoded_index,
-                columns=["norm_trips", "sample size"],
-            )
-            training = ready_data.loc[
-                ready_data["sample size"] > threshold, "norm_trips"
-            ]
-            to_predict = ready_data.loc[
-                ready_data["sample size"] <= threshold, "norm_trips"
-            ]
-            X = training.index.to_frame()
-            y = training.values
-            X_train, X_test, y_train, y_test = train_test_split(X, y)
-            regr = RandomForestRegressor()
-            score = cross_validate(regr, X, y, cv=5, scoring=("r2"))
-            regr.fit(X_train, y_train)
-            test = regr.predict(X_test)
-            pred = regr.predict(to_predict.index.to_frame())
-
-        return ready_data
-
-
-def _rfr_tld(data):
-    regr = RandomForestRegressor()
-    regr.fit(data.index, data.values)
