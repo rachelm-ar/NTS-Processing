@@ -244,7 +244,7 @@ def split_file(str_file: str) -> List:
 
 
 # file existence
-def exist_file(str_file: str, err_index: bool = True) -> bool:
+def exist_file(str_file: Path | str, err_index: bool = True) -> bool:
     if not os.path.isfile(str_file):
         err_index = False
         log_stderr(f"    >> file not found [{txt_truncate(str_file)}]")
@@ -252,7 +252,7 @@ def exist_file(str_file: str, err_index: bool = True) -> bool:
 
 
 # path existence
-def exist_path(str_path: str, err_index: bool = True) -> bool:
+def exist_path(str_path: Path | str, err_index: bool = True) -> bool:
     if not os.path.isdir(str_path):
         err_index = False
         log_stderr(f"    >> path not found [{txt_truncate(str_path)}]")
