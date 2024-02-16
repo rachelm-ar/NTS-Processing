@@ -30,7 +30,7 @@ def dfr_complete(
     col_unstk = str_to_list(col_unstk)
     dfr = dfr.set_index(col_index) if len(col_index) > 0 else dfr
     for col in col_unstk:
-        dfr = dfr.unstack(level=col, fill_value=0).stack(future_stack=True)
+        dfr = dfr.unstack(level=col, fill_value=0).stack(future_stack=True) # future_stack implemented in pandas 2.1
     return dfr
 
 
