@@ -260,7 +260,9 @@ def exist_path(str_path: Path | str, err_index: bool = True) -> bool:
 
 
 # reduced print
-def txt_truncate(str_text: str, len_text: int = 50) -> str:
+def txt_truncate(str_text: str | Path, len_text: int = 50) -> str:
+    # convert to str in case of path
+    str_text = str(str_text)
     out_text = str_text[-len_text:]
     pos_text = out_text.find("\\") if out_text.find("\\") > 0 else 0
     out_text = f"..{out_text[pos_text:] if len(str_text) > len_text else str_text}"
