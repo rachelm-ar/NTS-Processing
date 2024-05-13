@@ -17,7 +17,7 @@ class TourModel:
     comments = ["*", ";", "#"]
 
     def __init__(
-        self, nts_fldr: str, tmz_leve: str = "region", over_write: bool = True
+            self, nts_fldr: str, tmz_leve: str = "region", over_write: bool = True
     ):
         # tmz_leve = region, county, or ua
         fun.log_stderr("\n***** NTS TOUR MODEL *****")
@@ -30,12 +30,21 @@ class TourModel:
         if over_write:
             self._specs()
             self._read_input()
-            self._calc_prod()
+
+            self.inter_step_out_folder = 'I:\\NTS\\outputs\\tour\\reports\\Intermediate Steps\\'  # TEST
+            self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_read_input.csv')  # TEST
+            self._calc_prod(True)
+            self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_calc_prod.csv')  # TEST
             self._calc_rezone(True)
+            self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_calc_rezone.csv')  # TEST
             self._calc_tour(10, True)
+            self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_calc_tour.csv')  # TEST
             self._calc_mts("freq", True)
+            self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_calc_mts.csv')  # TEST
             self._calc_dest("freq", True)
+            self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_calc_dest.csv')  # TEST
             self._calc_trip_by_activity()
+            self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_calc_trip_by_activity.csv')  # TEST
             self._reports()
             # self._adjust_tripend()
         else:
@@ -43,7 +52,13 @@ class TourModel:
 
     # SPECIFICATION
     def _specs(self):
-        nts_spec = "gor" if self.tmz_leve == "region" else "ua1998"
+        if self.tmz_leve == "region":
+            nts_spec = "gor"
+        elif self.tmz_leve == "county":
+            nts_spec = "county"
+        else:
+            nts_spec = "ua1998"
+
         # activity, .csv: taz_p, tour_id, freq, trip
         self.csv_tour = self.out_fldr / f"activity_{nts_spec}.csv"
 
@@ -57,10 +72,10 @@ class TourModel:
         self.csv_ntaz = self.cfg.dir_import / "NTS_to_TAZ.csv"
 
         # mode-specific hb_production trip-end, csv: tmz_id, purpose, mode, trip
-        self.csv_prod = self.cfg.dir_import / "tripend" / "NTEM7_prod_gor.csv"
+        self.csv_prod = self.cfg.dir_import / f"NTEM7_prod_{nts_spec}.csv"
 
         # mode-specific hb_attraction trip-end, csv: tmz_id, purpose, mode, trip
-        self.csv_attr = self.cfg.dir_import / "tripend" / "NTEM7_attr_gor.csv"
+        self.csv_attr = self.cfg.dir_import / f"NTEM7_attr_{nts_spec}.csv"
 
     # READ DATA SPECS
     def _read_input(self):
@@ -79,16 +94,24 @@ class TourModel:
         ]
         self.tmz_list = np.unique(self.dfr_ztaz[f"{self.tmz_leve}_no"].values)
 
+        np.savetxt('I:\\NTS\\outputs\\tour\\reports\\Intermediate Steps\\tmz_list.csv', self.tmz_list, delimiter=',')  # TEST
+
         # nts zones to taz zone, nts -> taz.
         # note: tmz and taz zone system have to be the same, otherwise distribution won't work (yet)
+        # REVISIT when running at county level
         self.taz_leve = self.tmz_leve
-        self.dfr_ntaz["nts"] = (
-            self.dfr_ntaz[f"{self.taz_leve}_no"]
-            if self.taz_leve == "region"
-            else self.dfr_ntaz["nts"]
-        )
+        if self.taz_leve == "region":
+            self.dfr_ntaz["nts"] = self.dfr_ntaz[f"{self.taz_leve}_no"]
+        elif self.taz_leve == "county":
+            self.dfr_ntaz["nts"] = self.dfr_ntaz[f"{self.taz_leve}_no"]
+        else:
+            self.dfr_ntaz["nts"] = self.dfr_ntaz["nts"]
+
         self.dct_ntaz = self.dfr_ntaz.set_index("nts").to_dict()[f"{self.taz_leve}_no"]
         self.taz_list = np.unique(self.dfr_ntaz[f"{self.taz_leve}_no"].values)
+
+        print(self.taz_list)
+        np.savetxt('I:\\NTS\\outputs\\tour\\reports\\Intermediate Steps\\taz_list.csv', self.taz_list, delimiter=',')  # TEST
 
         # tmz to taz lookup, tmz -> taz
         if self.tmz_leve.lower() == self.taz_leve.lower():
@@ -98,11 +121,18 @@ class TourModel:
                 f"{self.taz_leve}_no"
             ]
 
+        self.df_ztaz = pd.DataFrame.from_dict([self.dct_ztaz])
+        self.df_ztaz.to_csv('I:\\NTS\\outputs\\tour\\reports\\Intermediate Steps\\df_ztaz.csv')  # TEST
+
         # names for tmz, taz columns from NTS (currently only allow region & ua1998)
+        # REVISIT when running at county level
         self.col_prod = "gor_id"
         if self.taz_leve == "region":
             self.col_tour = "HHoldGOR_B02ID"
             self.col_dist = {"o": "TripOrigGOR_B02ID", "d": "TripDestGOR_B02ID"}
+        elif self.taz_leve == "county":
+            self.col_tour = "HHoldCounty_B01ID"
+            self.col_dist = {"o": "TripOrigCounty_B01ID", "d": "TripDestCounty_B01ID"}
         else:
             self.col_tour = "HHoldUA_B01ID"
             self.col_dist = {"o": "TripOrigUA_B01ID", "d": "TripDestUA_B01ID"}
@@ -203,13 +233,18 @@ class TourModel:
         self.dfr_dist = self.dfr_dist.groupby(by=col_grby, observed=True).sum()
         self.dfr_dist = self.dfr_dist.reset_index()
         # tour
+
+        self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_before_overwrite_col_tour.csv')  # TEST
+
         self.dfr_tour = (
             self.dfr_tour.set_index(self.col_tour)
-            .rename(index=self.dct_ntaz)
-            .reset_index()
+                .rename(index=self.dct_ntaz)
+                .reset_index()
         )
         self.dfr_tour = self.dfr_tour.groupby(by=[self.col_tour, "tour_id"]).sum()
         self.dfr_tour = self.dfr_tour.reset_index()
+
+        self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_overwrite_col_tour.csv')  # TEST
 
     # MODE-TIME SPLIT
     def _calc_mts(self, col_used: str = "freq", for_test: bool = False):
@@ -281,6 +316,8 @@ class TourModel:
             f"account for {pct_incl:.2f}% of total NTS trips"
         )
 
+        self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_before_tour_id_process.csv')  # TEST
+
         # process tour_id, using frequency as 1 tour may consist of multiple trips
         est_tour, pool = [], mp.Pool(self.num_cpus)
         for tor in self.uni_tour:
@@ -292,6 +329,8 @@ class TourModel:
         pool.join()
         est_tour = [key.get() for key in est_tour]
         est_tour = pd.concat(est_tour, axis=1).fillna(0)
+
+        self.dfr_tour.to_csv(self.inter_step_out_folder + 'dfr_tour_after_tour_id_process.csv')  # TEST
 
         # calculate tour %split
         est_tour = est_tour.div(est_tour.sum(axis=1, numeric_only=True), axis=0).fillna(
@@ -313,7 +352,7 @@ class TourModel:
                 dfr_value = self.dfr_tour.loc[
                     (self.dfr_tour["tour_id"] == tor)
                     & (self.dfr_tour[self.col_tour] == taz)
-                ][col_used].values
+                    ][col_used].values
                 dfr_temp.append(
                     [taz, pp_first, dfr_value[0] if len(dfr_value) > 0 else 0]
                 )
@@ -417,7 +456,7 @@ class TourModel:
                                         taz_o, taz_d, ppx_next, dir_type, md, ts
                                     )
                                     tmz_trip = (
-                                        tmz_attr[leg - 1][tmz_o] * taz_dist * taz_fact
+                                            tmz_attr[leg - 1][tmz_o] * taz_dist * taz_fact
                                     )
                                     tmz_attr[leg][tmz_d] += tmz_trip
                                     dfr_temp.append(
@@ -448,7 +487,7 @@ class TourModel:
                                         taz_o, taz_d, pp_start, dir_type, md, ts
                                     )
                                     tmz_trip = (
-                                        tmz_attr[leg - 1][tmz_o] * taz_dist * taz_fact
+                                            tmz_attr[leg - 1][tmz_o] * taz_dist * taz_fact
                                     )
                                     dfr_temp.append(
                                         [
@@ -549,16 +588,16 @@ class TourModel:
         lev = len(col_grby)
         dfr = (
             dfr.set_index(col_grby)
-            .stack(future_stack=True)
-            .reset_index(name="val")
-            .rename(columns={f"level_{lev}": "period"})
+                .stack(future_stack=True)
+                .reset_index(name="val")
+                .rename(columns={f"level_{lev}": "period"})
         )
         dfr["period"] = dfr["period"].astype(int)
         return dfr.groupby(col_grby + ["period"])[["val"]].sum().reset_index()
 
     # internal function 1
     def _adjust_aggs(
-        self, csv_file: Union[pd.DataFrame, str], agg_type: str = "none"
+            self, csv_file: Union[pd.DataFrame, str], agg_type: str = "none"
     ) -> pd.DataFrame:
         """aggregate trip-end data to mode/time agnostics.
         agg_type:
@@ -570,14 +609,14 @@ class TourModel:
         if agg_type.lower() == "mode":
             dfr_data = (
                 dfr_data.groupby(by=[self.col_prod, "p", "tp"])[["val"]]
-                .sum()
-                .reset_index()
+                    .sum()
+                    .reset_index()
             )
         elif agg_type.lower() == "time":
             dfr_data = (
                 dfr_data.groupby(by=[self.col_prod, "p", "m"])[["val"]]
-                .sum()
-                .reset_index()
+                    .sum()
+                    .reset_index()
             )
         elif agg_type.lower() == "both":
             dfr_data = (
@@ -610,12 +649,12 @@ class TourModel:
 
     # internal function 3
     def _adjust_engine(
-        self,
-        ted_type: str,
-        dir_type: str,
-        dfr_data: pd.DataFrame,
-        col_2add: str,
-        csv_file: str,
+            self,
+            ted_type: str,
+            dir_type: str,
+            dfr_data: pd.DataFrame,
+            col_2add: str,
+            csv_file: str,
     ) -> pd.DataFrame:
         """
         adjust and produce prod/attr trip-ends by mode/time specific for DiMo
@@ -629,7 +668,7 @@ class TourModel:
         fun.log_stderr(f" .. {dir_type} ({ted_type}) trip-ends ...")
         est_trip = self.est_trip.loc[
             self.est_trip["direction"] == dir_type
-        ].reset_index(drop=True)
+            ].reset_index(drop=True)
         est_trip["purpose"] = (
             est_trip["purpose"].apply(lambda x: int(x[-1]))
             if dir_type in ["hb_fr", "nhb"]
@@ -639,8 +678,8 @@ class TourModel:
         tmz_type = "tmz_o" if ted_type in ["prod", "orig"] else "tmz_d"
         est_trip = (
             est_trip.groupby(by=[tmz_type, "mode", "purpose", "period"])[["trips"]]
-            .sum()
-            .reset_index()
+                .sum()
+                .reset_index()
         )
 
         # process input trip-end
@@ -722,8 +761,8 @@ class TourModel:
         )
         est_trip = (
             self.est_trip.set_index(["purpose"])
-            .rename(index=self._act_to_purp())
-            .reset_index()
+                .rename(index=self._act_to_purp())
+                .reset_index()
         )
 
         # p/a trip-ends
@@ -773,7 +812,7 @@ class TourModel:
         return self.dct_tour.get((taz_o, pp), {tour: 0})[tour]
 
     def _extract_mts(
-        self, taz_o: int, taz_d: int, pp: int, direction: str, md: int, time_start: int
+            self, taz_o: int, taz_d: int, pp: int, direction: str, md: int, time_start: int
     ) -> float:
         """
         mode-time probability: mts[i, j, p, d, m, t]
@@ -781,7 +820,7 @@ class TourModel:
         return self.dct_mode.get((taz_o, taz_d, pp, direction, md, time_start), 0)
 
     def _extract_dest(
-        self, taz_o: int, pp: int, direction: str, taz_d: int, taz_prop: float = 1
+            self, taz_o: int, pp: int, direction: str, taz_d: int, taz_prop: float = 1
     ) -> float:
         """
         destination probability: dest[i, p, d, j]
@@ -922,8 +961,8 @@ class MSOAtoNoRMS:
             ted_data = self._read_csv(ted)
             sum_pres = (
                 ted_data.groupby(["m", "p"])[["val"]]
-                .sum()
-                .rename(columns={"val": "pres"})
+                    .sum()
+                    .rename(columns={"val": "pres"})
             )
             ted_data = pd.merge(
                 tmz_tran, ted_data, how="left", on="msoa_zone_id", suffixes=("", "")
@@ -935,8 +974,8 @@ class MSOAtoNoRMS:
             # check
             sum_post = (
                 ted_data.groupby(["m", "p"])[["val"]]
-                .sum()
-                .rename(columns={"val": "post"})
+                    .sum()
+                    .rename(columns={"val": "post"})
             )
             sum_post = pd.concat([sum_pres, sum_post], axis=1)
             sum_post["diff"] = sum_post["post"] - sum_post["pres"]

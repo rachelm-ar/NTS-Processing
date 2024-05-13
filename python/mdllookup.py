@@ -773,7 +773,7 @@ class Lookup(BaseConfig):
     def lev_to_name(level: str = None) -> Dict:
         # get column names from level: tfn_at, county or gor
         if level is not None:
-            if level.lower() in ["county", "gor"]:
+            if level.lower() in ["county", "gor", 'ua1998']:
                 home = (
                     f"hhold{level}_b02id"
                     if level.lower() == "gor"

@@ -69,7 +69,7 @@ class Output:
                 nts_data, self.tfn_mode, "gor", ["aws", "sic", "soc"]
             )
             self._mts_attraction(nts_data, self.tfn_mode, "tfn_at", None)
-            self._activity(nts_data, None, "gor")
+            self._activity(nts_data, None, "ua1998")
 
         else:
             fun.log_stderr(f" .. skipped!")
