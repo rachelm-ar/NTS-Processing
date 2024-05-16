@@ -51,16 +51,16 @@ class TourModel:
         self.csv_dist = self.out_fldr / f"distribution_{nts_spec}.csv"
 
         # tmz to taz lookup, csv: tmz, taz
-        self.csv_ztaz = self.cfg.dir_import / "GOR_to_TAZ.csv"
+        self.csv_ztaz = self.cfg.dir_import / "County_to_TAZ.csv"
 
         # nts to taz lookup, csv: nts, taz
-        self.csv_ntaz = self.cfg.dir_import / "NTS_to_TAZ.csv"
+        self.csv_ntaz = self.cfg.dir_import / "NTS_to_TAZ_updated.csv"
 
         # mode-specific hb_production trip-end, csv: tmz_id, purpose, mode, trip
-        self.csv_prod = self.cfg.dir_import / "tripend" / "NTEM7_prod_gor.csv"
+        self.csv_prod = self.cfg.dir_import / "NTEM7_prod_county.csv"
 
         # mode-specific hb_attraction trip-end, csv: tmz_id, purpose, mode, trip
-        self.csv_attr = self.cfg.dir_import / "tripend" / "NTEM7_attr_gor.csv"
+        self.csv_attr = self.cfg.dir_import / "NTEM7_attr_county.csv"
 
     # READ DATA SPECS
     def _read_input(self):
@@ -99,13 +99,13 @@ class TourModel:
             ]
 
         # names for tmz, taz columns from NTS (currently only allow region & ua1998)
-        self.col_prod = "gor_id"
+        self.col_prod = "county_id"
         if self.taz_leve == "region":
             self.col_tour = "HHoldGOR_B02ID"
             self.col_dist = {"o": "TripOrigGOR_B02ID", "d": "TripDestGOR_B02ID"}
         else:
-            self.col_tour = "HHoldUA_B01ID"
-            self.col_dist = {"o": "TripOrigUA_B01ID", "d": "TripDestUA_B01ID"}
+            self.col_tour = "HHoldUA1998_B01ID"
+            self.col_dist = {"o": "TripOrigUA1998_B01ID", "d": "TripDestUA1998_B01ID"}
 
         # lower case for column names
         self.col_tour = self.col_tour.lower()
