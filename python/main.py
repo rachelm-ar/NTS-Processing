@@ -20,7 +20,7 @@ if __name__ == "__main__":
     main_fldr = r"I:\NTS"
 
     cfg = cfg.Config(main_fldr)
-    cb_version = "5_test"
+    cb_version = "v_14"
 
     # classified build
     ClassifiedBuild(data_fldr, main_fldr, cb_version, False)
