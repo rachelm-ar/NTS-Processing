@@ -208,12 +208,13 @@ class ClassifiedBuild:
         dfr.loc[mask, "trippurpfrom_b01id"] = dfr["trippurpto_b01id"].shift(
             fill_value=0
         )
-        dfr.loc[mask, "triporigcounty_b01id"] = dfr["tripdestcounty_b01id"].shift(
-            fill_value=0
-        )
-        dfr.loc[mask, "triporiggor_b02id"] = dfr["tripdestgor_b02id"].shift(
-            fill_value=0
-        )
+        # to do commented out until can be implemented at the UA level too
+        # dfr.loc[mask, "triporigcounty_b01id"] = dfr["tripdestcounty_b01id"].shift(
+        #     fill_value=0
+        # )
+        # dfr.loc[mask, "triporiggor_b02id"] = dfr["tripdestgor_b02id"].shift(
+        #     fill_value=0
+        # )
 
         # infill tripstart_b01id = tripend_b01id - 100 * int(triptravtime / 60)
         fun.log_stderr(" .. infill [tripstart_b01id]")
