@@ -17,15 +17,15 @@ class TourModel:
     comments = ["*", ";", "#"]
 
     def __init__(
-        self, nts_fldr: str, tmz_leve: str = "region", over_write: bool = True
+        self, nts_fldr: str, run_vers: str, tmz_leve: str = "region", over_write: bool = True
     ):
         # tmz_leve = region, county, or ua
         fun.log_stderr("\n***** NTS TOUR MODEL *****")
         self.cfg = mdlconfig.Config(nts_fldr)
         self.num_cpus = max(os.cpu_count() - 2, 1)
-        self.old_out_fldr = self.cfg.dir_output / self.cfg.fld_tour  # keep old out_fldr for reading in cb outputs
-        self.out_fldr = self.cfg.dir_output / "tour_3"  # new out_fldr directory to stop files being overwritten
-        self.fld_report, self.tmz_leve = self.cfg.fld_report, tmz_leve
+        self.imp_fldr = self.cfg.dir_output / self.cfg.fld_tour  # fldr where cb outputs are stored
+        self.out_fldr = self.cfg.dir_output / self.cfg.fld_tour  # out_fldr directory
+        self.fld_report, self.tmz_leve = self.cfg.fld_report + f'/{run_vers}', tmz_leve # versioning for reports fldr
 
         # read specs
         if over_write:
@@ -51,10 +51,10 @@ class TourModel:
         else:
             nts_spec = "ua1998"
         # activity, .csv: taz_p, tour_id, freq, trip
-        self.csv_tour = self.old_out_fldr / f"activity_{nts_spec}.csv"  # old_out_fldr to get cb outputs
+        self.csv_tour = self.imp_fldr / f"activity_{nts_spec}.csv"  # imp_fldr to get cb outputs
 
         # mode time split, .csv: taz_o, taz_d, main_mode, purpose, trip_direction, start_time, freq, trip
-        self.csv_dist = self.old_out_fldr / f"distribution_{nts_spec}.csv"  # old_out_fldr to get cb outputs
+        self.csv_dist = self.imp_fldr / f"distribution_{nts_spec}.csv"  # imp_fldr to get cb outputs
 
         # tmz to taz lookup, csv: tmz, taz
         self.csv_ztaz = self.cfg.dir_import / "County_to_TAZ.csv"
@@ -196,10 +196,10 @@ class TourModel:
     def _calc_rezone(self, agg_rail: bool = False):
         fun.log_stderr(f" .. prepare NTS data ...")
 
-        # save dfr_dist before calling acting on it
-        self.dfr_dist.to_csv(
-            self.out_fldr / self.fld_report / "dfr_dist.csv"
-        )
+        # # save dfr_dist before calling acting on it
+        # self.dfr_dist.to_csv(
+        #     self.out_fldr / self.fld_report / "dfr_dist.csv"
+        # )
 
         # mode-time split
         if agg_rail:
@@ -322,10 +322,10 @@ class TourModel:
             f"account for {pct_incl:.2f}% of total NTS trips"
         )
 
-        # save dfr_tour before calling _tour_breakdown
-        self.dfr_tour.to_csv(
-            self.out_fldr / self.fld_report / "dfr_tour.csv"
-        )
+        # # save dfr_tour before calling _tour_breakdown
+        # self.dfr_tour.to_csv(
+        #     self.out_fldr / self.fld_report / "dfr_tour.csv"
+        # )
 
         # process tour_id, using frequency as 1 tour may consist of multiple trips
         est_tour, pool = [], mp.Pool(self.num_cpus)
