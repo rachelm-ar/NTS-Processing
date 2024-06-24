@@ -71,6 +71,12 @@ class TourModel:
         # mode-specific hb_attraction trip-end, csv: tmz_id, purpose, mode, trip
         self.csv_attr = self.cfg.dir_import / "NTEM7_attr_county.csv"
 
+        # check for existence of output folder
+        if os.path.exists(self.out_fldr / self.fld_report):
+            fun.log_stderr("\nUser warning: Version already exists, will be overwritten!")
+        else:
+            os.makedirs(self.out_fldr / self.fld_report)
+
     # READ DATA SPECS
     def _read_input(self):
         fun.log_stderr("\nRead input data")
