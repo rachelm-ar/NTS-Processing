@@ -32,7 +32,7 @@ if __name__ == "__main__":
     Output(main_fldr, cb_version, False)
 
     # Tour Model
-    TourModel(main_fldr, "v4", "county", True)
+    TourModel(main_fldr, "v5", "county", True)
 
     # NTS stage analysis
     Stage(main_fldr, cb_version, False)

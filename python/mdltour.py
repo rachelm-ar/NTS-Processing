@@ -125,11 +125,13 @@ class TourModel:
         else:
             self.col_tour = "HHoldUA1998_B01ID"
             self.col_dist = {"o": "TripOrigUA1998_B01ID", "d": "TripDestUA1998_B01ID"}
+            self.col_dist_cty = {"o": "TripOrigCounty_B01ID", "d": "TripDestCounty_B01ID"}
 
         # lower case for column names
         self.col_tour = self.col_tour.lower()
         self.col_prod = self.col_prod.lower()
         self.col_dist = {key: self.col_dist[key].lower() for key in self.col_dist}
+        self.col_dist_cty = {key: self.col_dist_cty[key].lower() for key in self.col_dist_cty}
 
         self.nts_list = (
             self.dfr_tour[self.col_tour].unique(),
@@ -202,20 +204,38 @@ class TourModel:
     def _calc_rezone(self, agg_rail: bool = False):
         fun.log_stderr(f" .. prepare NTS data ...")
 
-        # # save dfr_dist before calling acting on it
-        # self.dfr_dist.to_csv(
-        #     self.out_fldr / self.fld_report / "dfr_dist.csv"
-        # )
-
         # mode-time split
         if agg_rail:
             self.dfr_dist.loc[
                 self.dfr_dist["mode"] == 7, "mode"
             ] = 6  # as input trip-ends combine 6 & 7
         col_indx = [self.col_dist["o"], self.col_dist["d"]]
-        self.dfr_dist = (
-            self.dfr_dist.set_index(col_indx).rename(index=self.dct_ntaz_ua).reset_index()
-        )
+
+        # if county level, need to replace invalid ua codes with county code
+        if self.tmz_leve == "county":
+            # specify the county columns to consider also
+            col_indx_cty = [self.col_dist_cty["o"], self.col_dist_cty["d"]]
+            # overwrite nts ua orig/dest columns per dct_ntaz_ua
+            # where dct_ntaz_ua is ua -> ntem county lookup
+            self.dfr_dist = (
+                self.dfr_dist.set_index(col_indx).rename(index=self.dct_ntaz_ua).reset_index()
+            )
+            # overwrite nts county orig/dest columns per dct_ntaz_cty
+            # where dct_ntaz_cty is nts county -> ntem county lookup
+            self.dfr_dist = (
+                self.dfr_dist.set_index(col_indx_cty).rename(index=self.dct_ntaz_cty).reset_index()
+            )
+            for i in range(2):
+                # get rows where overwritten hholdua1998_b01id is invalid (<0)
+                self.dfr_dist.loc[
+                    self.dfr_dist[col_indx[i]] < 0, col_indx[i]  # get rows where trip orig/dest ua1998_b01id < 0
+                ] = self.dfr_dist[col_indx_cty[i]]  # overwrite with values from trip orig/dest county_b01id
+
+        # else can replace based on tmz_leve only
+        else:
+            self.dfr_dist = (
+                self.dfr_dist.set_index(col_indx).rename(index=self.dct_ntaz_ua).reset_index()
+            )
         col_grby = [
             self.col_dist["o"],
             self.col_dist["d"],
