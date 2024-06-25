@@ -60,7 +60,7 @@ class TourModel:
         self.csv_ztaz = self.cfg.dir_import / "County_to_TAZ.csv"
 
         # nts ua to taz lookup, csv: nts, taz
-        self.csv_ntaz = self.cfg.dir_import / "NTS_to_TAZ_updated.csv"
+        self.csv_ntaz = self.cfg.dir_import / "NTS_to_TAZ.csv"
 
         # nts county to taz lookup
         self.csv_nctaz = self.cfg.dir_import / "nts_county_to_ntem_county.csv"
