@@ -17,14 +17,15 @@ class TourModel:
     comments = ["*", ";", "#"]
 
     def __init__(
-        self, nts_fldr: str, tmz_leve: str = "region", over_write: bool = True
+        self, nts_fldr: str, run_vers: str, tmz_leve: str = "region", over_write: bool = True
     ):
         # tmz_leve = region, county, or ua
         fun.log_stderr("\n***** NTS TOUR MODEL *****")
         self.cfg = mdlconfig.Config(nts_fldr)
         self.num_cpus = max(os.cpu_count() - 2, 1)
-        self.out_fldr = self.cfg.dir_output / self.cfg.fld_tour
-        self.fld_report, self.tmz_leve = self.cfg.fld_report, tmz_leve
+        self.imp_fldr = self.cfg.dir_output / self.cfg.fld_tour  # fldr where cb outputs are stored
+        self.out_fldr = self.cfg.dir_output / self.cfg.fld_tour  # out_fldr directory
+        self.fld_report, self.tmz_leve = self.cfg.fld_report + f'/{run_vers}', tmz_leve # versioning for reports fldr
 
         # read specs
         if over_write:
@@ -43,18 +44,26 @@ class TourModel:
 
     # SPECIFICATION
     def _specs(self):
-        nts_spec = "gor" if self.tmz_leve == "region" else "ua1998"
+        if self.tmz_leve == "region":
+            nts_spec = "gor"
+        elif self.tmz_leve == "county":
+            nts_spec = "UA_and_County"
+        else:
+            nts_spec = "ua1998"
         # activity, .csv: taz_p, tour_id, freq, trip
-        self.csv_tour = self.out_fldr / f"activity_{nts_spec}.csv"
+        self.csv_tour = self.imp_fldr / f"activity_{nts_spec}.csv"  # imp_fldr to get cb outputs
 
         # mode time split, .csv: taz_o, taz_d, main_mode, purpose, trip_direction, start_time, freq, trip
-        self.csv_dist = self.out_fldr / f"distribution_{nts_spec}.csv"
+        self.csv_dist = self.imp_fldr / f"distribution_{nts_spec}.csv"  # imp_fldr to get cb outputs
 
         # tmz to taz lookup, csv: tmz, taz
         self.csv_ztaz = self.cfg.dir_import / "County_to_TAZ.csv"
 
-        # nts to taz lookup, csv: nts, taz
-        self.csv_ntaz = self.cfg.dir_import / "NTS_to_TAZ_updated.csv"
+        # nts ua to taz lookup, csv: nts, taz
+        self.csv_ntaz = self.cfg.dir_import / "NTS_to_TAZ.csv"
+
+        # nts county to taz lookup
+        self.csv_nctaz = self.cfg.dir_import / "nts_county_to_ntem_county.csv"
 
         # mode-specific hb_production trip-end, csv: tmz_id, purpose, mode, trip
         self.csv_prod = self.cfg.dir_import / "NTEM7_prod_county.csv"
@@ -62,11 +71,18 @@ class TourModel:
         # mode-specific hb_attraction trip-end, csv: tmz_id, purpose, mode, trip
         self.csv_attr = self.cfg.dir_import / "NTEM7_attr_county.csv"
 
+        # check for existence of output folder
+        if os.path.exists(self.out_fldr / self.fld_report):
+            fun.log_stderr("\nUser warning: Version already exists, will be overwritten!")
+        else:
+            os.makedirs(self.out_fldr / self.fld_report)
+
     # READ DATA SPECS
     def _read_input(self):
         fun.log_stderr("\nRead input data")
         self.dfr_ztaz = self._read_csv(self.csv_ztaz)
         self.dfr_ntaz = self._read_csv(self.csv_ntaz)
+        self.dfr_nctaz = self._read_csv(self.csv_nctaz)
         self.dfr_tour = self._read_csv(self.csv_tour)
         self.dfr_dist = self._read_csv(self.csv_dist)
         self.dfr_prod = self._read_csv(self.csv_prod)
@@ -87,7 +103,10 @@ class TourModel:
             if self.taz_leve == "region"
             else self.dfr_ntaz["nts"]
         )
-        self.dct_ntaz = self.dfr_ntaz.set_index("nts").to_dict()[f"{self.taz_leve}_no"]
+        # get nts ua -> ntem county lookup as dict
+        self.dct_ntaz_ua = self.dfr_ntaz.set_index("nts").to_dict()[f"{self.taz_leve}_no"]
+        # get nts county -> ntem county lookup as dict
+        self.dct_ntaz_cty = self.dfr_nctaz.set_index("hholdcounty_b01id").to_dict()["ntem_county_no"]
         self.taz_list = np.unique(self.dfr_ntaz[f"{self.taz_leve}_no"].values)
 
         # tmz to taz lookup, tmz -> taz
@@ -106,11 +125,13 @@ class TourModel:
         else:
             self.col_tour = "HHoldUA1998_B01ID"
             self.col_dist = {"o": "TripOrigUA1998_B01ID", "d": "TripDestUA1998_B01ID"}
+            self.col_dist_cty = {"o": "TripOrigCounty_B01ID", "d": "TripDestCounty_B01ID"}
 
         # lower case for column names
         self.col_tour = self.col_tour.lower()
         self.col_prod = self.col_prod.lower()
         self.col_dist = {key: self.col_dist[key].lower() for key in self.col_dist}
+        self.col_dist_cty = {key: self.col_dist_cty[key].lower() for key in self.col_dist_cty}
 
         self.nts_list = (
             self.dfr_tour[self.col_tour].unique(),
@@ -182,15 +203,39 @@ class TourModel:
     # RE-ZONING FOR MODE-TIME-SPLIT
     def _calc_rezone(self, agg_rail: bool = False):
         fun.log_stderr(f" .. prepare NTS data ...")
+
         # mode-time split
         if agg_rail:
             self.dfr_dist.loc[
                 self.dfr_dist["mode"] == 7, "mode"
             ] = 6  # as input trip-ends combine 6 & 7
         col_indx = [self.col_dist["o"], self.col_dist["d"]]
-        self.dfr_dist = (
-            self.dfr_dist.set_index(col_indx).rename(index=self.dct_ntaz).reset_index()
-        )
+
+        # if county level, need to replace invalid ua codes with county code
+        if self.tmz_leve == "county":
+            # specify the county columns to consider also
+            col_indx_cty = [self.col_dist_cty["o"], self.col_dist_cty["d"]]
+            # overwrite nts ua orig/dest columns per dct_ntaz_ua
+            # where dct_ntaz_ua is ua -> ntem county lookup
+            self.dfr_dist = (
+                self.dfr_dist.set_index(col_indx).rename(index=self.dct_ntaz_ua).reset_index()
+            )
+            # overwrite nts county orig/dest columns per dct_ntaz_cty
+            # where dct_ntaz_cty is nts county -> ntem county lookup
+            self.dfr_dist = (
+                self.dfr_dist.set_index(col_indx_cty).rename(index=self.dct_ntaz_cty).reset_index()
+            )
+            for i in range(2):
+                # get rows where overwritten hholdua1998_b01id is invalid (<0)
+                self.dfr_dist.loc[
+                    self.dfr_dist[col_indx[i]] < 0, col_indx[i]  # get rows where trip orig/dest ua1998_b01id < 0
+                ] = self.dfr_dist[col_indx_cty[i]]  # overwrite with values from trip orig/dest county_b01id
+
+        # else can replace based on tmz_leve only
+        else:
+            self.dfr_dist = (
+                self.dfr_dist.set_index(col_indx).rename(index=self.dct_ntaz_ua).reset_index()
+            )
         col_grby = [
             self.col_dist["o"],
             self.col_dist["d"],
@@ -203,13 +248,35 @@ class TourModel:
         self.dfr_dist = self.dfr_dist.groupby(by=col_grby, observed=True).sum()
         self.dfr_dist = self.dfr_dist.reset_index()
         # tour
-        self.dfr_tour = (
-            self.dfr_tour.set_index(self.col_tour)
-            .rename(index=self.dct_ntaz)
-            .reset_index()
-        )
-        self.dfr_tour = self.dfr_tour.groupby(by=[self.col_tour, "tour_id"]).sum()
-        self.dfr_tour = self.dfr_tour.reset_index()
+        if self.tmz_leve == "county":
+            self.dfr_tour = (
+                self.dfr_tour.set_index(self.col_tour)  # overwrite hholdua1998_b01id per dct_ntaz_ua
+                    .rename(index=self.dct_ntaz_ua)  # dct_ntaz_ua is nts ua -> ntem county lookup
+                    .reset_index()
+            )
+            self.dfr_tour = (
+                self.dfr_tour.set_index('hholdcounty_b01id')  # overwrite hholdcounty_b01id per dct_ntaz_cty
+                    .rename(index=self.dct_ntaz_cty)  # dct_ntaz_cty
+                    .reset_index()
+            )
+            # get rows where overwritten hholdua1998_b01id is invalid (<0)
+            self.dfr_tour.loc[
+                self.dfr_tour[self.col_tour] < 0, self.col_tour  # get rows where hholdua1998_b01id < 0
+            ] = self.dfr_tour['hholdcounty_b01id']  # overwrite with values from hholdcounty_b01id
+            self.dfr_tour = self.dfr_tour.drop(  # drop hholdcounty_b01id to avoid grouping complications
+                columns=['hholdcounty_b01id']
+            )
+            # group on newly overwritten hholdua1998_b01id
+            self.dfr_tour = self.dfr_tour.groupby(by=[self.col_tour, "tour_id"]).sum()
+            self.dfr_tour = self.dfr_tour.reset_index()  # reset index
+        else:
+            self.dfr_tour = (
+                self.dfr_tour.set_index(self.col_tour)
+                    .rename(index=self.dct_ntaz_ua)
+                    .reset_index()
+            )
+            self.dfr_tour = self.dfr_tour.groupby(by=[self.col_tour, "tour_id"]).sum()
+            self.dfr_tour = self.dfr_tour.reset_index()
 
     # MODE-TIME SPLIT
     def _calc_mts(self, col_used: str = "freq", for_test: bool = False):
@@ -272,14 +339,19 @@ class TourModel:
         fun.log_stderr(f" .. filter tour_id with {val_incl}+ trips ...")
         col_used = "trip"  # for reporting purpose
         pct_incl = self.dfr_tour[col_used].sum()
-        dfr_temp = self.dfr_tour.groupby(by="tour_id")[col_used].transform("sum")
-        self.dfr_tour = self.dfr_tour.loc[dfr_temp > val_incl].reset_index(drop=True)
+        dfr_temp = self.dfr_tour.groupby(by="tour_id")[col_used].transform("sum")  # trips per tour_id (dfr_tour index)
+        self.dfr_tour = self.dfr_tour.loc[dfr_temp > val_incl].reset_index(drop=True)  # drop tour_ids with <10 trips
         self.uni_tour = np.unique(self.dfr_tour["tour_id"].values)
         pct_incl = 100 * self.dfr_tour[col_used].sum() / pct_incl
         fun.log_stderr(
             f"    {len(self.uni_tour)} tour_ids (with {val_incl}+ trips) selected, "
             f"account for {pct_incl:.2f}% of total NTS trips"
         )
+
+        # # save dfr_tour before calling _tour_breakdown
+        # self.dfr_tour.to_csv(
+        #     self.out_fldr / self.fld_report / "dfr_tour.csv"
+        # )
 
         # process tour_id, using frequency as 1 tour may consist of multiple trips
         est_tour, pool = [], mp.Pool(self.num_cpus)
