@@ -1,7 +1,5 @@
-from loguru import logger
 from datetime import datetime
 import pandas as pd
-import adlfs
 import os
 from typing import List
 from dataclasses import dataclass
@@ -26,7 +24,7 @@ class ChecksLogger:
         if self.log_file_name.split('.')[-1] != 'csv':
             self.log_file_name = self.log_file_name.split('.')[0] + '.csv'
 
-        self.path = logging_dir + '{self.log_file_name}'
+        self.path = os.path.join(logging_dir, self.log_file_name)
 
         if not self.__log_file_exists__():
             self.initialize_log()
@@ -66,12 +64,10 @@ class ChecksLogger:
         existing_logs = pd.read_csv(self.path).values.tolist()
         updated_logs = existing_logs + self.logs
         pd.DataFrame(updated_logs, columns=self.headers).to_csv(self.path, index=False)
-        self._run_log_entry()
 
         if flush:    
             self.logs = []
 
     def __log_file_exists__(self) -> bool:
         """Checks if the log file exists at the specified path."""
-        path = logging_dir + '{self.log_file_name}'
-        return os.path.isfile(path)
+        return os.path.isfile(self.path)
