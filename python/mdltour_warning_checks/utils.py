@@ -48,15 +48,15 @@ class ChecksLogger:
 
     def success(self, test_id: str, message: str):
         """Adds a success message to the current logs list."""
-        self.log(message, 'SUCCESS')
+        self.log(message, test_id, 'SUCCESS')
 
     def info(self, test_id: str, message: str):
         """Adds an info message to the current logs list."""
-        self.log(message, 'INFO')
+        self.log(message, test_id, 'INFO')
 
     def warning(self, test_id: str, message: str):
         """Adds a warning message to the current logs list."""
-        self.log(message, 'WARNING')
+        self.log(message, test_id, 'WARNING')
 
     def save_logs(self, flush: bool = True):
         """Appends the accumulated logs to the CSV file at the specified path."""
