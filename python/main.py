@@ -20,7 +20,7 @@ if __name__ == "__main__":
     main_fldr = r"I:\NTS"
 
     cfg = cfg.Config(main_fldr)
-    cb_version = "5_test"
+    cb_version = "v_14"
 
     # classified build
     ClassifiedBuild(data_fldr, main_fldr, cb_version, False)
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     Output(main_fldr, cb_version, False)
 
     # Tour Model
-    TourModel(main_fldr, "county", True)
+    TourModel(main_fldr, "v5", "county", True)
 
     # NTS stage analysis
     Stage(main_fldr, cb_version, False)
