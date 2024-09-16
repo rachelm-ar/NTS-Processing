@@ -14,13 +14,13 @@ mp.freeze_support()
 # main application
 if __name__ == "__main__":
     # This is the folder containing the tab files
-    data_fldr = r"F:\NTS\UKDA-7553-tab"
+    data_fldr = r"E:\NTS\UKDA-7553-tab_22"
 
     # This folder must contain imports
     main_fldr = r"I:\NTS"
 
-    cfg = cfg.Config(main_fldr)
-    cb_version = "v_14"
+    # cfg = cfg.Config(main_fldr)
+    cb_version = "v_15"
 
     # classified build
     ClassifiedBuild(data_fldr, main_fldr, cb_version, False)
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     Output(main_fldr, cb_version, False)
 
     # Tour Model
-    TourModel(main_fldr, "v5", "county", True)
+    TourModel(main_fldr, "v6", "county", True)
 
     # NTS stage analysis
     Stage(main_fldr, cb_version, False)

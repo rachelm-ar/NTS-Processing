@@ -31,14 +31,15 @@ class TourModel:
         if over_write:
             self._specs()
             self._read_input()
-            self._calc_prod()
-            self._calc_rezone(True)
-            self._calc_tour(10, True)
-            self._calc_mts("freq", True)
-            self._calc_dest("freq", True)
+            # self._calc_prod()
+            # self._calc_rezone(True)
+            # self._calc_tour(10, True)
+            # self._calc_mts("freq", True)
+            # self._calc_dest("freq", True)
             self._calc_trip_by_activity()
-            self._reports()
-            # self._adjust_tripend()
+            # self._reports()
+            self.dfr_prod = pd.read_csv(r"E:\NTS\tour\dfr_prod.csv")
+            self._adjust_tripend()
         else:
             fun.log_stderr(f" .. skipped!")
 
@@ -641,19 +642,19 @@ class TourModel:
         dfr_data = self._read_csv(csv_file) if type(csv_file) is str else csv_file
         if agg_type.lower() == "mode":
             dfr_data = (
-                dfr_data.groupby(by=[self.col_prod, "p", "tp"])[["val"]]
+                dfr_data.groupby(by=[self.col_prod, "purpose", "tp"])[["val"]]
                 .sum()
                 .reset_index()
             )
         elif agg_type.lower() == "time":
             dfr_data = (
-                dfr_data.groupby(by=[self.col_prod, "p", "m"])[["val"]]
+                dfr_data.groupby(by=[self.col_prod, "purpose", "m"])[["val"]]
                 .sum()
                 .reset_index()
             )
         elif agg_type.lower() == "both":
             dfr_data = (
-                dfr_data.groupby(by=[self.col_prod, "p"])[["val"]].sum().reset_index()
+                dfr_data.groupby(by=[self.col_prod, "purpose"])[["val"]].sum().reset_index()
             )
         return dfr_data
 
